@@ -347,7 +347,25 @@ class MLDocumentClassifier:
     def _get_target_doctype(self, doc_type):
         """Get target doctype for a document type"""
         try:
-            doc_type_config = frappe.get_doc("Doc2Sys Document Type", doc_type)
-            return doc_type_config.target_doctype
-        except:
+            # Query for Doc2Sys Document Type where document_type field matches
+            doc_types = frappe.get_all(
+                "Doc2Sys Document Type", 
+                filters={"document_type": doc_type},
+                fields=["target_doctype"]
+            )
+            
+            if doc_types:
+                return doc_types[0].target_doctype
+            
+            # If not found by document_type, try direct name lookup as fallback
+            # (This is the original approach but should rarely be needed)
+            try:
+                doc_type_config = frappe.get_doc("Doc2Sys Document Type", doc_type)
+                return doc_type_config.target_doctype
+            except:
+                pass
+                
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting target DocType: {str(e)}")
             return None

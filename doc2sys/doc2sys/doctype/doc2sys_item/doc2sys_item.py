@@ -75,36 +75,65 @@ class Doc2SysItem(Document):
             return "Unsupported file type for text extraction"
     
     def ml_process_document(self, text):
-        """Process document using ML/NLP"""
+        """Process document using ML/NLP or LLM"""
         try:
-            # Initialize ML classifier and NLP extractor
-            classifier = MLDocumentClassifier()
-            extractor = NLPDataExtractor()
+            # Check if LLM is enabled
+            use_llm = frappe.db.get_single_value("Doc2Sys Settings", "use_llm") or 0
             
-            # Classify document
-            classification = classifier.classify_document(text)
-            doc_type = classification["document_type"]
-            confidence = classification["confidence"]
-            target_doctype = classification["target_doctype"]
-            
-            # Save classification results
-            self.document_type = doc_type
-            self.classification_confidence = confidence
-            
-            # Extract structured data if document type was identified
-            if doc_type != "unknown":
-                # Extract data using NLP
-                extracted_data = extractor.extract_data(text, doc_type)
+            if use_llm:
+                from doc2sys.engine.llm_processor import DeepSeekProcessor
+                processor = DeepSeekProcessor()
                 
-                # Store extracted data
-                self.extracted_data = frappe.as_json(extracted_data)
+                # Classify document using LLM
+                classification = processor.classify_document(text)
+                doc_type = classification["document_type"]
+                confidence = classification["confidence"]
+                target_doctype = classification["target_doctype"]
                 
-                # Create ERPNext document if configured
-                if self.auto_create_documents and target_doctype:
-                    self.create_erpnext_document(target_doctype, extracted_data)
+                # Save classification results
+                self.document_type = doc_type
+                self.classification_confidence = confidence
+                
+                # Extract structured data if document type was identified
+                if doc_type != "unknown":
+                    # Extract data using LLM
+                    extracted_data = processor.extract_data(text, doc_type)
+                    
+                    # Store extracted data
+                    self.extracted_data = frappe.as_json(extracted_data)
+                    
+                    # Create ERPNext document if configured
+                    if self.auto_create_documents and target_doctype:
+                        self.create_erpnext_document(target_doctype, extracted_data)
+            else:
+                # Use traditional ML/NLP (existing code)
+                classifier = MLDocumentClassifier()
+                extractor = NLPDataExtractor()
+                
+                # Rest of your existing code...
+                classification = classifier.classify_document(text)
+                doc_type = classification["document_type"]
+                confidence = classification["confidence"]
+                target_doctype = classification["target_doctype"]
+                
+                # Save classification results
+                self.document_type = doc_type
+                self.classification_confidence = confidence
+                
+                # Extract structured data if document type was identified
+                if doc_type != "unknown":
+                    # Extract data using NLP
+                    extracted_data = extractor.extract_data(text, doc_type)
+                    
+                    # Store extracted data
+                    self.extracted_data = frappe.as_json(extracted_data)
+                    
+                    # Create ERPNext document if configured
+                    if self.auto_create_documents and target_doctype:
+                        self.create_erpnext_document(target_doctype, extracted_data)
         
         except Exception as e:
-            frappe.log_error(f"ML document processing error: {str(e)}")
+            frappe.log_error(f"Document processing error: {str(e)}")
     
     def create_erpnext_document(self, target_doctype, data):
         """Create an ERPNext document based on extracted data"""

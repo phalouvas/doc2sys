@@ -15,7 +15,11 @@
   "supported_file_types",
   "ocr_section",
   "ocr_enabled",
-  "ocr_languages"
+  "ocr_languages",
+  "llm_section",
+  "use_llm",
+  "llm_provider",
+  "deepseek_api_key"
  ],
  "fields": [
   {
@@ -84,6 +88,30 @@
    "label": "OCR Languages",
    "options": "Doc2Sys OCR Language",
    "description": "Languages to use for OCR (leave empty for English only)"
+  },
+  {
+   "fieldname": "llm_section",
+   "fieldtype": "Section Break",
+   "label": "LLM Integration"
+  },
+  {
+   "fieldname": "use_llm",
+   "fieldtype": "Check",
+   "label": "Use LLM for Processing",
+   "description": "Use Large Language Model instead of traditional ML/NLP"
+  },
+  {
+   "fieldname": "llm_provider",
+   "fieldtype": "Select",
+   "label": "LLM Provider",
+   "options": "DeepSeek\nOpenAI\nClaude",
+   "depends_on": "eval:doc.use_llm==1"
+  },
+  {
+   "fieldname": "deepseek_api_key",
+   "fieldtype": "Password",
+   "label": "DeepSeek API Key",
+   "depends_on": "eval:doc.use_llm==1 && doc.llm_provider=='DeepSeek'"
   }
  ],
  "index_web_pages_for_search": 1,
