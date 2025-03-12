@@ -15,6 +15,7 @@ logger = logging.getLogger('doc2sys.engine')
 
 def get_file_extension(file_path):
     """Get the extension of a file"""
+    import os
     _, extension = os.path.splitext(file_path)
     return extension.lower()[1:] if extension else ""
 
