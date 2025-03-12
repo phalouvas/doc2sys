@@ -4,6 +4,24 @@
 frappe.ui.form.on('Doc2Sys Item', {
     refresh: function(frm) {
         // Add custom buttons or functionality here
+        // Add Reprocess button if a document is attached
+        if(frm.doc.single_file) {
+            frm.add_custom_button(__('Reprocess Document'), function() {
+                frm.call({
+                    doc: frm.doc,
+                    method: 'reprocess_document',
+                    callback: function(r) {
+                        if(r.message) {
+                            frappe.show_alert({
+                                message: __('Document reprocessing completed'),
+                                indicator: 'green'
+                            }, 3);
+                            frm.refresh();
+                        }
+                    }
+                });
+            }, __('Actions'));
+        }
     },
     
     single_file: function(frm) {

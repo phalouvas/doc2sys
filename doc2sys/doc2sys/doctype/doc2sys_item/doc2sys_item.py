@@ -159,3 +159,52 @@ class Doc2SysItem(Document):
         except Exception as e:
             frappe.log_error(f"Error loading field mappings: {str(e)}")
             return {}
+
+    @frappe.whitelist()
+    def reprocess_document(self):
+        """Reprocess the attached document to extract and analyze text again"""
+        if not self.single_file:
+            frappe.msgprint("No document is attached to reprocess")
+            return
+        
+        try:
+            frappe.msgprint("Reprocessing document...")
+            
+            # Get the full file path from the attached file
+            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
+            if not file_doc:
+                frappe.msgprint("Could not find the attached file in the system")
+                return
+                
+            file_path = file_doc.get_full_path()
+            
+            # Initialize document processor with configuration
+            config = EngineConfig.from_settings()
+            processor = DocumentProcessor(config)
+            
+            # Process the document and extract text
+            result = processor.process_document(file_path)
+            
+            # Update the text_content field
+            if result and "extracted_text" in result:
+                # Get the full text, not just the truncated preview
+                extracted_text = self.get_full_extracted_text(file_path, processor)
+                self.text_content = extracted_text
+                
+                # Use NLP to classify and extract data
+                self.ml_process_document(extracted_text)
+                
+                # Save the document
+                self.save()
+                
+                # Add a message to notify the user
+                frappe.msgprint(f"Document reprocessed successfully: {os.path.basename(file_path)}")
+            else:
+                frappe.msgprint("No text could be extracted from the document during reprocessing")
+                
+        except ProcessingError as e:
+            frappe.log_error(f"Error reprocessing document: {str(e)}")
+            frappe.msgprint(f"Error reprocessing document: {str(e)}")
+        except Exception as e:
+            frappe.log_error(f"Unexpected error during reprocessing: {str(e)}")
+            frappe.msgprint(f"An unexpected error occurred while reprocessing the document")
