@@ -205,9 +205,16 @@ class DocumentProcessor:
             temp_txt_path = temp_file.name
         
         try:
-            # Run tesseract for OCR
+            # Run tesseract for OCR with configured languages
             output_base = os.path.splitext(temp_txt_path)[0]
-            cmd = ["tesseract", image_path, output_base, "-l", "eng"]
+            
+            # Join language codes with '+' for tesseract
+            lang_param = '+'.join(self.config.ocr_languages)
+            
+            # Build command with language parameter
+            cmd = ["tesseract", image_path, output_base, "-l", lang_param]
+            
+            self.logger.info(f"Running OCR with languages: {lang_param}")
             
             process = subprocess.run(
                 cmd,

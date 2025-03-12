@@ -12,7 +12,10 @@
   "output_format",
   "max_file_size_mb",
   "file_types_section",
-  "supported_file_types"
+  "supported_file_types",
+  "ocr_section",
+  "ocr_enabled",
+  "ocr_languages"
  ],
  "fields": [
   {
@@ -62,6 +65,25 @@
    "fieldtype": "Table",
    "label": "Supported File Types",
    "options": "Doc2Sys File Type"
+  },
+  {
+   "fieldname": "ocr_section",
+   "fieldtype": "Section Break",
+   "label": "OCR Settings"
+  },
+  {
+   "default": "1",
+   "fieldname": "ocr_enabled",
+   "fieldtype": "Check",
+   "label": "Enable OCR",
+   "description": "Enable Optical Character Recognition for images and scanned documents"
+  },
+  {
+   "fieldname": "ocr_languages",
+   "fieldtype": "Table",
+   "label": "OCR Languages",
+   "options": "Doc2Sys OCR Language",
+   "description": "Languages to use for OCR (leave empty for English only)"
   }
  ],
  "index_web_pages_for_search": 1,
