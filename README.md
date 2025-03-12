@@ -27,3 +27,7 @@ Languages: tesseract-ocr recognize more than 100 languages For Linux users, you 
 
 **Arch Linux users**
 `pacman -S tesseract-data-eng tesseract-data-deu` # Example: Install the English and German language packs
+
+### Install "Doc2Sys" app on ErpNext
+* `bench get-app --branch=master invoice2erpnext https://github.com/phalouvas/doc2sys.git`
+* `bench --site yoursite migrate`
