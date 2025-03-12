@@ -1,6 +1,6 @@
 ## Doc2Sys
 
-A document automation software that extracts data from various files (images, PDFs etc), validates them, and integrates them into accounting systems, deployable both in the cloud and on-premises.
+A document automation software that extracts data from various files (images, PDFs etc), validates them, and integrates them into accounting systems, deployable both in the cloud and on-premises. Uses machine learning and NLP for intelligent document classification and data extraction.
 
 #### License
 
@@ -56,3 +56,12 @@ Configure the languages in the Doc2Sys Settings page in ERPNext.
 The following Python dependencies will be installed automatically:
 * python-docx - For processing Microsoft Word documents
 * pdf2image - For converting PDF pages to images for OCR processing
+* spacy - Natural Language Processing library for intelligent document processing
+* scikit-learn - Machine learning library for document classification
+
+### ML Model Setup
+After installation, the system will download the required spaCy language models. As you process more documents, the system will learn and improve its classification accuracy.
+
+To train the ML classifier with your existing documents:
+* Go to Doc2Sys > Settings
+* Click "Train ML Classifier" button
