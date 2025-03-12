@@ -1,0 +1,38 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"CY630N6uA5\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Doc2Sys</span>\",\"col\":12}},{\"id\":\"2xNLR51FCv\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"D2s Item\",\"col\":3}}]",
+ "creation": "2025-03-12 07:15:45.789959",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "file-large",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Doc2Sys",
+ "links": [],
+ "modified": "2025-03-12 07:18:09.233160",
+ "modified_by": "Administrator",
+ "module": "Doc2Sys",
+ "name": "Doc2Sys",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 25.0,
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "D2s Item",
+   "link_to": "d2s_item",
+   "stats_filter": "[]",
+   "type": "DocType"
+  }
+ ],
+ "title": "Doc2Sys"
+}
