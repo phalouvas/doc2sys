@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"CY630N6uA5\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Doc2Sys</span>\",\"col\":12}},{\"id\":\"ahtoF9yO02\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Doc2sys Item\",\"col\":3}},{\"id\":\"qEtKEgu6Xi\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Doc2sys Settings\",\"col\":3}}]",
+ "content": "[{\"id\":\"CY630N6uA5\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Doc2Sys</span>\",\"col\":12}},{\"id\":\"ahtoF9yO02\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Doc2sys Item\",\"col\":3}},{\"id\":\"7SaA9i3pjw\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Doc2sys Document Type\",\"col\":3}},{\"id\":\"BrAlg8XL0-\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Doc2sys Field Mapping\",\"col\":3}},{\"id\":\"qEtKEgu6Xi\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Doc2sys Settings\",\"col\":3}}]",
  "creation": "2025-03-12 07:15:45.789959",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "Doc2Sys",
  "links": [],
- "modified": "2025-03-12 09:12:31.197229",
+ "modified": "2025-03-12 15:29:34.458441",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys",
@@ -36,8 +36,24 @@
   {
    "color": "Grey",
    "doc_view": "List",
+   "label": "Doc2sys Document Type",
+   "link_to": "Doc2Sys Document Type",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
    "label": "Doc2sys Settings",
    "link_to": "Doc2Sys Settings",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Doc2sys Field Mapping",
+   "link_to": "Doc2Sys Field Mapping",
+   "stats_filter": "[]",
    "type": "DocType"
   }
  ],

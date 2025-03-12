@@ -1,0 +1,105 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-03-12 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "document_type",
+  "enabled",
+  "keywords_section",
+  "keywords",
+  "required_fields",
+  "erpnext_integration_section",
+  "target_doctype",
+  "create_draft",
+  "extraction_fields_section",
+  "extraction_fields"
+ ],
+ "fields": [
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Document Type",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "keywords_section",
+   "fieldtype": "Section Break",
+   "label": "Classification"
+  },
+  {
+   "fieldname": "keywords",
+   "fieldtype": "Small Text",
+   "label": "Keywords",
+   "description": "Comma-separated keywords that identify this document type"
+  },
+  {
+   "fieldname": "required_fields",
+   "fieldtype": "Small Text",
+   "label": "Required Fields",
+   "description": "Comma-separated fields that must be present for this classification"
+  },
+  {
+   "fieldname": "erpnext_integration_section",
+   "fieldtype": "Section Break",
+   "label": "ERPNext Integration"
+  },
+  {
+   "fieldname": "target_doctype",
+   "fieldtype": "Link",
+   "label": "Target DocType",
+   "options": "DocType",
+   "description": "ERPNext DocType to create when this document type is detected"
+  },
+  {
+   "default": "1",
+   "fieldname": "create_draft",
+   "fieldtype": "Check",
+   "label": "Create as Draft",
+   "description": "Create documents as draft instead of submitting them automatically"
+  },
+  {
+   "fieldname": "extraction_fields_section",
+   "fieldtype": "Section Break",
+   "label": "Field Extraction"
+  },
+  {
+   "fieldname": "extraction_fields",
+   "fieldtype": "Table",
+   "label": "Extraction Fields",
+   "options": "Doc2Sys Extraction Field"
+  }
+ ],
+ "links": [],
+ "modified": "2025-03-12 00:00:01.000000",
+ "modified_by": "Administrator",
+ "module": "Doc2Sys",
+ "name": "Doc2Sys Document Type",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "title_field": "document_type"
+}

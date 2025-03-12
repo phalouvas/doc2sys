@@ -7,8 +7,17 @@
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
+  "document_section",
   "single_file",
-  "text_content"
+  "text_content",
+  "classification_section",
+  "document_type",
+  "classification_confidence",
+  "extracted_data",
+  "erpnext_section",
+  "auto_create_documents",
+  "erpnext_document_type",
+  "erpnext_document"
  ],
  "fields": [
   {
@@ -19,14 +28,70 @@
    "options": "D2S-ITM-.YYYY.-"
   },
   {
-   "fieldname": "text_content",
-   "fieldtype": "Long Text",
-   "label": "Text Content"
+   "fieldname": "document_section",
+   "fieldtype": "Section Break",
+   "label": "Document"
   },
   {
    "fieldname": "single_file",
    "fieldtype": "Attach",
    "label": "Single File"
+  },
+  {
+   "fieldname": "text_content",
+   "fieldtype": "Long Text",
+   "label": "Text Content",
+   "read_only": 1
+  },
+  {
+   "fieldname": "classification_section",
+   "fieldtype": "Section Break",
+   "label": "Classification"
+  },
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Link",
+   "label": "Document Type",
+   "options": "Doc2Sys Document Type"
+  },
+  {
+   "fieldname": "classification_confidence",
+   "fieldtype": "Float",
+   "label": "Confidence",
+   "precision": 2,
+   "read_only": 1
+  },
+  {
+   "fieldname": "extracted_data",
+   "fieldtype": "Code",
+   "label": "Extracted Data",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "erpnext_section",
+   "fieldtype": "Section Break",
+   "label": "ERPNext Integration"
+  },
+  {
+   "default": "0",
+   "fieldname": "auto_create_documents",
+   "fieldtype": "Check",
+   "label": "Auto-Create Documents"
+  },
+  {
+   "fieldname": "erpnext_document_type",
+   "fieldtype": "Link",
+   "label": "ERPNext DocType",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "erpnext_document",
+   "fieldtype": "Dynamic Link",
+   "label": "ERPNext Document",
+   "options": "erpnext_document_type",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

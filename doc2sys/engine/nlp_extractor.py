@@ -47,6 +47,11 @@ class NLPDataExtractor:
         """Load custom extraction patterns from settings"""
         patterns = {}
         try:
+            # Check if DocType exists first
+            if not frappe.db.exists("DocType", "Doc2Sys Extraction Field"):
+                self.logger.warning("Doc2Sys Extraction Field DocType doesn't exist yet")
+                return {}
+                
             # Get patterns from Doc2Sys Extraction Field
             fields = frappe.get_all("Doc2Sys Extraction Field",
                                   fields=["field_name", "regex_pattern", "parent_document_type"])

@@ -58,16 +58,27 @@ class MLDocumentClassifier:
             return None
             
         try:
-            # Load medium-sized English model
+            # First try loading the medium-sized model
+            self.logger.info("Attempting to load spaCy model: en_core_web_md")
             return spacy.load("en_core_web_md")
         except Exception as e:
-            self.logger.error(f"Error loading spaCy model: {str(e)}")
-            # Try to fallback to small model
+            self.logger.error(f"Error loading medium spaCy model: {str(e)}")
+            
+            # Try loading from direct path if installed via pip
             try:
-                return spacy.load("en_core_web_sm")
-            except:
-                self.logger.error("Failed to load any spaCy model")
-                return None
+                self.logger.info("Attempting to load spaCy model from pip package")
+                return spacy.load("en-core-web-md")
+            except Exception:
+                # Try loading small model as fallback
+                try:
+                    self.logger.info("Attempting to load small spaCy model as fallback")
+                    return spacy.load("en_core_web_sm")
+                except Exception as e2:
+                    self.logger.error(f"Failed to load any spaCy model: {str(e2)}")
+                    
+                    # Last resort - load blank model
+                    self.logger.info("Loading blank spaCy model as last resort")
+                    return spacy.blank("en")
     
     def _load_classifier(self):
         """Load or create document classifier"""
@@ -88,8 +99,15 @@ class MLDocumentClassifier:
     
     def _get_model_path(self):
         """Get path for storing the model"""
-        site_name = frappe.local.site
-        return os.path.join(frappe.get_site_path("private", "files", "doc2sys_classifier.pkl", site=site_name))
+        try:
+            # Use the current site context
+            return os.path.join(frappe.get_site_path("private", "files", "doc2sys_classifier.pkl"))
+        except Exception as e:
+            # Fallback if there's an error
+            self.logger.error(f"Error getting model path: {str(e)}")
+            site_name = frappe.local.site
+            return os.path.join(frappe.utils.get_bench_path(), "sites", site_name, 
+                              "private", "files", "doc2sys_classifier.pkl")
     
     def _create_classifier(self):
         """Create a new document classifier"""
@@ -97,18 +115,72 @@ class MLDocumentClassifier:
             return None
             
         # Create a pipeline with TF-IDF and linear SVM
-        return Pipeline([
+        classifier = Pipeline([
             ('tfidf', TfidfVectorizer(max_features=10000, ngram_range=(1, 2))),
             ('clf', OneVsRestClassifier(LinearSVC()))
         ])
+        
+        # Try to train the classifier immediately with any available data
+        try:
+            # Get existing document types to create a minimal training set
+            doc_types = frappe.get_all("Doc2Sys Document Type", 
+                                      fields=["document_type", "keywords"],
+                                      filters={"enabled": 1})
+            
+            # If we have some document types, create a minimal synthetic dataset
+            if doc_types:
+                self.logger.info("Creating initial training data from document types")
+                
+                # Create synthetic training data from the keywords
+                train_texts = []
+                train_labels = []
+                
+                for dt in doc_types:
+                    if dt.keywords:
+                        keywords = [k.strip() for k in dt.keywords.split(',') if k.strip()]
+                        if keywords:
+                            # Use the keywords as training examples
+                            for kw in keywords:
+                                train_texts.append(f"Document containing {kw}")
+                                train_labels.append(dt.document_type)
+                            
+                            # Add a synthetic document with all keywords
+                            train_texts.append(" ".join(keywords))
+                            train_labels.append(dt.document_type)
+                
+                # Train with synthetic data if we have examples
+                if train_texts and train_labels:
+                    classifier.fit(train_texts, train_labels)
+                    self.logger.info(f"Initialized classifier with {len(train_texts)} synthetic examples")
+        except Exception as e:
+            self.logger.error(f"Error creating initial training data: {str(e)}")
+        
+        return classifier
     
     def train_classifier(self):
         """Train the document classifier with available data"""
         if not SKLEARN_AVAILABLE or not NUMPY_AVAILABLE:
-            self.logger.warning("Training skipped: Required ML dependencies are not available")
+            self.logger.warning("ML libraries not available, can't train classifier")
             return False
-        
+            
         try:
+            # Check if the required DocTypes exist
+            if not frappe.db.exists("DocType", "Doc2Sys Item") or not frappe.db.exists("DocType", "Doc2Sys Document Type"):
+                self.logger.warning("Required DocTypes don't exist yet, can't train classifier")
+                return False
+                
+            # Check if document_type field exists in Doc2Sys Item
+            has_document_type = False
+            try:
+                meta = frappe.get_meta("Doc2Sys Item")
+                has_document_type = meta.has_field("document_type")
+            except:
+                has_document_type = False
+                
+            if not has_document_type:
+                self.logger.warning("Doc2Sys Item doesn't have document_type field yet")
+                return False
+                
             # Get training data from Doc2Sys Item with known document types
             items = frappe.get_all(
                 "Doc2Sys Item", 
@@ -130,6 +202,12 @@ class MLDocumentClassifier:
             
             # Save the model
             model_path = self._get_model_path()
+            model_dir = os.path.dirname(model_path)
+            
+            # Ensure directory exists
+            if not os.path.exists(model_dir):
+                os.makedirs(model_dir, exist_ok=True)
+
             with open(model_path, 'wb') as f:
                 pickle.dump(self.classifier, f)
             
@@ -154,6 +232,27 @@ class MLDocumentClassifier:
         if not SKLEARN_AVAILABLE or not NUMPY_AVAILABLE:
             return self._basic_classification(text)
             
+        # Check if classifier exists and is trained
+        if self.classifier is None:
+            self.logger.warning("Classifier not initialized, falling back to rule-based classification")
+            return self._basic_classification(text)
+        
+        # Check if the classifier has been fitted (trained)
+        try:
+            # This is a simple check to see if the classifier has been trained
+            # If it has classes_ attribute, it's likely been trained
+            if not hasattr(self.classifier, 'classes_') or not self.classifier.classes_.size:
+                self.logger.warning("Classifier not trained yet, attempting to train now")
+                
+                # Try to train the classifier with available data
+                trained = self.train_classifier()
+                if not trained:
+                    self.logger.warning("Could not train classifier, falling back to rule-based classification")
+                    return self._basic_classification(text)
+        except Exception as e:
+            self.logger.error(f"Error checking classifier training state: {str(e)}")
+            return self._basic_classification(text)
+        
         # Process text with spaCy for feature extraction
         if self.nlp:
             doc = self.nlp(text[:100000])  # Limit text size for performance
@@ -201,43 +300,49 @@ class MLDocumentClassifier:
     
     def _basic_classification(self, text):
         """Basic rule-based classification when ML isn't available"""
-        # Get document types from settings
-        doc_types = frappe.get_all("Doc2Sys Document Type", 
-                                  fields=["document_type", "keywords", "target_doctype"],
-                                  filters={"enabled": 1})
-        
-        best_match = None
-        best_score = 0
-        text_lower = text.lower()
-        
-        for dt in doc_types:
-            if not dt.keywords:
-                continue
+        try:
+            # Check if Doc2Sys Document Type exists
+            if frappe.db.exists("DocType", "Doc2Sys Document Type"):
+                # Get document types from settings
+                doc_types = frappe.get_all("Doc2Sys Document Type", 
+                                          fields=["document_type", "keywords", "target_doctype"],
+                                          filters={"enabled": 1})
                 
-            keywords = [k.strip().lower() for k in dt.keywords.split(",") if k.strip()]
-            if not keywords:
-                continue
+                best_match = None
+                best_score = 0
+                text_lower = text.lower()
                 
-            # Count keyword matches
-            matches = sum(1 for kw in keywords if kw in text_lower)
-            score = matches / len(keywords) if len(keywords) > 0 else 0
-            
-            if score > best_score:
-                best_score = score
-                best_match = {
-                    "document_type": dt.document_type,
-                    "confidence": score,
-                    "target_doctype": dt.target_doctype
-                }
+                for dt in doc_types:
+                    if not dt.keywords:
+                        continue
+                        
+                    keywords = [k.strip().lower() for k in dt.keywords.split(",") if k.strip()]
+                    if not keywords:
+                        continue
+                        
+                    # Count keyword matches
+                    matches = sum(1 for kw in keywords if kw in text_lower)
+                    score = matches / len(keywords) if len(keywords) > 0 else 0
+                    
+                    if score > best_score:
+                        best_score = score
+                        best_match = {
+                            "document_type": dt.document_type,
+                            "confidence": score,
+                            "target_doctype": dt.target_doctype
+                        }
+                
+                if best_match:
+                    return best_match
+        except Exception as e:
+            self.logger.error(f"Error in basic classification: {str(e)}")
         
-        if best_match:
-            return best_match
-        else:
-            return {
-                "document_type": "unknown",
-                "confidence": 0.0,
-                "target_doctype": None
-            }
+        # Default return if no match or error
+        return {
+            "document_type": "unknown",
+            "confidence": 0.0,
+            "target_doctype": None
+        }
     
     def _get_target_doctype(self, doc_type):
         """Get target doctype for a document type"""
