@@ -12,6 +12,13 @@ from .config import EngineConfig
 from .utils import logger, get_file_extension, is_supported_file_type
 from .exceptions import ProcessingError, UnsupportedDocumentError
 
+# Import conditional - will be used if available
+try:
+    from pdf2image import convert_from_path
+    PDF2IMAGE_AVAILABLE = True
+except ImportError:
+    PDF2IMAGE_AVAILABLE = False
+
 class DocumentProcessor:
     """
     Core document processing class that handles document transformation
@@ -137,7 +144,7 @@ class DocumentProcessor:
             # If text is empty and OCR is enabled, try OCR instead
             if not text.strip() and self.config.ocr_enabled:
                 self.logger.info(f"No text found in PDF, attempting OCR: {pdf_path}")
-                return self._extract_text_with_ocr(pdf_path)
+                return self._extract_text_from_pdf_with_ocr(pdf_path)
                 
             return text
         except subprocess.CalledProcessError as e:
@@ -147,6 +154,43 @@ class DocumentProcessor:
             # Clean up temporary file
             if os.path.exists(temp_txt_path):
                 os.unlink(temp_txt_path)
+    
+    def _extract_text_from_pdf_with_ocr(self, pdf_path):
+        """Extract text from a PDF using OCR by converting to images first"""
+        if not self.config.ocr_enabled:
+            self.logger.warning("OCR is disabled in settings")
+            return ""
+            
+        if not PDF2IMAGE_AVAILABLE:
+            self.logger.error("pdf2image library not installed")
+            raise ProcessingError("pdf2image library is required to process image-only PDFs")
+            
+        self.logger.info(f"Converting PDF to images for OCR: {pdf_path}")
+        
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Convert PDF pages to images
+                images = convert_from_path(
+                    pdf_path,
+                    output_folder=temp_dir,
+                    fmt='png',
+                    dpi=300  # Higher DPI for better OCR results
+                )
+                
+                all_text = []
+                
+                # Process each page image with OCR
+                for i, img_path in enumerate(sorted([os.path.join(temp_dir, f) for f in os.listdir(temp_dir) if f.endswith('.png')])):
+                    self.logger.info(f"Processing PDF page {i+1} with OCR")
+                    page_text = self._extract_text_with_ocr(img_path)
+                    all_text.append(f"--- Page {i+1} ---\n{page_text}")
+                
+                # Combine text from all pages
+                return "\n\n".join(all_text)
+                
+        except Exception as e:
+            self.logger.error(f"Error in PDF OCR processing: {str(e)}")
+            raise ProcessingError(f"Failed to process PDF with OCR: {str(e)}")
     
     def _extract_text_with_ocr(self, image_path):
         """Extract text from images using Tesseract OCR"""

@@ -37,3 +37,4 @@ Languages: tesseract-ocr recognize more than 100 languages For Linux users, you 
 ### Python Dependencies
 The following Python dependencies will be installed automatically:
 * python-docx - For processing Microsoft Word documents
+* pdf2image - For converting PDF pages to images for OCR processing
