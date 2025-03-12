@@ -48,21 +48,31 @@ class NLPDataExtractor:
         patterns = {}
         try:
             # Check if DocType exists first
-            if not frappe.db.exists("DocType", "Doc2Sys Extraction Field"):
-                self.logger.warning("Doc2Sys Extraction Field DocType doesn't exist yet")
+            if not frappe.db.exists("DocType", "Doc2Sys Extraction Field") or not frappe.db.exists("DocType", "Doc2Sys Document Type"):
+                self.logger.warning("Required DocTypes don't exist yet")
                 return {}
                 
-            # Get patterns from Doc2Sys Extraction Field
-            fields = frappe.get_all("Doc2Sys Extraction Field",
-                                  fields=["field_name", "regex_pattern", "parent_document_type"])
+            # Get all document types
+            doc_types = frappe.get_all("Doc2Sys Document Type", 
+                                      fields=["name", "document_type"])
             
-            for field in fields:
-                if field.regex_pattern:
-                    doc_type = field.parent_document_type
-                    if doc_type not in patterns:
-                        patterns[doc_type] = {}
-                    patterns[doc_type][field.field_name] = field.regex_pattern
-                    
+            # For each document type, get its extraction fields
+            for dt in doc_types:
+                doc_type_name = dt.name
+                doc_type = dt.document_type
+                
+                # Get extraction fields for this document type
+                fields = frappe.get_all("Doc2Sys Extraction Field",
+                                      filters={"parent": doc_type_name},
+                                      fields=["field_name", "regex_pattern"])
+                
+                # If we have fields, add them to our patterns dictionary
+                if fields:
+                    patterns[doc_type] = {}
+                    for field in fields:
+                        if field.regex_pattern:
+                            patterns[doc_type][field.field_name] = field.regex_pattern
+                
             return patterns
         except Exception as e:
             self.logger.error(f"Error loading custom patterns: {str(e)}")
