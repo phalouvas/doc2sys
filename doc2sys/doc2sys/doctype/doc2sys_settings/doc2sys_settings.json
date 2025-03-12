@@ -1,22 +1,73 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2025-03-12 07:32:26.754317",
+ "creation": "2025-03-12 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_usis"
+  "general_settings_section",
+  "temp_dir",
+  "ocr_enabled",
+  "column_break_4",
+  "output_format",
+  "max_file_size_mb",
+  "file_types_section",
+  "supported_file_types"
  ],
  "fields": [
   {
-   "fieldname": "section_break_usis",
-   "fieldtype": "Section Break"
+   "fieldname": "general_settings_section",
+   "fieldtype": "Section Break",
+   "label": "General Settings"
+  },
+  {
+   "default": "/tmp/doc2sys",
+   "fieldname": "temp_dir",
+   "fieldtype": "Data",
+   "label": "Temporary Directory",
+   "description": "Directory where temporary files will be stored during processing"
+  },
+  {
+   "default": "1",
+   "fieldname": "ocr_enabled",
+   "fieldtype": "Check",
+   "label": "Enable OCR",
+   "description": "Enable Optical Character Recognition for images and scanned documents"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "json",
+   "fieldname": "output_format",
+   "fieldtype": "Select",
+   "label": "Output Format",
+   "options": "json\nxml\ncsv"
+  },
+  {
+   "default": "10",
+   "fieldname": "max_file_size_mb",
+   "fieldtype": "Int",
+   "label": "Maximum File Size (MB)",
+   "description": "Maximum allowed file size in megabytes"
+  },
+  {
+   "fieldname": "file_types_section",
+   "fieldtype": "Section Break",
+   "label": "File Types"
+  },
+  {
+   "fieldname": "supported_file_types",
+   "fieldtype": "Table",
+   "label": "Supported File Types",
+   "options": "Doc2Sys File Type"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-03-12 07:32:26.754317",
+ "modified": "2025-03-12 00:00:01.000000",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Settings",
@@ -35,5 +86,6 @@
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1
 }

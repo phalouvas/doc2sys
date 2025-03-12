@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"CY630N6uA5\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Doc2Sys</span>\",\"col\":12}},{\"id\":\"2xNLR51FCv\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"D2s Item\",\"col\":3}}]",
+ "content": "[{\"id\":\"CY630N6uA5\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Doc2Sys</span>\",\"col\":12}},{\"id\":\"2xNLR51FCv\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"D2s Item\",\"col\":3}},{\"id\":\"qEtKEgu6Xi\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Doc2sys Settings\",\"col\":3}}]",
  "creation": "2025-03-12 07:15:45.789959",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "Doc2Sys",
  "links": [],
- "modified": "2025-03-12 07:18:09.233160",
+ "modified": "2025-03-12 07:40:45.327974",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys",
@@ -31,6 +31,13 @@
    "label": "D2s Item",
    "link_to": "d2s_item",
    "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Doc2sys Settings",
+   "link_to": "Doc2Sys Settings",
    "type": "DocType"
   }
  ],

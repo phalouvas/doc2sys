@@ -3,11 +3,6 @@
 
 import frappe
 from frappe.model.document import Document
-import os
-from typing import Any
-from typing import Dict
-from typing import Optional
 
-
-class d2s_item(Document):
-	pass
+class Doc2SysFileType(Document):
+    pass
