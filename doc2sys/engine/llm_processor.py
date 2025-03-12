@@ -72,6 +72,7 @@ class OllamaProcessor:
             # Call Ollama API
             response = requests.post(
                 f"{self.endpoint}/api/chat",
+                headers={ "Content-Type": "application/json" },
                 json={
                     "model": self.model,
                     "messages": [
