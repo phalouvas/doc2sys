@@ -83,7 +83,7 @@ app_license = "gpl-3.0"
 # ------------
 
 # before_install = "doc2sys.install.before_install"
-# after_install = "doc2sys.install.after_install"
+after_install = "doc2sys.setup.install.after_install"
 
 # Uninstallation
 # ------------
@@ -241,4 +241,3 @@ app_license = "gpl-3.0"
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
-
