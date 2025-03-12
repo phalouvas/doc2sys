@@ -81,8 +81,10 @@ class Doc2SysItem(Document):
             use_llm = frappe.db.get_single_value("Doc2Sys Settings", "use_llm") or 0
             
             if use_llm:
-                from doc2sys.engine.llm_processor import DeepSeekProcessor
-                processor = DeepSeekProcessor()
+                from doc2sys.engine.llm_processor import LLMProcessor
+                
+                # Use the factory method to get the appropriate processor
+                processor = LLMProcessor.create()
                 
                 # Classify document using LLM
                 classification = processor.classify_document(text)

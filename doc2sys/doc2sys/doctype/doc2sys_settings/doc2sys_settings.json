@@ -19,7 +19,9 @@
   "llm_section",
   "use_llm",
   "llm_provider",
-  "deepseek_api_key"
+  "deepseek_api_key",
+  "ollama_endpoint",
+  "ollama_model"
  ],
  "fields": [
   {
@@ -104,7 +106,7 @@
    "fieldname": "llm_provider",
    "fieldtype": "Select",
    "label": "LLM Provider",
-   "options": "DeepSeek\nOpenAI\nClaude",
+   "options": "DeepSeek\nOllama\nOpenAI\nClaude",
    "depends_on": "eval:doc.use_llm==1"
   },
   {
@@ -112,6 +114,20 @@
    "fieldtype": "Password",
    "label": "DeepSeek API Key",
    "depends_on": "eval:doc.use_llm==1 && doc.llm_provider=='DeepSeek'"
+  },
+  {
+   "fieldname": "ollama_endpoint",
+   "fieldtype": "Data",
+   "label": "Ollama Endpoint",
+   "default": "http://localhost:11434",
+   "depends_on": "eval:doc.use_llm==1 && doc.llm_provider=='Ollama'"
+  },
+  {
+   "fieldname": "ollama_model",
+   "fieldtype": "Data",
+   "label": "Ollama Model",
+   "default": "llama3",
+   "depends_on": "eval:doc.use_llm==1 && doc.llm_provider=='Ollama'"
   }
  ],
  "index_web_pages_for_search": 1,
