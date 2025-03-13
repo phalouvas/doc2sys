@@ -38,8 +38,8 @@ class Doc2SysItem(Document):
                 
                 # Update the text_content field
                 if result and "extracted_text" in result:
-                    # Get the full text, not just the truncated preview
-                    extracted_text = self.get_full_extracted_text(file_path, processor)
+                    # Extract the full text using the processor's extract_text method
+                    extracted_text = processor.extract_text(file_path)
                     self.text_content = extracted_text
                     
                     # Use NLP to classify and extract data
@@ -56,29 +56,6 @@ class Doc2SysItem(Document):
             except Exception as e:
                 frappe.log_error(f"Unexpected error: {str(e)}")
                 frappe.msgprint(f"An unexpected error occurred while processing the document")
-    
-    def get_full_extracted_text(self, file_path, processor):
-        """Get the full extracted text from a document"""
-        file_ext = os.path.splitext(file_path)[1].lower()[1:]
-        
-        # Extract raw text based on file type
-        if file_ext == 'pdf':
-            raw_text = processor._extract_text_from_pdf(file_path)
-        elif file_ext in ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp']:
-            raw_text = processor._extract_text_with_ocr(file_path)
-        elif file_ext in ['txt', 'md', 'csv']:
-            raw_text = processor._extract_text_from_text_file(file_path)
-        elif file_ext in ['docx']:
-            raw_text = processor._extract_text_from_docx(file_path)
-        else:
-            return "Unsupported file type for text extraction"
-        
-        # Clean up the text by removing multiple spaces and newlines
-        import re
-        cleaned_text = re.sub(r'\n+', '\n', raw_text)  # Replace multiple newlines with single newline
-        cleaned_text = re.sub(r' +', ' ', cleaned_text)  # Replace multiple spaces with single space
-        
-        return cleaned_text.strip()
     
     def ml_process_document(self, text):
         """Process document using ML/NLP or LLM"""
@@ -144,8 +121,8 @@ class Doc2SysItem(Document):
             
             # Update the text_content field
             if result and "extracted_text" in result:
-                # Get the full text, not just the truncated preview
-                extracted_text = self.get_full_extracted_text(file_path, processor)
+                # Extract the full text using the processor's extract_text method
+                extracted_text = processor.extract_text(file_path)
                 self.text_content = extracted_text
                 
                 # Use NLP to classify and extract data
