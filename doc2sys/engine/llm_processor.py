@@ -149,12 +149,23 @@ class OllamaProcessor:
         text_for_api = text[:10000]
         
         try:
-            # Create prompt for data extraction
-            prompt = f"""
-            Identify the json structure of an erpnext {document_type} doctype. Then based on below text extract the relevant data and present to me only the extracted data.
+            # Get the custom prompt from the document type
+            custom_prompt = frappe.db.get_value(
+                "Doc2Sys Document Type", 
+                {"document_type": document_type}, 
+                "extract_data_prompt"
+            )
             
-            {text_for_api}
-            """
+            # Use custom prompt if available, otherwise use default
+            if custom_prompt:
+                prompt = f"{custom_prompt}\n\n{text_for_api}"
+            else:
+                # Fallback to default prompt
+                prompt = f"""
+                Identify the json structure of an erpnext {document_type} doctype. Then based on below text extract the relevant data and present to me only the extracted data.
+                
+                {text_for_api}
+                """
             
             # Call Ollama API
             response = requests.post(
@@ -163,7 +174,7 @@ class OllamaProcessor:
                 json={
                     "model": self.model,
                     "messages": [
-                        {"role": "system", "content": "You are a document information extraction assistant. Always respond in JSON."},
+                        {"role": "system", "content": "You are an AI language model. Always respond in JSON."},
                         {"role": "user", "content": prompt}
                     ],
                     "stream": False,
@@ -336,23 +347,34 @@ class DeepSeekProcessor:
         text_for_api = text[:8000]
         
         try:
-            # Create prompt for data extraction
-            prompt = f"""
-            Extract all relevant information from the following {document_type} document.
+            # Get the custom prompt from the document type
+            custom_prompt = frappe.db.get_value(
+                "Doc2Sys Document Type", 
+                {"document_type": document_type}, 
+                "extract_data_prompt"
+            )
             
-            Document text:
-            {text_for_api}
-            
-            Respond in JSON format only with the extracted fields.
-            For example:
-            {{
-                "field1": "value1",
-                "field2": "value2",
-                ...
-            }}
-            
-            Only include fields where you found values. If a field can't be found, omit it.
-            """
+            # Use custom prompt if available, otherwise use default
+            if custom_prompt:
+                prompt = f"{custom_prompt}\n\n{text_for_api}"
+            else:
+                # Fallback to default prompt
+                prompt = f"""
+                Extract all relevant information from the following {document_type} document.
+                
+                Document text:
+                {text_for_api}
+                
+                Respond in JSON format only with the extracted fields.
+                For example:
+                {{
+                    "field1": "value1",
+                    "field2": "value2",
+                    ...
+                }}
+                
+                Only include fields where you found values. If a field can't be found, omit it.
+                """
             
             # Call DeepSeek API
             response = requests.post(

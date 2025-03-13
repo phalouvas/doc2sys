@@ -1,12 +1,14 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2025-03-12 00:00:00.000000",
+ "creation": "2025-03-12 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "document_type",
   "enabled",
+  "llm_section",
+  "extract_data_prompt",
   "keywords_section",
   "keywords",
   "required_fields",
@@ -37,16 +39,16 @@
    "label": "Classification"
   },
   {
+   "description": "Comma-separated keywords that identify this document type",
    "fieldname": "keywords",
    "fieldtype": "Small Text",
-   "label": "Keywords",
-   "description": "Comma-separated keywords that identify this document type"
+   "label": "Keywords"
   },
   {
+   "description": "Comma-separated fields that must be present for this classification",
    "fieldname": "required_fields",
    "fieldtype": "Small Text",
-   "label": "Required Fields",
-   "description": "Comma-separated fields that must be present for this classification"
+   "label": "Required Fields"
   },
   {
    "fieldname": "erpnext_integration_section",
@@ -54,18 +56,18 @@
    "label": "ERPNext Integration"
   },
   {
+   "description": "ERPNext DocType to create when this document type is detected",
    "fieldname": "target_doctype",
    "fieldtype": "Link",
    "label": "Target DocType",
-   "options": "DocType",
-   "description": "ERPNext DocType to create when this document type is detected"
+   "options": "DocType"
   },
   {
    "default": "1",
+   "description": "Create documents as draft instead of submitting them automatically",
    "fieldname": "create_draft",
    "fieldtype": "Check",
-   "label": "Create as Draft",
-   "description": "Create documents as draft instead of submitting them automatically"
+   "label": "Create as Draft"
   },
   {
    "fieldname": "extraction_fields_section",
@@ -77,10 +79,20 @@
    "fieldtype": "Table",
    "label": "Extraction Fields",
    "options": "Doc2Sys Extraction Field"
+  },
+  {
+   "fieldname": "llm_section",
+   "fieldtype": "Section Break",
+   "label": "LLM"
+  },
+  {
+   "fieldname": "extract_data_prompt",
+   "fieldtype": "Small Text",
+   "label": "Extract Data Prompt"
   }
  ],
  "links": [],
- "modified": "2025-03-12 00:00:01.000000",
+ "modified": "2025-03-13 11:51:30.409665",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Document Type",
@@ -101,5 +113,6 @@
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
+ "states": [],
  "title_field": "document_type"
 }
