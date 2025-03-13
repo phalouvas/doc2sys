@@ -107,16 +107,24 @@ class DocumentProcessor:
         """Extract text from a document based on its file type"""
         file_ext = get_file_extension(file_path)
         
+        # Extract text based on file type
         if file_ext == 'pdf':
-            return self._extract_text_from_pdf(file_path)
+            raw_text = self._extract_text_from_pdf(file_path)
         elif file_ext in ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp']:
-            return self._extract_text_with_ocr(file_path)
+            raw_text = self._extract_text_with_ocr(file_path)
         elif file_ext in ['txt', 'md', 'csv']:
-            return self._extract_text_from_text_file(file_path)
+            raw_text = self._extract_text_from_text_file(file_path)
         elif file_ext in ['docx']:
-            return self._extract_text_from_docx(file_path)
+            raw_text = self._extract_text_from_docx(file_path)
         else:
             raise UnsupportedDocumentError(f"Unsupported file type for text extraction: {file_ext}")
+        
+        # Clean up the text by removing multiple spaces and newlines
+        import re
+        cleaned_text = re.sub(r'\n+', '\n', raw_text)  # Replace multiple newlines with single newline
+        cleaned_text = re.sub(r' +', ' ', cleaned_text)  # Replace multiple spaces with single space
+        
+        return cleaned_text.strip()
     
     def _extract_text_from_pdf(self, pdf_path):
         """Extract text from PDF using poppler-utils"""

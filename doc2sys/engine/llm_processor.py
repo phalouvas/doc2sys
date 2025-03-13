@@ -68,9 +68,6 @@ class OllamaProcessor:
                 "reasoning": "brief explanation of why"
             }}
             """
-            # Clear prompt
-            prompt = "".join(prompt.splitlines())
-            prompt = prompt.strip() 
             
             # Call Ollama API
             response = requests.post(
@@ -152,20 +149,12 @@ class OllamaProcessor:
         text_for_api = text[:10000]
         
         try:
-            # Get field mappings for context
-            field_mappings = self._get_field_mapping(document_type)
-            fields_to_extract = list(field_mappings.keys())
-            
             # Create prompt for data extraction
             prompt = f"""
-            Extract fields from below text invoice with the intention to import to ERPNext as {document_type}. Present only in json format:
-
+            Identify the json structure of an erpnext {document_type} doctype. Then based on below text extract the relevant data and present to me only the extracted data.
+            
             {text_for_api}
             """
-
-            # Clear prompt
-            prompt = "".join(prompt.splitlines())
-            prompt = prompt.strip()
             
             # Call Ollama API
             response = requests.post(
@@ -201,6 +190,7 @@ class OllamaProcessor:
                     
                 cleaned_content = cleaned_content.strip()
                 extracted_data = json.loads(cleaned_content)
+
                 return extracted_data
             except json.JSONDecodeError:
                 logger.error(f"Failed to parse JSON from Ollama: {content}")
@@ -346,16 +336,9 @@ class DeepSeekProcessor:
         text_for_api = text[:8000]
         
         try:
-            # Get field mappings for context
-            field_mappings = self._get_field_mapping(document_type)
-            fields_to_extract = list(field_mappings.keys())
-            
             # Create prompt for data extraction
             prompt = f"""
-            Extract information from this {document_type} document.
-            
-            Please extract the following fields:
-            {', '.join(fields_to_extract)}
+            Extract all relevant information from the following {document_type} document.
             
             Document text:
             {text_for_api}
@@ -363,9 +346,9 @@ class DeepSeekProcessor:
             Respond in JSON format only with the extracted fields.
             For example:
             {{
-                "invoice_number": "INV-12345",
-                "date": "2025-03-12",
-                "total_amount": 1250.00
+                "field1": "value1",
+                "field2": "value2",
+                ...
             }}
             
             Only include fields where you found values. If a field can't be found, omit it.

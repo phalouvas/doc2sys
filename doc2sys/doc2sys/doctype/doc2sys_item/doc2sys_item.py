@@ -63,16 +63,24 @@ class Doc2SysItem(Document):
         """Get the full extracted text from a document"""
         file_ext = os.path.splitext(file_path)[1].lower()[1:]
         
+        # Extract raw text based on file type
         if file_ext == 'pdf':
-            return processor._extract_text_from_pdf(file_path)
+            raw_text = processor._extract_text_from_pdf(file_path)
         elif file_ext in ['jpg', 'jpeg', 'png', 'tif', 'tiff', 'bmp']:
-            return processor._extract_text_with_ocr(file_path)
+            raw_text = processor._extract_text_with_ocr(file_path)
         elif file_ext in ['txt', 'md', 'csv']:
-            return processor._extract_text_from_text_file(file_path)
+            raw_text = processor._extract_text_from_text_file(file_path)
         elif file_ext in ['docx']:
-            return processor._extract_text_from_docx(file_path)
+            raw_text = processor._extract_text_from_docx(file_path)
         else:
             return "Unsupported file type for text extraction"
+        
+        # Clean up the text by removing multiple spaces and newlines
+        import re
+        cleaned_text = re.sub(r'\n+', '\n', raw_text)  # Replace multiple newlines with single newline
+        cleaned_text = re.sub(r' +', ' ', cleaned_text)  # Replace multiple spaces with single space
+        
+        return cleaned_text.strip()
     
     def ml_process_document(self, text):
         """Process document using ML/NLP or LLM"""
