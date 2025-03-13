@@ -88,6 +88,7 @@ class Doc2SysItem(Document):
                 
                 # Store extracted data
                 self.extracted_data = frappe.as_json(extracted_data)
+                self.party_name = extracted_data.get("party_name")
                 
                 # Create ERPNext document if configured
                 if self.auto_create_documents and target_doctype:
