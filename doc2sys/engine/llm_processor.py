@@ -210,35 +210,7 @@ class OllamaProcessor:
         except Exception as e:
             logger.error(f"Ollama processing error: {str(e)}")
             return {}
-            
-    def _get_field_mapping(self, document_type):
-        """Get field mapping for document type"""
-        mapping = {}
-        try:
-            # Get DocType ID for document type
-            doc_type_id = frappe.get_value("Doc2Sys Document Type", {"document_type": document_type}, "name")
-            if not doc_type_id:
-                return {}
-                
-            # Get target doctype
-            target_doctype = frappe.get_value("Doc2Sys Document Type", doc_type_id, "target_doctype")
-            if not target_doctype:
-                return {}
-                
-            # Get field mappings
-            mappings = frappe.get_all("Doc2Sys Field Mapping",
-                                    filters={"target_doctype": target_doctype, "enabled": 1},
-                                    fields=["source_field", "target_field"])
-            
-            for field in mappings:
-                mapping[field.source_field] = field.target_field
-                
-            return mapping
-        except Exception as e:
-            logger.error(f"Error loading field mappings: {str(e)}")
-            return {}
-
-
+    
 class DeepSeekProcessor:
     """Process documents using DeepSeek LLM"""
     
@@ -407,30 +379,4 @@ class DeepSeekProcessor:
         except Exception as e:
             logger.error(f"DeepSeek API error: {str(e)}")
             return {}
-            
-    def _get_field_mapping(self, document_type):
-        """Get field mapping for document type"""
-        mapping = {}
-        try:
-            # Get DocType ID for document type
-            doc_type_id = frappe.get_value("Doc2Sys Document Type", {"document_type": document_type}, "name")
-            if not doc_type_id:
-                return {}
-                
-            # Get target doctype
-            target_doctype = frappe.get_value("Doc2Sys Document Type", doc_type_id, "target_doctype")
-            if not target_doctype:
-                return {}
-                
-            # Get field mappings
-            mappings = frappe.get_all("Doc2Sys Field Mapping",
-                                    filters={"target_doctype": target_doctype, "enabled": 1},
-                                    fields=["source_field", "target_field"])
-            
-            for field in mappings:
-                mapping[field.source_field] = field.target_field
-                
-            return mapping
-        except Exception as e:
-            logger.error(f"Error loading field mappings: {str(e)}")
-            return {}
+    

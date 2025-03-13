@@ -36,36 +36,3 @@ def is_supported_file_type(file_path, supported_types=None):
         
     ext = get_file_extension(file_path)
     return ext in supported_types
-
-def check_spacy_model_availability():
-    """Check which spaCy models are available and log the results"""
-    models_to_check = ["en_core_web_md", "en_core_web_sm", "en-core-web-md"]
-    available_models = []
-    
-    # Try to import spacy
-    try:
-        import spacy
-        import spacy.util
-        
-        # Check each model using spacy's utility function
-        for model in models_to_check:
-            if spacy.util.is_package(model):
-                available_models.append(model)
-                
-        # If no models found using spacy.util, try direct import
-        if not available_models:
-            for model in models_to_check:
-                if importlib.util.find_spec(model) is not None:
-                    available_models.append(model)
-    
-    except ImportError:
-        frappe.log_error("spaCy not installed", "Doc2Sys spaCy Check")
-        return False, []
-        
-    # Log results
-    if available_models:
-        frappe.log_error(f"Available spaCy models: {', '.join(available_models)}", "Doc2Sys spaCy Check")
-        return True, available_models
-    else:
-        frappe.log_error("No spaCy models found", "Doc2Sys spaCy Check")
-        return False, []

@@ -15,13 +15,4 @@ class Doc2SysDocumentType(Document):
             keywords = [k for k in keywords if k]
             # Join back with commas
             self.keywords = ', '.join(keywords)
-            
-    def on_update(self):
-        """Actions to perform when document type is updated"""
-        # Trigger ML classifier re-training when document types change
-        try:
-            from doc2sys.engine.ml_classifier import MLDocumentClassifier
-            classifier = MLDocumentClassifier()
-            classifier.train_classifier()
-        except Exception as e:
-            frappe.log_error(f"Error training classifier after document type update: {str(e)}")
+ 

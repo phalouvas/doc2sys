@@ -7,8 +7,6 @@ from frappe.model.document import Document
 from doc2sys.engine.processor import DocumentProcessor
 from doc2sys.engine.config import EngineConfig
 from doc2sys.engine.exceptions import ProcessingError
-from doc2sys.engine.ml_classifier import MLDocumentClassifier
-from doc2sys.engine.nlp_extractor import NLPDataExtractor
 
 class Doc2SysItem(Document):
     def validate(self):
@@ -85,119 +83,39 @@ class Doc2SysItem(Document):
     def ml_process_document(self, text):
         """Process document using ML/NLP or LLM"""
         try:
-            # Check if LLM is enabled
-            use_llm = frappe.db.get_single_value("Doc2Sys Settings", "use_llm") or 0
             
-            if use_llm:
-                from doc2sys.engine.llm_processor import LLMProcessor
+            from doc2sys.engine.llm_processor import LLMProcessor
+            
+            # Use the factory method to get the appropriate processor
+            processor = LLMProcessor.create()
+            
+            # Classify document using LLM
+            classification = processor.classify_document(text)
+            doc_type = classification["document_type"]
+            confidence = classification["confidence"]
+            target_doctype = classification["target_doctype"]
+            
+            # Save classification results
+            self.document_type = doc_type
+            self.classification_confidence = confidence
+            
+            # Extract structured data if document type was identified
+            if doc_type != "unknown":
+                # Extract data using LLM
+                extracted_data = processor.extract_data(text, doc_type)
                 
-                # Use the factory method to get the appropriate processor
-                processor = LLMProcessor.create()
+                # Store extracted data
+                self.extracted_data = frappe.as_json(extracted_data)
                 
-                # Classify document using LLM
-                classification = processor.classify_document(text)
-                doc_type = classification["document_type"]
-                confidence = classification["confidence"]
-                target_doctype = classification["target_doctype"]
-                
-                # Save classification results
-                self.document_type = doc_type
-                self.classification_confidence = confidence
-                
-                # Extract structured data if document type was identified
-                if doc_type != "unknown":
-                    # Extract data using LLM
-                    extracted_data = processor.extract_data(text, doc_type)
-                    
-                    # Store extracted data
-                    self.extracted_data = frappe.as_json(extracted_data)
-                    
-                    # Create ERPNext document if configured
-                    if self.auto_create_documents and target_doctype:
-                        self.create_erpnext_document(target_doctype, extracted_data)
-            else:
-                # Use traditional ML/NLP (existing code)
-                classifier = MLDocumentClassifier()
-                extractor = NLPDataExtractor()
-                
-                # Rest of your existing code...
-                classification = classifier.classify_document(text)
-                doc_type = classification["document_type"]
-                confidence = classification["confidence"]
-                target_doctype = classification["target_doctype"]
-                
-                # Save classification results
-                self.document_type = doc_type
-                self.classification_confidence = confidence
-                
-                # Extract structured data if document type was identified
-                if doc_type != "unknown":
-                    # Extract data using NLP
-                    extracted_data = extractor.extract_data(text, doc_type)
-                    
-                    # Store extracted data
-                    self.extracted_data = frappe.as_json(extracted_data)
-                    
-                    # Create ERPNext document if configured
-                    if self.auto_create_documents and target_doctype:
-                        self.create_erpnext_document(target_doctype, extracted_data)
-        
+                # Create ERPNext document if configured
+                if self.auto_create_documents and target_doctype:
+                    self.create_erpnext_document(target_doctype, extracted_data)
+           
         except Exception as e:
             frappe.log_error(f"Document processing error: {str(e)}")
     
     def create_erpnext_document(self, target_doctype, data):
-        """Create an ERPNext document based on extracted data"""
-        try:
-            # Create new document
-            new_doc = frappe.new_doc(target_doctype)
-            
-            # Get field mapping for this target doctype
-            field_mapping = self._get_field_mapping(target_doctype)
-            
-            # Set mapped fields
-            for doc2sys_field, erp_field in field_mapping.items():
-                if doc2sys_field in data and data[doc2sys_field]:
-                    # Set the field value
-                    new_doc.set(erp_field, data[doc2sys_field])
-            
-            # Link back to Doc2Sys Item
-            if hasattr(new_doc, "doc2sys_item"):
-                new_doc.doc2sys_item = self.name
-            
-            # Insert document
-            new_doc.insert(ignore_permissions=True)
-            
-            # Save document reference
-            self.erpnext_document_type = target_doctype
-            self.erpnext_document = new_doc.name
-            
-            frappe.msgprint(f"Created {target_doctype} {new_doc.name} from document")
-            
-            # Submit if configured to do so
-            create_as_draft = frappe.db.get_single_value("Doc2Sys Settings", "create_as_draft")
-            if not create_as_draft and hasattr(new_doc, "submit"):
-                new_doc.submit()
-                
-        except Exception as e:
-            frappe.log_error(f"Error creating {target_doctype}: {str(e)}")
-            frappe.msgprint(f"Failed to create {target_doctype}: {str(e)}")
-    
-    def _get_field_mapping(self, target_doctype):
-        """Get field mapping for target doctype"""
-        mapping = {}
-        try:
-            # Get field mappings from Doc2Sys Field Mapping
-            mappings = frappe.get_all("Doc2Sys Field Mapping",
-                                     filters={"target_doctype": target_doctype},
-                                     fields=["source_field", "target_field"])
-            
-            for field in mappings:
-                mapping[field.source_field] = field.target_field
-                
-            return mapping
-        except Exception as e:
-            frappe.log_error(f"Error loading field mappings: {str(e)}")
-            return {}
+        pass
 
     @frappe.whitelist()
     def reprocess_document(self):

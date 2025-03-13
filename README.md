@@ -56,12 +56,3 @@ Configure the languages in the Doc2Sys Settings page in ERPNext.
 The following Python dependencies will be installed automatically:
 * python-docx - For processing Microsoft Word documents
 * pdf2image - For converting PDF pages to images for OCR processing
-* spacy - Natural Language Processing library for intelligent document processing
-* scikit-learn - Machine learning library for document classification
-
-### ML Model Setup
-After installation, the system will download the required spaCy language models. As you process more documents, the system will learn and improve its classification accuracy.
-
-To train the ML classifier with your existing documents:
-* Go to Doc2Sys > Settings
-* Click "Train ML Classifier" button

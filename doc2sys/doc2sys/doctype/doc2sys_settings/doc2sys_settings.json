@@ -17,7 +17,6 @@
   "ocr_enabled",
   "ocr_languages",
   "llm_section",
-  "use_llm",
   "llm_provider",
   "deepseek_api_key",
   "ollama_endpoint",
@@ -97,37 +96,22 @@
    "label": "LLM Integration"
   },
   {
-   "fieldname": "use_llm",
-   "fieldtype": "Check",
-   "label": "Use LLM for Processing",
-   "description": "Use Large Language Model instead of traditional ML/NLP"
-  },
-  {
    "fieldname": "llm_provider",
    "fieldtype": "Select",
    "label": "LLM Provider",
-   "options": "DeepSeek\nOllama\nOpenAI\nClaude",
-   "depends_on": "eval:doc.use_llm==1"
-  },
-  {
-   "fieldname": "deepseek_api_key",
-   "fieldtype": "Password",
-   "label": "DeepSeek API Key",
-   "depends_on": "eval:doc.use_llm==1 && doc.llm_provider=='DeepSeek'"
+   "options": "DeepSeek\nOllama\nOpenAI\nClaude"
   },
   {
    "fieldname": "ollama_endpoint",
    "fieldtype": "Data",
    "label": "Ollama Endpoint",
-   "default": "http://localhost:11434",
-   "depends_on": "eval:doc.use_llm==1 && doc.llm_provider=='Ollama'"
+   "default": "http://localhost:11434"
   },
   {
    "fieldname": "ollama_model",
    "fieldtype": "Data",
    "label": "Ollama Model",
-   "default": "llama3",
-   "depends_on": "eval:doc.use_llm==1 && doc.llm_provider=='Ollama'"
+   "default": "llama3"
   }
  ],
  "index_web_pages_for_search": 1,
