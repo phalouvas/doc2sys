@@ -68,6 +68,9 @@ class OllamaProcessor:
                 "reasoning": "brief explanation of why"
             }}
             """
+            # Clear prompt
+            prompt = "".join(prompt.splitlines())
+            prompt = prompt.strip() 
             
             # Call Ollama API
             response = requests.post(
@@ -173,10 +176,15 @@ class OllamaProcessor:
             
             Only include fields where you found values. If a field can't be found, omit it.
             """
+
+            # Clear prompt
+            prompt = "".join(prompt.splitlines())
+            prompt = prompt.strip()
             
             # Call Ollama API
             response = requests.post(
                 f"{self.endpoint}/api/chat",
+                headers={ "Content-Type": "application/json" },
                 json={
                     "model": self.model,
                     "messages": [
