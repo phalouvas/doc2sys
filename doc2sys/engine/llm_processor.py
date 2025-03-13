@@ -160,21 +160,11 @@ class OllamaProcessor:
             prompt = f"""
             Extract information from this {document_type} document.
             
-            Please extract the following fields:
-            {', '.join(fields_to_extract)}
-            
-            Document text:
-            {text_for_api}
-            
+            Extract fields from below text invoice with the intention to import to ERPNext as {document_type} doctype.
             Respond in JSON format only with the extracted fields.
-            For example:
-            {{
-                "invoice_number": "INV-12345",
-                "date": "2025-03-12",
-                "total_amount": 1250.00
-            }}
-            
             Only include fields where you found values. If a field can't be found, omit it.
+
+            {text_for_api}
             """
 
             # Clear prompt
