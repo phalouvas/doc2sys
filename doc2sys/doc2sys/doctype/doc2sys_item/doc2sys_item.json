@@ -9,10 +9,13 @@
   "naming_series",
   "document_section",
   "single_file",
+  "show_content_details",
   "text_content",
   "classification_section",
   "document_type",
   "classification_confidence",
+  "party_name",
+  "show_extracted_data",
   "extracted_data",
   "erpnext_section",
   "auto_create_documents",
@@ -38,6 +41,13 @@
    "label": "Single File"
   },
   {
+   "default": "0",
+   "fieldname": "show_content_details",
+   "fieldtype": "Check",
+   "label": "Show Content Details"
+  },
+  {
+   "depends_on": "show_content_details",
    "fieldname": "text_content",
    "fieldtype": "Long Text",
    "label": "Text Content",
@@ -51,17 +61,27 @@
   {
    "fieldname": "document_type",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Document Type",
    "options": "Doc2Sys Document Type"
   },
   {
    "fieldname": "classification_confidence",
    "fieldtype": "Float",
+   "in_list_view": 1,
    "label": "Confidence",
-   "precision": 2,
+   "precision": "2",
    "read_only": 1
   },
   {
+   "default": "0",
+   "fieldname": "show_extracted_data",
+   "fieldtype": "Check",
+   "label": "Show Extracted Data"
+  },
+  {
+   "depends_on": "show_extracted_data",
    "fieldname": "extracted_data",
    "fieldtype": "Code",
    "label": "Extracted Data",
@@ -92,11 +112,18 @@
    "label": "ERPNext Document",
    "options": "erpnext_document_type",
    "read_only": 1
+  },
+  {
+   "fieldname": "party_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Party Name"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-12 09:05:13.693386",
+ "modified": "2025-03-13 11:08:36.597435",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",
