@@ -158,11 +158,7 @@ class OllamaProcessor:
             
             # Create prompt for data extraction
             prompt = f"""
-            Extract information from this {document_type} document.
-            
-            Extract fields from below text invoice with the intention to import to ERPNext as {document_type} doctype.
-            Respond in JSON format only with the extracted fields.
-            Only include fields where you found values. If a field can't be found, omit it.
+            Extract fields from below text invoice with the intention to import to ERPNext as {document_type}. Present only in json format:
 
             {text_for_api}
             """
