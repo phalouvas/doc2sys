@@ -94,7 +94,7 @@ class DocumentProcessor:
                 "file_path": document_path,
                 "file_type": get_file_extension(document_path),
                 "text_length": len(extracted_text),
-                "extracted_text": extracted_text[:1000] + ("..." if len(extracted_text) > 1000 else ""),
+                "extracted_text": extracted_text,
                 "data": {}
             }
             

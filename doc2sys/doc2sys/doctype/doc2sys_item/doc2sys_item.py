@@ -29,36 +29,41 @@ class Doc2SysItem(Document):
                     
                 file_path = file_doc.get_full_path()
                 
-                # Initialize document processor with configuration
-                config = EngineConfig.from_settings()
-                processor = DocumentProcessor(config)
+                # Process the file and extract text
+                success, message = self._process_file(file_path)
                 
-                # Process the document and extract text
-                result = processor.process_document(file_path)
-                
-                # Update the text_content field
-                if result and "extracted_text" in result:
-                    # Extract the full text using the processor's extract_text method
-                    extracted_text = processor.extract_text(file_path)
-                    self.text_content = extracted_text
-                    
-                    # Use NLP to classify and extract data
-                    self.ml_process_document(extracted_text)
-                    
-                    # Add a message to notify the user
-                    frappe.msgprint(f"Text extracted successfully from {os.path.basename(file_path)}")
-                else:
-                    frappe.msgprint("No text could be extracted from the document")
+                # Add a message to notify the user
+                frappe.msgprint(message)
                     
             except ProcessingError as e:
                 frappe.log_error(f"Error processing document: {str(e)}")
                 frappe.msgprint(f"Error processing document: {str(e)}")
+            except IOError as e:
+                frappe.log_error(f"File access error: {str(e)}")
+                frappe.msgprint("Unable to access the document file. Please check if the file exists.")
             except Exception as e:
                 frappe.log_error(f"Unexpected error: {str(e)}")
                 frappe.msgprint(f"An unexpected error occurred while processing the document")
     
-    def ml_process_document(self, text):
-        """Process document using ML/NLP or LLM"""
+    def _process_file(self, file_path):
+        """Internal method to process a file and extract text"""
+        config = EngineConfig.from_settings()
+        processor = DocumentProcessor(config)
+        
+        result = processor.process_document(file_path)
+        
+        if result and "extracted_text" in result:
+            extracted_text = result['extracted_text']
+            self.text_content = extracted_text
+            
+            # Process document content
+            self.process_document(extracted_text)
+            return True, f"Text extracted successfully from {os.path.basename(file_path)}"
+        else:
+            return False, "No text could be extracted from the document"
+    
+    def process_document(self, text):
+        """Process document using LLM"""
         try:
             
             from doc2sys.engine.llm_processor import LLMProcessor
@@ -92,7 +97,10 @@ class Doc2SysItem(Document):
             frappe.log_error(f"Document processing error: {str(e)}")
     
     def create_erpnext_document(self, target_doctype, data):
-        pass
+        """Create an ERPNext document based on extracted data"""
+        # TODO: Implement document creation logic
+        frappe.log_error("Document creation not yet implemented", "Doc2Sys")
+        return
 
     @frappe.whitelist()
     def reprocess_document(self):
@@ -112,33 +120,24 @@ class Doc2SysItem(Document):
                 
             file_path = file_doc.get_full_path()
             
-            # Initialize document processor with configuration
-            config = EngineConfig.from_settings()
-            processor = DocumentProcessor(config)
+            # Process the file and extract text
+            success, message = self._process_file(file_path)
             
-            # Process the document and extract text
-            result = processor.process_document(file_path)
-            
-            # Update the text_content field
-            if result and "extracted_text" in result:
-                # Extract the full text using the processor's extract_text method
-                extracted_text = processor.extract_text(file_path)
-                self.text_content = extracted_text
-                
-                # Use NLP to classify and extract data
-                self.ml_process_document(extracted_text)
-                
-                # Save the document
+            # Save the document
+            if success:
                 self.save()
                 
-                # Add a message to notify the user
-                frappe.msgprint(f"Document reprocessed successfully: {os.path.basename(file_path)}")
-            else:
-                frappe.msgprint("No text could be extracted from the document during reprocessing")
+            # Add a message to notify the user
+            frappe.msgprint(message)
                 
         except ProcessingError as e:
             frappe.log_error(f"Error reprocessing document: {str(e)}")
             frappe.msgprint(f"Error reprocessing document: {str(e)}")
+        except IOError as e:
+            frappe.log_error(f"File access error: {str(e)}")
+            frappe.msgprint("Unable to access the document file. Please check if the file exists.")
         except Exception as e:
             frappe.log_error(f"Unexpected error during reprocessing: {str(e)}")
             frappe.msgprint(f"An unexpected error occurred while reprocessing the document")
+
+        return True

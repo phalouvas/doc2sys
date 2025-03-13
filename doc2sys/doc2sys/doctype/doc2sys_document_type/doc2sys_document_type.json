@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:document_type",
  "creation": "2025-03-12 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -92,10 +93,11 @@
   }
  ],
  "links": [],
- "modified": "2025-03-13 11:51:30.409665",
+ "modified": "2025-03-13 15:25:13.981151",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Document Type",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

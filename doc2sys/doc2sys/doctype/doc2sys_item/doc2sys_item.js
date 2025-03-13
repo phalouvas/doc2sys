@@ -7,6 +7,12 @@ frappe.ui.form.on('Doc2Sys Item', {
         // Add Reprocess button if a document is attached
         if(frm.doc.single_file) {
             frm.add_custom_button(__('Reprocess Document'), function() {
+                // Show processing message immediately when button is clicked
+                frappe.show_alert({
+                    message: __('Reprocessing document, please wait...'),
+                    indicator: 'orange'
+                }, 5);
+                
                 frm.call({
                     doc: frm.doc,
                     method: 'reprocess_document',
