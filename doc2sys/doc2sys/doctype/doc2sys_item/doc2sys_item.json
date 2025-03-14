@@ -10,7 +10,6 @@
   "document_section",
   "single_file",
   "show_content_details",
-  "text_content",
   "classification_section",
   "document_type",
   "classification_confidence",
@@ -39,19 +38,6 @@
    "fieldname": "single_file",
    "fieldtype": "Attach",
    "label": "Single File"
-  },
-  {
-   "default": "0",
-   "fieldname": "show_content_details",
-   "fieldtype": "Check",
-   "label": "Show Content Details"
-  },
-  {
-   "depends_on": "show_content_details",
-   "fieldname": "text_content",
-   "fieldtype": "Long Text",
-   "label": "Text Content",
-   "read_only": 1
   },
   {
    "fieldname": "classification_section",
@@ -119,6 +105,14 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Party Name"
+  },
+  {
+   "fieldname": "llm_file_id",
+   "fieldtype": "Data",
+   "label": "LLM File ID",
+   "hidden": 1,
+   "translatable": 0,
+   "no_copy": 1
   }
  ],
  "index_web_pages_for_search": 1,
