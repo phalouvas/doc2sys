@@ -65,14 +65,17 @@ class Doc2SysItem(Document):
     def process_document(self, text):
         """Process document using LLM"""
         try:
-            
             from doc2sys.engine.llm_processor import LLMProcessor
             
             # Use the factory method to get the appropriate processor
             processor = LLMProcessor.create()
             
-            # Classify document using LLM
-            classification = processor.classify_document(text)
+            # Get file path again since we need to pass file directly to processor
+            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
+            file_path = file_doc.get_full_path() if file_doc else None
+            
+            # Classify document using LLM with file path (preferred) or text (fallback)
+            classification = processor.classify_document(file_path=file_path, text=text)
             doc_type = classification["document_type"]
             confidence = classification["confidence"]
             target_doctype = classification["target_doctype"]
@@ -83,8 +86,8 @@ class Doc2SysItem(Document):
             
             # Extract structured data if document type was identified
             if doc_type != "unknown":
-                # Extract data using LLM
-                extracted_data = processor.extract_data(text, doc_type)
+                # Extract data using LLM, passing the same file path
+                extracted_data = processor.extract_data(file_path=file_path, text=text, document_type=doc_type)
                 
                 # Store extracted data
                 self.extracted_data = frappe.as_json(extracted_data)
