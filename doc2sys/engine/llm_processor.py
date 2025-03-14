@@ -68,7 +68,7 @@ class OpenWebUIProcessor:
             )
             
             if response.status_code != 200:
-                logger.error(f"File upload error: {response.status_code}, response: {response.text}")
+                logger.error(f"File upload error: {response.status_code, response.text}")
                 return None
                 
             # Parse response to get file ID
@@ -215,7 +215,10 @@ class OpenWebUIProcessor:
             # Parse response
             result = response.json()
             content = result.get("choices", [{}])[0].get("message", {}).get("content", "{}")
-            
+
+            # Calculate token usage costs
+            token_cost = self._calculate_token_cost(result.get("usage", {}))
+
             try:
                 # Try to parse the JSON response
                 cleaned_content = self._clean_json_response(content)
@@ -224,6 +227,9 @@ class OpenWebUIProcessor:
                 # Add target doctype based on document type
                 doc_type = classification.get("document_type", "unknown")
                 classification["target_doctype"] = type_to_doctype.get(doc_type)
+                
+                # Add token usage and cost data
+                classification["token_usage"] = self._calculate_token_cost(result.get("usage", {}))
                 
                 return classification
             except json.JSONDecodeError:
@@ -361,10 +367,17 @@ class OpenWebUIProcessor:
             result = response.json()
             content = result.get("choices", [{}])[0].get("message", {}).get("content", "{}")
             
+            # Calculate token usage costs
+            token_cost = self._calculate_token_cost(result.get("usage", {}))
+
             try:
                 # Try to parse the JSON response
                 cleaned_content = self._clean_json_response(content)
                 extracted_data = json.loads(cleaned_content)
+                
+                # Add token usage as metadata - use the already calculated token_cost
+                extracted_data["_token_usage"] = token_cost
+                
                 return extracted_data
             except json.JSONDecodeError:
                 logger.error(f"Failed to parse JSON from Open WebUI: {content}")
@@ -403,3 +416,58 @@ class OpenWebUIProcessor:
             }
         else:
             return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
+
+    def _calculate_token_cost(self, usage):
+        """
+        Calculate cost based on token usage from API response
+        
+        Args:
+            usage: Token usage dict from API response
+            
+        Returns:
+            dict: Token usage and cost information
+        """
+        try:
+            # Extract token counts
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
+            total_tokens = usage.get("total_tokens", 0)
+            
+            # Get cost settings from Doc2Sys Settings - added logging
+            input_price_per_million = frappe.db.get_single_value("Doc2Sys Settings", "input_token_price") or 0.0
+            output_price_per_million = frappe.db.get_single_value("Doc2Sys Settings", "output_token_price") or 0.0
+            
+            # Ensure values are numeric
+            input_price_per_million = float(input_price_per_million)
+            output_price_per_million = float(output_price_per_million)
+            
+            # Log values for debugging
+            logger.debug(f"Token prices - Input: {input_price_per_million}, Output: {output_price_per_million}")
+            logger.debug(f"Token counts - Input: {input_tokens}, Output: {output_tokens}, Total: {total_tokens}")
+            
+            # Calculate cost (convert from price per million to price per token)
+            input_cost = (input_tokens * input_price_per_million) / 1000000
+            output_cost = (output_tokens * output_price_per_million) / 1000000
+            total_cost = input_cost + output_cost
+            
+            # Log calculated costs
+            logger.debug(f"Calculated costs - Input: {input_cost}, Output: {output_cost}, Total: {total_cost}")
+            
+            return {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+                "input_cost": input_cost,
+                "output_cost": output_cost,
+                "total_cost": total_cost
+            }
+        except Exception as e:
+            logger.error(f"Error calculating token cost: {str(e)}")
+            return {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "input_cost": 0.0,
+                "output_cost": 0.0,
+                "total_cost": 0.0
+            }

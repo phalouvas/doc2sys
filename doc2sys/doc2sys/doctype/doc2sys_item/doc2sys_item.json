@@ -113,6 +113,42 @@
    "hidden": 1,
    "translatable": 0,
    "no_copy": 1
+  },
+  {
+   "fieldname": "input_tokens",
+   "fieldtype": "Int",
+   "label": "Input Tokens",
+   "read_only": 1
+  },
+  {
+   "fieldname": "output_tokens",
+   "fieldtype": "Int",
+   "label": "Output Tokens",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_tokens",
+   "fieldtype": "Int",
+   "label": "Total Tokens",
+   "read_only": 1
+  },
+  {
+   "fieldname": "input_cost",
+   "fieldtype": "Currency",
+   "label": "Input Cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "output_cost",
+   "fieldtype": "Currency",
+   "label": "Output Cost",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_cost",
+   "fieldtype": "Currency",
+   "label": "Total Cost",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,

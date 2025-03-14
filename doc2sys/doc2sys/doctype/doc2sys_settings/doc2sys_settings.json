@@ -20,7 +20,9 @@
   "llm_provider",
   "openwebui_endpoint",
   "openwebui_model",
-  "openwebui_apikey"
+  "openwebui_apikey",
+  "input_token_price",
+  "output_token_price"
  ],
  "fields": [
   {
@@ -118,6 +120,18 @@
    "fieldname": "openwebui_apikey",
    "fieldtype": "Password",
    "label": "Open WebUI API Key"
+  },
+  {
+   "fieldname": "input_token_price",
+   "fieldtype": "Currency",
+   "label": "Input Token Price (€/million)",
+   "default": 0
+  },
+  {
+   "fieldname": "output_token_price",
+   "fieldtype": "Currency",
+   "label": "Output Token Price (€/million)",
+   "default": 0
   }
  ],
  "index_web_pages_for_search": 1,
