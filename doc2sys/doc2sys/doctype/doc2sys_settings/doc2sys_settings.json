@@ -19,7 +19,10 @@
   "llm_section",
   "llm_provider",
   "ollama_endpoint",
-  "ollama_model"
+  "ollama_model",
+  "openwebui_endpoint",
+  "openwebui_model",
+  "openwebui_apikey"
  ],
  "fields": [
   {
@@ -98,19 +101,41 @@
    "fieldname": "llm_provider",
    "fieldtype": "Select",
    "label": "LLM Provider",
-   "options": "Ollama"
+   "options": "Ollama\nOpen WebUI"
   },
   {
    "fieldname": "ollama_endpoint",
    "fieldtype": "Data",
    "label": "Ollama Endpoint",
-   "default": "http://localhost:11434"
+   "default": "http://localhost:11434",
+   "depends_on": "eval:doc.llm_provider=='Ollama'"
   },
   {
    "fieldname": "ollama_model",
    "fieldtype": "Data",
    "label": "Ollama Model",
-   "default": "llama3"
+   "default": "llama3",
+   "depends_on": "eval:doc.llm_provider=='Ollama'"
+  },
+  {
+   "fieldname": "openwebui_endpoint",
+   "fieldtype": "Data",
+   "label": "Open WebUI Endpoint",
+   "default": "http://localhost:3000/chat/completions",
+   "depends_on": "eval:doc.llm_provider=='Open WebUI'"
+  },
+  {
+   "fieldname": "openwebui_model",
+   "fieldtype": "Data",
+   "label": "Open WebUI Model",
+   "default": "llama3",
+   "depends_on": "eval:doc.llm_provider=='Open WebUI'"
+  },
+  {
+   "fieldname": "openwebui_apikey",
+   "fieldtype": "Password",
+   "label": "Open WebUI API Key",
+   "depends_on": "eval:doc.llm_provider=='Open WebUI'"
   }
  ],
  "index_web_pages_for_search": 1,
