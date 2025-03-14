@@ -119,6 +119,9 @@ class OpenWebUIProcessor:
             available_types = [dt.document_type for dt in doc_types]
             type_to_doctype = {dt.document_type: dt.target_doctype for dt in doc_types}
             
+            # Format available types with quotes to clarify they are exact phrases
+            formatted_types = [f'"{doc_type}"' for doc_type in available_types]
+            
             # Set up headers with API key if provided
             headers = {
                 "Content-Type": "application/json"
@@ -126,16 +129,19 @@ class OpenWebUIProcessor:
             if self.api_key:
                 headers["Authorization"] = f"Bearer {self.api_key}"
             
-            # Prepare prompt
+            # Improved prompt with clear formatting
             prompt = f"""
             Your task is to classify the attached document. Analyze it and determine what type of document it is.
-            Available document types: {', '.join(available_types)}
             
+            Available document types (use EXACT match from this list):
+            {', '.join(formatted_types)}
+            
+            IMPORTANT: You must select document types EXACTLY as written above, including spaces and capitalization.
             If the document doesn't match any of the available types, classify it as "unknown".
             
             Respond in JSON format only:
             {{
-                "document_type": "the determined document type",
+                "document_type": "the determined document type - MUST be an exact match from the list above",
                 "confidence": 0.0-1.0 (your confidence level),
                 "reasoning": "brief explanation of why"
             }}
