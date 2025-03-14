@@ -42,7 +42,7 @@ class OpenWebUIProcessor:
         """
         # Check if this file has already been uploaded in this session
         if file_path in self.file_cache:
-            return self.file_cache[file_path
+            return self.file_cache[file_path]  # Fixed incomplete line
             
         try:
             # Set up headers with API key if provided

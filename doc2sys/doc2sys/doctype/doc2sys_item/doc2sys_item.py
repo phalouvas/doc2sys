@@ -11,6 +11,9 @@ from doc2sys.engine.exceptions import ProcessingError
 class Doc2SysItem(Document):
     def validate(self):
         """Validate the document before saving"""
+        if self.has_value_changed("single_file"):
+            # Clear the existing file ID if file changed
+            self.llm_file_id = ""
         self.process_attached_file()
     
     def process_attached_file(self):
@@ -74,6 +77,21 @@ class Doc2SysItem(Document):
             file_doc = frappe.get_doc("File", {"file_url": self.single_file})
             file_path = file_doc.get_full_path() if file_doc else None
             
+            if file_path:
+                # Upload file if not already uploaded or ID isn't stored
+                if not self.llm_file_id:
+                    file_id = processor.upload_file(file_path)
+                    if file_id:
+                        # Store the file ID for future use
+                        self.llm_file_id = file_id
+                
+                # Get stored file_id or upload if necessary
+                file_id = self.llm_file_id or processor.upload_file(file_path)
+                
+                # Store the file ID in the processor's cache to avoid duplicate uploads
+                if file_id and file_path:
+                    processor.file_cache[file_path] = file_id
+            
             # Classify document using LLM with file path (preferred) or text (fallback)
             classification = processor.classify_document(file_path=file_path, text=text)
             doc_type = classification["document_type"]
@@ -86,7 +104,7 @@ class Doc2SysItem(Document):
             
             # Extract structured data if document type was identified
             if doc_type != "unknown":
-                # Extract data using LLM, passing the same file path
+                # Extract data using LLM, using the same file_path
                 extracted_data = processor.extract_data(file_path=file_path, text=text, document_type=doc_type)
                 
                 # Store extracted data
@@ -123,6 +141,9 @@ class Doc2SysItem(Document):
                 return
                 
             file_path = file_doc.get_full_path()
+            
+            # Clear the file ID to force a fresh upload
+            self.llm_file_id = ""
             
             # Process the file and extract text
             success, message = self._process_file(file_path)
