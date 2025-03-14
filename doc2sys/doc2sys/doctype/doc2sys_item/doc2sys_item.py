@@ -115,7 +115,7 @@ class Doc2SysItem(Document):
         try:
             frappe.msgprint("Reprocessing document...")
             
-            # Get the full file path from the attached file
+            # Get the full file path from the attached file (needed for cache lookup)
             file_doc = frappe.get_doc("File", {"file_url": self.single_file})
             if not file_doc:
                 frappe.msgprint("Could not find the attached file in the system")
@@ -123,8 +123,8 @@ class Doc2SysItem(Document):
                 
             file_path = file_doc.get_full_path()
             
-            # Clear the file ID to force a fresh upload
-            self.llm_file_id = ""
+            # Only clear the file ID if explicitly requested or if there's no file ID
+            # self.llm_file_id = ""  # Remove this line - we want to keep the ID
             
             # Process the file directly with LLM
             success = self._process_file_with_llm(file_path)

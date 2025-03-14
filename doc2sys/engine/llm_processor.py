@@ -42,36 +42,27 @@ class OpenWebUIProcessor:
         """
         # Check if this file has already been uploaded in this session
         if file_path in self.file_cache:
-            return self.file_cache[file_path]  # Fixed incomplete line
+            return self.file_cache[file_path]
             
         try:
             # Set up headers with API key if provided
             headers = {
-                "Content-Type": "application/json"
+                'Accept': 'application/json'
             }
             if self.api_key:
-                headers["Authorization"] = f"Bearer {self.api_key}"
+                headers['Authorization'] = f'Bearer {self.api_key}'
             
-            # Read file and encode as base64
+            # Open the file for upload (no need for base64 encoding)
             file_name = os.path.basename(file_path)
-            file_extension = os.path.splitext(file_name)[1].lower()
             
-            with open(file_path, "rb") as f:
-                file_content = f.read()
-                base64_encoded = base64.b64encode(file_content).decode("utf-8")
+            # Create multipart form data with the file
+            files = {'file': (file_name, open(file_path, 'rb'))}
             
-            # Determine content type based on file extension
-            content_type = self._get_content_type(file_extension)
-            
-            # Upload file to Open WebUI
+            # Upload file to Open WebUI using multipart form
             response = requests.post(
-                f"{self.endpoint}/api/files",
+                f"{self.endpoint}/api/v1/files/",
                 headers=headers,
-                json={
-                    "file": base64_encoded,
-                    "filename": file_name,
-                    "content_type": content_type
-                }
+                files=files
             )
             
             if response.status_code != 200:
@@ -137,6 +128,14 @@ class OpenWebUIProcessor:
                 {"role": "system", "content": "You are a document classification assistant. Always respond in JSON."}
             ]
             
+            # Default API payload
+            api_payload = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": 0.1,
+                "response_format": {"type": "json_object"}
+            }
+            
             # If a file path is provided, upload the file and reference it
             if file_path:
                 file_id = self.upload_file(file_path)
@@ -155,11 +154,10 @@ class OpenWebUIProcessor:
                     }}
                     """
                     
-                    messages.append({
-                        "role": "user", 
-                        "content": prompt,
-                        "file_ids": [file_id]
-                    })
+                    messages.append({"role": "user", "content": prompt})
+                    
+                    # Add the file to the API payload with correct structure
+                    api_payload["files"] = [{"type": "file", "id": file_id}]
                 else:
                     # Fallback to text if file upload failed
                     if text:
@@ -191,16 +189,14 @@ class OpenWebUIProcessor:
                 """
                 messages.append({"role": "user", "content": prompt})
             
+            # Update messages in the API payload
+            api_payload["messages"] = messages
+            
             # Call Open WebUI API (compatible with OpenAI format)
             response = requests.post(
                 f"{self.endpoint}/api/chat/completions",
                 headers=headers,
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "temperature": 0.1,
-                    "response_format": {"type": "json_object"}
-                }
+                json=api_payload
             )
             
             if response.status_code != 200:
@@ -263,6 +259,14 @@ class OpenWebUIProcessor:
                 {"role": "system", "content": "You are an AI language model. Always respond in JSON."}
             ]
             
+            # Default API payload
+            api_payload = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": 0.1,
+                "response_format": {"type": "json_object"}
+            }
+            
             # If a file path is provided, upload the file and reference it
             if file_path:
                 file_id = self.upload_file(file_path)
@@ -277,11 +281,10 @@ class OpenWebUIProcessor:
                         Only include fields that are present in the document.
                         """
                     
-                    messages.append({
-                        "role": "user", 
-                        "content": prompt,
-                        "file_ids": [file_id]
-                    })
+                    messages.append({"role": "user", "content": prompt})
+                    
+                    # Add the file to the API payload with correct structure
+                    api_payload["files"] = [{"type": "file", "id": file_id}]
                 else:
                     # Fallback to text if file upload failed
                     if not text:
@@ -307,16 +310,14 @@ class OpenWebUIProcessor:
                     """
                 messages.append({"role": "user", "content": prompt})
             
+            # Update messages in the API payload
+            api_payload["messages"] = messages
+            
             # Call Open WebUI API
             response = requests.post(
                 f"{self.endpoint}/api/chat/completions",
                 headers=headers,
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "temperature": 0.1,
-                    "response_format": {"type": "json_object"}
-                }
+                json=api_payload
             )
             
             if response.status_code != 200:
