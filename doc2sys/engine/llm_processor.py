@@ -52,11 +52,13 @@ class OpenWebUIProcessor:
             if self.api_key:
                 headers['Authorization'] = f'Bearer {self.api_key}'
             
-            # Open the file for upload (no need for base64 encoding)
+            # Open the file for upload
             file_name = os.path.basename(file_path)
+            file_extension = os.path.splitext(file_path)[1].lower()
+            content_type = self._get_content_type(file_extension)
             
-            # Create multipart form data with the file
-            files = {'file': (file_name, open(file_path, 'rb'))}
+            # Create multipart form data with the file and content type
+            files = {'file': (file_name, open(file_path, 'rb'), content_type)}
             
             # Upload file to Open WebUI using multipart form
             response = requests.post(
@@ -66,7 +68,7 @@ class OpenWebUIProcessor:
             )
             
             if response.status_code != 200:
-                logger.error(f"File upload error: {response.text}")
+                logger.error(f"File upload error: {response.status_code}, response: {response.text}")
                 return None
                 
             # Parse response to get file ID
@@ -124,75 +126,76 @@ class OpenWebUIProcessor:
             if self.api_key:
                 headers["Authorization"] = f"Bearer {self.api_key}"
             
-            messages = [
-                {"role": "system", "content": "You are a document classification assistant. Always respond in JSON."}
-            ]
+            # Prepare prompt
+            prompt = f"""
+            Your task is to classify the attached document. Analyze it and determine what type of document it is.
+            Available document types: {', '.join(available_types)}
+            
+            If the document doesn't match any of the available types, classify it as "unknown".
+            
+            Respond in JSON format only:
+            {{
+                "document_type": "the determined document type",
+                "confidence": 0.0-1.0 (your confidence level),
+                "reasoning": "brief explanation of why"
+            }}
+            """
             
             # Default API payload
             api_payload = {
                 "model": self.model,
-                "messages": messages,
                 "temperature": 0.1,
                 "response_format": {"type": "json_object"}
             }
             
-            # If a file path is provided, upload the file and reference it
+            # If a file path is provided, handle based on file type
             if file_path:
-                file_id = self.upload_file(file_path)
-                if file_id:
-                    prompt = f"""
-                    Your task is to classify the attached document. Analyze it and determine what type of document it is.
-                    Available document types: {', '.join(available_types)}
+                file_extension = os.path.splitext(file_path)[1].lower()
+                content_type = self._get_content_type(file_extension)
+                
+                # For images, use direct base64 encoding
+                if content_type.startswith('image/'):
+                    # Create message with mixed content (text and image)
+                    with open(file_path, 'rb') as image_file:
+                        base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+                        
+                    # Construct message with text and image parts
+                    message_content = [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{base64_image}"}}
+                    ]
                     
-                    If the document doesn't match any of the available types, classify it as "unknown".
-                    
-                    Respond in JSON format only:
-                    {{
-                        "document_type": "the determined document type",
-                        "confidence": 0.0-1.0 (your confidence level),
-                        "reasoning": "brief explanation of why"
-                    }}
-                    """
-                    
-                    messages.append({"role": "user", "content": prompt})
-                    
-                    # Add the file to the API payload with correct structure
-                    api_payload["files"] = [{"type": "file", "id": file_id}]
+                    # Set up messages with the mixed content
+                    api_payload["messages"] = [
+                        {"role": "user", "content": message_content}
+                    ]
                 else:
-                    # Fallback to text if file upload failed
-                    if text:
-                        text_for_api = text[:10000]  # Truncate if too long
+                    # For non-image files, use the file upload approach
+                    file_id = self.upload_file(file_path)
+                    if file_id:
+                        api_payload["messages"] = [
+                            {"role": "user", "content": prompt}
+                        ]
+                        api_payload["files"] = [{"type": "file", "id": file_id}]
                     else:
-                        return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
-            else:
+                        # Fallback to text if file upload failed
+                        if text:
+                            text_for_api = text[:10000]  # Truncate if too long
+                            api_payload["messages"] = [
+                                {"role": "user", "content": prompt + "\n\nDocument text:\n" + text_for_api}
+                            ]
+                        else:
+                            return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
+            elif text:
                 # Use text if no file path provided
-                if not text:
-                    return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
-                
                 text_for_api = text[:10000]  # Truncate if too long
-                
-                prompt = f"""
-                Your task is to classify a document. Analyze the text and determine what type of document it is.
-                Available document types: {', '.join(available_types)}
-                
-                If the document doesn't match any of the available types, classify it as "unknown".
-                
-                Document text:
-                {text_for_api}
-                
-                Respond in JSON format only:
-                {{
-                    "document_type": "the determined document type",
-                    "confidence": 0.0-1.0 (your confidence level),
-                    "reasoning": "brief explanation of why"
-                }}
-                """
-                messages.append({"role": "user", "content": prompt})
+                api_payload["messages"] = [
+                    {"role": "user", "content": prompt + "\n\nDocument text:\n" + text_for_api}
+                ]
+            else:
+                return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
             
-            # Update messages in the API payload
-            api_payload["messages"] = messages
-            
-            # Call Open WebUI API (compatible with OpenAI format)
+            # Call Open WebUI API
             response = requests.post(
                 f"{self.endpoint}/api/chat/completions",
                 headers=headers,
@@ -267,29 +270,58 @@ class OpenWebUIProcessor:
                 "response_format": {"type": "json_object"}
             }
             
-            # If a file path is provided, upload the file and reference it
+            # Prepare the default prompt text
+            default_prompt = f"""
+            Identify the JSON structure of an ERPNext {document_type} doctype. 
+            Extract the relevant data and present the extracted data in JSON format.
+            Only include fields that are present in the document.
+            """
+            
+            # If a file path is provided, handle based on file type
             if file_path:
-                file_id = self.upload_file(file_path)
-                if file_id:
-                    if custom_prompt:
-                        prompt = custom_prompt
-                    else:
-                        # Fallback to default prompt
-                        prompt = f"""
-                        Identify the JSON structure of an ERPNext {document_type} doctype. 
-                        Analyze the attached document, extract the relevant data and present the extracted data in JSON format.
-                        Only include fields that are present in the document.
-                        """
+                file_extension = os.path.splitext(file_path)[1].lower()
+                content_type = self._get_content_type(file_extension)
+                
+                # For images, use direct base64 encoding
+                if content_type.startswith('image/'):
+                    # Create message with mixed content (text and image)
+                    with open(file_path, 'rb') as image_file:
+                        base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+                        
+                    # Use custom prompt if available, otherwise use default
+                    prompt = custom_prompt if custom_prompt else default_prompt
                     
-                    messages.append({"role": "user", "content": prompt})
+                    # Construct message with text and image parts
+                    message_content = [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{base64_image}"}}
+                    ]
                     
-                    # Add the file to the API payload with correct structure
-                    api_payload["files"] = [{"type": "file", "id": file_id}]
+                    # Set up messages with the mixed content
+                    api_payload["messages"].append(
+                        {"role": "user", "content": message_content}
+                    )
                 else:
-                    # Fallback to text if file upload failed
-                    if not text:
-                        return {}
-                    text_for_api = text[:10000]  # Truncate if too long
+                    # For non-image files, use the file upload approach
+                    file_id = self.upload_file(file_path)
+                    if file_id:
+                        prompt = custom_prompt if custom_prompt else default_prompt
+                        messages.append({"role": "user", "content": prompt})
+                        
+                        # Add the file to the API payload with correct structure
+                        api_payload["files"] = [{"type": "file", "id": file_id}]
+                    else:
+                        # Fallback to text if file upload failed
+                        if not text:
+                            return {}
+                        text_for_api = text[:10000]  # Truncate if too long
+                        
+                        # Use custom prompt if available, otherwise use default
+                        if custom_prompt:
+                            prompt = f"{custom_prompt}\n\n{text_for_api}"
+                        else:
+                            prompt = f"{default_prompt}\n\n{text_for_api}"
+                        messages.append({"role": "user", "content": prompt})
             else:
                 # Use text if no file path provided
                 if not text:
@@ -301,17 +333,12 @@ class OpenWebUIProcessor:
                 if custom_prompt:
                     prompt = f"{custom_prompt}\n\n{text_for_api}"
                 else:
-                    # Fallback to default prompt
-                    prompt = f"""
-                    Identify the json structure of an erpnext {document_type} doctype. 
-                    Then based on below text extract the relevant data and present to me only the extracted data.
-                    
-                    {text_for_api}
-                    """
+                    prompt = f"{default_prompt}\n\n{text_for_api}"
                 messages.append({"role": "user", "content": prompt})
             
-            # Update messages in the API payload
-            api_payload["messages"] = messages
+            # Update messages in the API payload (for non-image cases where we didn't already set it)
+            if "messages" in api_payload and not any(msg.get("role") == "user" for msg in api_payload["messages"]):
+                api_payload["messages"] = messages
             
             # Call Open WebUI API
             response = requests.post(
