@@ -14,7 +14,6 @@
   "document_type",
   "classification_confidence",
   "party_name",
-  "show_extracted_data",
   "extracted_data",
   "process_stats_section",
   "erpnext_document_type",
@@ -68,13 +67,6 @@
    "read_only": 1
   },
   {
-   "default": "0",
-   "fieldname": "show_extracted_data",
-   "fieldtype": "Check",
-   "label": "Show Extracted Data"
-  },
-  {
-   "depends_on": "show_extracted_data",
    "fieldname": "extracted_data",
    "fieldtype": "Code",
    "label": "Extracted Data",
@@ -163,7 +155,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-15 08:05:24.465405",
+ "modified": "2025-03-15 08:35:41.487478",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",
