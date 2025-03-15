@@ -5,6 +5,10 @@ import os
 import base64
 from .utils import logger
 
+# Move hardcoded values to constants
+MAX_TEXT_LENGTH = 10000
+DEFAULT_TEMPERATURE = 0.1
+
 class LLMProcessor:
     """Process documents using various LLM providers"""
     
@@ -150,7 +154,7 @@ class OpenWebUIProcessor:
             # Default API payload
             api_payload = {
                 "model": self.model,
-                "temperature": 0.1,
+                "temperature": DEFAULT_TEMPERATURE,
                 "response_format": {"type": "json_object"}
             }
             
@@ -186,7 +190,7 @@ class OpenWebUIProcessor:
                     else:
                         # Fallback to text if file upload failed
                         if text:
-                            text_for_api = text[:10000]  # Truncate if too long
+                            text_for_api = text[:MAX_TEXT_LENGTH]  # Truncate if too long
                             api_payload["messages"] = [
                                 {"role": "user", "content": prompt + "\n\nDocument text:\n" + text_for_api}
                             ]
@@ -194,7 +198,7 @@ class OpenWebUIProcessor:
                             return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
             elif text:
                 # Use text if no file path provided
-                text_for_api = text[:10000]  # Truncate if too long
+                text_for_api = text[:MAX_TEXT_LENGTH]  # Truncate if too long
                 api_payload["messages"] = [
                     {"role": "user", "content": prompt + "\n\nDocument text:\n" + text_for_api}
                 ]
@@ -278,7 +282,7 @@ class OpenWebUIProcessor:
             api_payload = {
                 "model": self.model,
                 "messages": messages,
-                "temperature": 0.1,
+                "temperature": DEFAULT_TEMPERATURE,
                 "response_format": {"type": "json_object"}
             }
             
@@ -326,7 +330,7 @@ class OpenWebUIProcessor:
                         # Fallback to text if file upload failed
                         if not text:
                             return {}
-                        text_for_api = text[:10000]  # Truncate if too long
+                        text_for_api = text[:MAX_TEXT_LENGTH]  # Truncate if too long
                         
                         # Use custom prompt if available, otherwise use default
                         if custom_prompt:
@@ -339,7 +343,7 @@ class OpenWebUIProcessor:
                 if not text:
                     return {}
                 
-                text_for_api = text[:10000]  # Truncate if too long
+                text_for_api = text[:MAX_TEXT_LENGTH]  # Truncate if too long
                 
                 # Use custom prompt if available, otherwise use default
                 if custom_prompt:
