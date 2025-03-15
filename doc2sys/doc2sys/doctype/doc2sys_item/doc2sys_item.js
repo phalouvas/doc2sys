@@ -4,11 +4,11 @@
 frappe.ui.form.on('Doc2Sys Item', {
     refresh: function(frm) {
         // Add custom buttons or functionality here
-        // Add Process button if a document is attached
+        // Add Reprocess button if a document is attached
         if(frm.doc.single_file) {
             frm.add_custom_button(__('Reprocess Document'), function() {
                 // Show full screen processing overlay
-                frappe.dom.freeze(__('Processing document...'));
+                frappe.dom.freeze(__('Reprocessing document...'));
                 
                 frm.call({
                     doc: frm.doc,
@@ -19,7 +19,7 @@ frappe.ui.form.on('Doc2Sys Item', {
                         
                         if(r.message) {
                             frappe.show_alert({
-                                message: __('Document processing completed'),
+                                message: __('Document reprocessing completed'),
                                 indicator: 'green'
                             }, 3);
                             frm.refresh();
@@ -30,12 +30,7 @@ frappe.ui.form.on('Doc2Sys Item', {
                         frappe.dom.unfreeze();
                     }
                 });
-            }).addClass('btn-black');
-            
-            // Add custom style for black button if it doesn't exist
-            if (!document.getElementById('custom-btn-black-style')) {
-                $('<style id="custom-btn-black-style">.btn-black { background-color: #000 !important; color: #fff !important; }</style>').appendTo('head');
-            }
+            }, __('Actions'));
         }
     },
     
