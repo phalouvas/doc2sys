@@ -4,29 +4,38 @@
 frappe.ui.form.on('Doc2Sys Item', {
     refresh: function(frm) {
         // Add custom buttons or functionality here
-        // Add Reprocess button if a document is attached
+        // Add Process button if a document is attached
         if(frm.doc.single_file) {
             frm.add_custom_button(__('Reprocess Document'), function() {
-                // Show processing message immediately when button is clicked
-                frappe.show_alert({
-                    message: __('Reprocessing document, please wait...'),
-                    indicator: 'orange'
-                }, 5);
+                // Show full screen processing overlay
+                frappe.dom.freeze(__('Processing document...'));
                 
                 frm.call({
                     doc: frm.doc,
                     method: 'reprocess_document',
                     callback: function(r) {
+                        // Unfreeze UI when processing is complete
+                        frappe.dom.unfreeze();
+                        
                         if(r.message) {
                             frappe.show_alert({
-                                message: __('Document reprocessing completed'),
+                                message: __('Document processing completed'),
                                 indicator: 'green'
                             }, 3);
                             frm.refresh();
                         }
+                    },
+                    error: function() {
+                        // Make sure to unfreeze UI even if there's an error
+                        frappe.dom.unfreeze();
                     }
                 });
-            }, __('Actions'));
+            }).addClass('btn-black');
+            
+            // Add custom style for black button if it doesn't exist
+            if (!document.getElementById('custom-btn-black-style')) {
+                $('<style id="custom-btn-black-style">.btn-black { background-color: #000 !important; color: #fff !important; }</style>').appendTo('head');
+            }
         }
     },
     
@@ -43,11 +52,13 @@ frappe.ui.form.on('Doc2Sys Item', {
     before_save: function(frm) {
         if(frm.doc.single_file && (frm.doc.__unsaved || frm.doc.text_content === '' || 
            frm.doc.text_content === undefined)) {
-            // Show a processing indicator
-            frappe.show_alert({
-                message: __('Extracting text from document...'),
-                indicator: 'orange'
-            });
+            // Show a full screen processing overlay
+            frappe.dom.freeze(__('Extracting text from document...'));
         }
+    },
+    
+    after_save: function(frm) {
+        // Unfreeze UI after save is complete
+        frappe.dom.unfreeze();
     }
 });
