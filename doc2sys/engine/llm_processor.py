@@ -33,6 +33,10 @@ class OpenWebUIProcessor:
         self.model = frappe.db.get_single_value("Doc2Sys Settings", "openwebui_model") or "llama3"
         self.api_key = frappe.utils.password.get_decrypted_password("Doc2Sys Settings", "Doc2Sys Settings", "openwebui_apikey") or ""
         self.file_cache = {}  # Cache for uploaded file IDs
+        
+        # Cache token pricing
+        self.input_price_per_million = float(frappe.db.get_single_value("Doc2Sys Settings", "input_token_price") or 0.0)
+        self.output_price_per_million = float(frappe.db.get_single_value("Doc2Sys Settings", "output_token_price") or 0.0)
     
     def upload_file(self, file_path):
         """
@@ -126,13 +130,6 @@ class OpenWebUIProcessor:
             # Format available types with quotes to clarify they are exact phrases
             formatted_types = [f'"{doc_type}"' for doc_type in available_types]
             
-            # Set up headers with API key if provided
-            headers = {
-                "Content-Type": "application/json"
-            }
-            if self.api_key:
-                headers["Authorization"] = f"Bearer {self.api_key}"
-            
             # Improved prompt with clear formatting
             prompt = f"""
             Your task is to classify the attached document. Analyze it and determine what type of document it is.
@@ -151,78 +148,37 @@ class OpenWebUIProcessor:
             }}
             """
             
-            # Default API payload
-            api_payload = {
-                "model": self.model,
-                "temperature": DEFAULT_TEMPERATURE,
-                "response_format": {"type": "json_object"}
-            }
+            api_payload = None
             
-            # If a file path is provided, handle based on file type
+            # Process file or text input
             if file_path:
-                file_extension = os.path.splitext(file_path)[1].lower()
-                content_type = self._get_content_type(file_extension)
+                api_payload, _ = self._prepare_file_content(file_path, prompt)
                 
-                # For images, use direct base64 encoding
-                if content_type.startswith('image/'):
-                    # Create message with mixed content (text and image)
-                    with open(file_path, 'rb') as image_file:
-                        base64_image = base64.b64encode(image_file.read()).decode('utf-8')
-                        
-                    # Construct message with text and image parts
-                    message_content = [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{base64_image}"}}
-                    ]
-                    
-                    # Set up messages with the mixed content
-                    api_payload["messages"] = [
-                        {"role": "user", "content": message_content}
-                    ]
-                else:
-                    # For non-image files, use the file upload approach
-                    file_id = self.upload_file(file_path)
-                    if file_id:
-                        api_payload["messages"] = [
-                            {"role": "user", "content": prompt}
-                        ]
-                        api_payload["files"] = [{"type": "file", "id": file_id}]
-                    else:
-                        # Fallback to text if file upload failed
-                        if text:
-                            text_for_api = text[:MAX_TEXT_LENGTH]  # Truncate if too long
-                            api_payload["messages"] = [
-                                {"role": "user", "content": prompt + "\n\nDocument text:\n" + text_for_api}
-                            ]
-                        else:
-                            return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
+                # If file processing failed, try using text if available
+                if api_payload is None and text:
+                    api_payload = self._prepare_text_content(text, prompt)
             elif text:
-                # Use text if no file path provided
-                text_for_api = text[:MAX_TEXT_LENGTH]  # Truncate if too long
-                api_payload["messages"] = [
-                    {"role": "user", "content": prompt + "\n\nDocument text:\n" + text_for_api}
-                ]
-            else:
+                api_payload = self._prepare_text_content(text, prompt)
+                
+            # If we couldn't create a valid payload, return default response
+            if not api_payload:
                 return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
-            
-            # Call Open WebUI API
-            response = requests.post(
+                
+            # Make the API request
+            result = self._make_api_request(
                 f"{self.endpoint}/api/chat/completions",
-                headers=headers,
-                json=api_payload
+                api_payload
             )
             
-            if response.status_code != 200:
-                logger.error(f"Open WebUI API error: {response.text}")
+            if not result:
                 return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
                 
-            # Parse response
-            result = response.json()
+            # Extract content from response
             content = result.get("choices", [{}])[0].get("message", {}).get("content", "{}")
-
+            
             # Calculate token usage costs
             token_cost = self._calculate_token_cost(result.get("usage", {}))
-
+            
             try:
                 # Try to parse the JSON response
                 cleaned_content = self._clean_json_response(content)
@@ -233,7 +189,7 @@ class OpenWebUIProcessor:
                 classification["target_doctype"] = type_to_doctype.get(doc_type)
                 
                 # Add token usage and cost data
-                classification["token_usage"] = self._calculate_token_cost(result.get("usage", {}))
+                classification["token_usage"] = token_cost
                 
                 return classification
             except json.JSONDecodeError:
@@ -244,7 +200,7 @@ class OpenWebUIProcessor:
                 return self._extract_document_type_from_text(content, available_types, type_to_doctype)
                 
         except Exception as e:
-            logger.error(f"Open WebUI processing error: {str(e)}")
+            logger.error(f"Classification error: {str(e)}")
             return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
             
     def extract_data(self, file_path=None, text=None, document_type=None):
@@ -267,25 +223,6 @@ class OpenWebUIProcessor:
                 "extract_data_prompt"
             )
             
-            # Set up headers with API key if provided
-            headers = {
-                "Content-Type": "application/json"
-            }
-            if self.api_key:
-                headers["Authorization"] = f"Bearer {self.api_key}"
-            
-            messages = [
-                {"role": "system", "content": "You are an AI language model. Always respond in JSON."}
-            ]
-            
-            # Default API payload
-            api_payload = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": DEFAULT_TEMPERATURE,
-                "response_format": {"type": "json_object"}
-            }
-            
             # Prepare the default prompt text
             default_prompt = f"""
             Identify the JSON structure of an ERPNext {document_type} doctype. 
@@ -293,93 +230,46 @@ class OpenWebUIProcessor:
             Only include fields that are present in the document.
             """
             
-            # If a file path is provided, handle based on file type
+            # Use custom prompt if available, otherwise use default
+            prompt = custom_prompt if custom_prompt else default_prompt
+            
+            api_payload = None
+            
+            # Process file or text input
             if file_path:
-                file_extension = os.path.splitext(file_path)[1].lower()
-                content_type = self._get_content_type(file_extension)
+                api_payload, _ = self._prepare_file_content(file_path, prompt)
                 
-                # For images, use direct base64 encoding
-                if content_type.startswith('image/'):
-                    # Create message with mixed content (text and image)
-                    with open(file_path, 'rb') as image_file:
-                        base64_image = base64.b64encode(image_file.read()).decode('utf-8')
-                        
-                    # Use custom prompt if available, otherwise use default
-                    prompt = custom_prompt if custom_prompt else default_prompt
-                    
-                    # Construct message with text and image parts
-                    message_content = [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{base64_image}"}}
-                    ]
-                    
-                    # Set up messages with the mixed content
-                    api_payload["messages"].append(
-                        {"role": "user", "content": message_content}
-                    )
-                else:
-                    # For non-image files, use the file upload approach
-                    file_id = self.upload_file(file_path)
-                    if file_id:
-                        prompt = custom_prompt if custom_prompt else default_prompt
-                        messages.append({"role": "user", "content": prompt})
-                        
-                        # Add the file to the API payload with correct structure
-                        api_payload["files"] = [{"type": "file", "id": file_id}]
-                    else:
-                        # Fallback to text if file upload failed
-                        if not text:
-                            return {}
-                        text_for_api = text[:MAX_TEXT_LENGTH]  # Truncate if too long
-                        
-                        # Use custom prompt if available, otherwise use default
-                        if custom_prompt:
-                            prompt = f"{custom_prompt}\n\n{text_for_api}"
-                        else:
-                            prompt = f"{default_prompt}\n\n{text_for_api}"
-                        messages.append({"role": "user", "content": prompt})
-            else:
-                # Use text if no file path provided
-                if not text:
-                    return {}
+                # If file processing failed, try using text if available
+                if api_payload is None and text:
+                    api_payload = self._prepare_text_content(text, prompt)
+            elif text:
+                api_payload = self._prepare_text_content(text, prompt)
                 
-                text_for_api = text[:MAX_TEXT_LENGTH]  # Truncate if too long
-                
-                # Use custom prompt if available, otherwise use default
-                if custom_prompt:
-                    prompt = f"{custom_prompt}\n\n{text_for_api}"
-                else:
-                    prompt = f"{default_prompt}\n\n{text_for_api}"
-                messages.append({"role": "user", "content": prompt})
-            
-            # Update messages in the API payload (for non-image cases where we didn't already set it)
-            if "messages" in api_payload and not any(msg.get("role") == "user" for msg in api_payload["messages"]):
-                api_payload["messages"] = messages
-            
-            # Call Open WebUI API
-            response = requests.post(
-                f"{self.endpoint}/api/chat/completions",
-                headers=headers,
-                json=api_payload
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"Open WebUI API error: {response.text}")
+            # If we couldn't create a valid payload, return empty dict
+            if not api_payload:
                 return {}
                 
-            # Parse response
-            result = response.json()
+            # Make the API request
+            result = self._make_api_request(
+                f"{self.endpoint}/api/chat/completions",
+                api_payload
+            )
+            
+            if not result:
+                return {}
+                
+            # Extract content from response
             content = result.get("choices", [{}])[0].get("message", {}).get("content", "{}")
             
             # Calculate token usage costs
             token_cost = self._calculate_token_cost(result.get("usage", {}))
-
+            
             try:
                 # Try to parse the JSON response
                 cleaned_content = self._clean_json_response(content)
                 extracted_data = json.loads(cleaned_content)
                 
-                # Add token usage as metadata - use the already calculated token_cost
+                # Add token usage as metadata
                 extracted_data["_token_usage"] = token_cost
                 
                 return extracted_data
@@ -388,9 +278,9 @@ class OpenWebUIProcessor:
                 return {}
                 
         except Exception as e:
-            logger.error(f"Open WebUI processing error: {str(e)}")
+            logger.error(f"Data extraction error: {str(e)}")
             return {}
-    
+
     def _clean_json_response(self, content):
         """Enhanced JSON cleaning with better edge case handling"""
         # Start by finding the first '{' and last '}' for more robust extraction
@@ -445,24 +335,13 @@ class OpenWebUIProcessor:
             output_tokens = usage.get("completion_tokens", 0)
             total_tokens = usage.get("total_tokens", 0)
             
-            # Get cost settings from Doc2Sys Settings - added logging
-            input_price_per_million = frappe.db.get_single_value("Doc2Sys Settings", "input_token_price") or 0.0
-            output_price_per_million = frappe.db.get_single_value("Doc2Sys Settings", "output_token_price") or 0.0
-            
-            # Ensure values are numeric
-            input_price_per_million = float(input_price_per_million)
-            output_price_per_million = float(output_price_per_million)
-            
-            # Log values for debugging
-            logger.debug(f"Token prices - Input: {input_price_per_million}, Output: {output_price_per_million}")
-            logger.debug(f"Token counts - Input: {input_tokens}, Output: {output_tokens}, Total: {total_tokens}")
-            
             # Calculate cost (convert from price per million to price per token)
-            input_cost = (input_tokens * input_price_per_million) / 1000000
-            output_cost = (output_tokens * output_price_per_million) / 1000000
+            input_cost = (input_tokens * self.input_price_per_million) / 1000000
+            output_cost = (output_tokens * self.output_price_per_million) / 1000000
             total_cost = input_cost + output_cost
             
             # Log calculated costs
+            logger.debug(f"Token counts - Input: {input_tokens}, Output: {output_tokens}, Total: {total_tokens}")
             logger.debug(f"Calculated costs - Input: {input_cost}, Output: {output_cost}, Total: {total_cost}")
             
             return {
@@ -483,3 +362,119 @@ class OpenWebUIProcessor:
                 "output_cost": 0.0,
                 "total_cost": 0.0
             }
+
+    def _make_api_request(self, endpoint, payload, headers=None):
+        """
+        Centralized method to make API requests with proper error handling
+        
+        Args:
+            endpoint (str): API endpoint to call
+            payload (dict): Request payload
+            headers (dict, optional): Request headers
+            
+        Returns:
+            dict: API response or empty dict on failure
+        """
+        try:
+            # Prepare headers
+            request_headers = {"Content-Type": "application/json"}
+            if headers:
+                request_headers.update(headers)
+            if self.api_key:
+                request_headers["Authorization"] = f"Bearer {self.api_key}"
+                
+            # Make request with timeout
+            response = requests.post(endpoint, headers=request_headers, json=payload, timeout=30)
+            
+            if response.status_code != 200:
+                logger.error(f"API error: {response.status_code}, {response.text}")
+                return {}
+                
+            return response.json()
+        except Exception as e:
+            logger.error(f"API request error: {str(e)}")
+            return {}
+
+    def _prepare_file_content(self, file_path, prompt):
+        """
+        Prepare file content for API request based on file type
+        
+        Args:
+            file_path (str): Path to the file
+            prompt (str): Prompt to use with the file
+            
+        Returns:
+            tuple: (api_payload, messages) to use in the request
+        """
+        file_extension = os.path.splitext(file_path)[1].lower()
+        content_type = self._get_content_type(file_extension)
+        
+        # Default API payload structure
+        api_payload = {
+            "model": self.model,
+            "temperature": DEFAULT_TEMPERATURE,
+            "response_format": {"type": "json_object"}
+        }
+        
+        messages = [
+            {"role": "system", "content": "You are an AI language model. Always respond in JSON."}
+        ]
+        
+        # For images, use direct base64 encoding
+        if content_type.startswith('image/'):
+            try:
+                with open(file_path, 'rb') as image_file:
+                    base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+                    
+                # Construct message with text and image parts
+                message_content = [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{base64_image}"}}
+                ]
+                
+                # Set up messages with the mixed content
+                api_payload["messages"] = [
+                    {"role": "user", "content": message_content}
+                ]
+            except Exception as e:
+                logger.error(f"Error processing image file: {str(e)}")
+                return None, None
+        else:
+            # For non-image files, use the file upload approach
+            file_id = self.upload_file(file_path)
+            if file_id:
+                messages.append({"role": "user", "content": prompt})
+                api_payload["messages"] = messages
+                api_payload["files"] = [{"type": "file", "id": file_id}]
+            else:
+                return None, None
+                
+        return api_payload, messages
+
+    def _prepare_text_content(self, text, prompt):
+        """
+        Prepare text content for API request
+        
+        Args:
+            text (str): Text content to process
+            prompt (str): Prompt to use with the text
+            
+        Returns:
+            dict: API payload to use in the request
+        """
+        if not text:
+            return None
+            
+        text_for_api = text[:MAX_TEXT_LENGTH]  # Truncate if too long
+        
+        api_payload = {
+            "model": self.model,
+            "temperature": DEFAULT_TEMPERATURE,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": "You are an AI language model. Always respond in JSON."},
+                {"role": "user", "content": f"{prompt}\n\n{text_for_api}"}
+            ]
+        }
+        
+        return api_payload
