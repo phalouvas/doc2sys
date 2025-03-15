@@ -41,7 +41,6 @@ class Doc2SysItem(Document):
                     self.db_set(field, self.get(field))
                     
                 frappe.db.commit()  # Commit the changes to database
-                frappe.msgprint(f"Document processed successfully")
             else:
                 frappe.msgprint("Failed to process document")
                 
