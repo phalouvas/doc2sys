@@ -166,6 +166,17 @@ after_install = "doc2sys.setup.install.after_install"
 # 	],
 # }
 
+# Scheduler
+# ---------------
+scheduler_events = {
+    "cron": {
+        # Monitor folders based on configured interval
+        "*/15 * * * *": [
+            "doc2sys.doc2sys.tasks.folder_monitor.monitor_folders"
+        ]
+    }
+}
+
 # Testing
 # -------
 

@@ -9,6 +9,7 @@ class Doc2SysSettings(Document):
         """Validate settings"""
         if self.max_file_size_mb <= 0:
             frappe.throw("Maximum file size must be greater than 0")
+        self.update_scheduler()
             
     def get_supported_file_extensions(self):
         """Return list of supported file extensions"""
@@ -18,63 +19,35 @@ class Doc2SysSettings(Document):
         """Return max file size in bytes"""
         return self.max_file_size_mb * 1024 * 1024
 
-@frappe.whitelist()
-def test_ollama_connection():
-    """Test connection to Ollama server"""
-    import requests
-    
-    try:
-        endpoint = frappe.db.get_single_value("Doc2Sys Settings", "ollama_endpoint") or "http://localhost:11434"
-        model = frappe.db.get_single_value("Doc2Sys Settings", "ollama_model") or "llama3"
-        
-        # First check models endpoint to see if server is up
-        response = requests.get(f"{endpoint}/api/tags")
-        
-        if response.status_code != 200:
-            return {
-                "success": False,
-                "message": f"Failed to connect to Ollama server: {response.text}"
-            }
+    def update_scheduler(self):
+        """Update the scheduler interval based on settings"""
+        if not self.monitor_interval or not self.monitoring_enabled:
+            return
             
-        # Get list of models
-        models = response.json().get("models", [])
-        model_names = [m["name"] for m in models]
-        
-        # Check if specified model is available
-        if model not in model_names:
-            return {
-                "success": False,
-                "message": f"Model '{model}' not found. Available models: {', '.join(model_names)}"
-            }
-            
-        # Test simple completion
-        chat_response = requests.post(
-            f"{endpoint}/api/chat",
-            json={
-                "model": model,
-                "messages": [
-                    {"role": "user", "content": "Hello, can you respond with a simple JSON? {'test': 'successful'}"}
-                ],
-                "stream": False
-            }
+        # Get the current job
+        job = frappe.get_all(
+            "Scheduled Job Type",
+            filters={"method": "doc2sys.doc2sys.tasks.folder_monitor.monitor_folders"},
+            fields=["name", "cron_format"]
         )
         
-        if chat_response.status_code != 200:
-            return {
-                "success": False,
-                "message": f"Failed to get response from model: {chat_response.text}"
-            }
+        if not job:
+            return
             
-        return {
-            "success": True,
-            "message": "Successfully connected to Ollama server",
-            "available_models": model_names,
-            "response_sample": chat_response.json().get("message", {}).get("content", "")
-        }
-            
-    except Exception as e:
-        frappe.log_error(f"Error testing Ollama connection: {str(e)}")
-        return {
-            "success": False,
-            "message": f"Error connecting to Ollama: {str(e)}"
-        }
+        # Create the new cron format based on settings
+        new_cron = f"*/{self.monitor_interval} * * * *"
+        
+        # Update the job if needed
+        if job[0].cron_format != new_cron:
+            frappe.db.set_value("Scheduled Job Type", job[0].name, "cron_format", new_cron)
+            frappe.db.commit()
+
+@frappe.whitelist()
+def run_folder_monitor():
+    """Manually run the folder monitor process"""
+    from doc2sys.doc2sys.tasks.folder_monitor import monitor_folders
+    monitor_folders()
+    return {
+        "success": True,
+        "message": "Folder monitoring process completed"
+    }

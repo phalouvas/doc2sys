@@ -3,33 +3,31 @@
 
 frappe.ui.form.on('Doc2Sys Settings', {
     refresh: function(frm) {
-
-        // Add test Ollama connection button
-        if (frm.doc.use_llm && frm.doc.llm_provider === "Ollama") {
-            frm.add_custom_button(__('Test Ollama Connection'), function() {
+        
+        // Add manual folder processing button
+        if (frm.doc.monitoring_enabled) {
+            frm.add_custom_button(__('Process Folder Now'), function() {
                 frappe.call({
-                    method: 'doc2sys.doc2sys.doctype.doc2sys_settings.doc2sys_settings.test_ollama_connection',
+                    method: 'doc2sys.doc2sys.doctype.doc2sys_settings.doc2sys_settings.run_folder_monitor',
                     freeze: true,
-                    freeze_message: __('Testing connection to Ollama server...'),
+                    freeze_message: __('Processing files from monitor folder...'),
                     callback: function(r) {
                         if (r.message && r.message.success) {
                             frappe.msgprint({
-                                title: __('Ollama Connection Successful'),
-                                message: r.message.message + "<br><br>" + 
-                                         __('Available models: ') + r.message.available_models.join(', ') + "<br><br>" +
-                                         __('Response sample: ') + `<pre>${r.message.response_sample}</pre>`,
+                                title: __('Folder Processing Complete'),
+                                message: __('Files from the monitor folder have been processed.'),
                                 indicator: 'green'
                             });
                         } else {
                             frappe.msgprint({
-                                title: __('Ollama Connection Failed'),
+                                title: __('Folder Processing Failed'),
                                 message: r.message ? r.message.message : __('Unknown error'),
                                 indicator: 'red'
                             });
                         }
                     }
                 });
-            }, __('LLM'));
+            }, __('Folder Monitor'));
         }
     }
 });

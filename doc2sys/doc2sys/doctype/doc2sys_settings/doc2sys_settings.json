@@ -13,6 +13,10 @@
   "max_file_size_mb",
   "file_types_section",
   "supported_file_types",
+  "folder_monitoring_section",
+  "monitoring_enabled",
+  "monitor_folder",
+  "monitor_interval",
   "ocr_section",
   "ocr_enabled",
   "ocr_languages",
@@ -72,6 +76,33 @@
    "fieldtype": "Table",
    "label": "Supported File Types",
    "options": "Doc2Sys File Type"
+  },
+  {
+   "fieldname": "folder_monitoring_section",
+   "fieldtype": "Section Break",
+   "label": "Folder Monitoring"
+  },
+  {
+   "fieldname": "monitoring_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Folder Monitoring",
+   "default": "0",
+   "description": "Enable automatic processing of files from the monitored folder"
+  },
+  {
+   "fieldname": "monitor_folder",
+   "fieldtype": "Data",
+   "label": "Folder to Monitor",
+   "depends_on": "eval:doc.monitoring_enabled==1",
+   "description": "Directory where system will look for files to process"
+  },
+  {
+   "fieldname": "monitor_interval",
+   "fieldtype": "Int",
+   "label": "Monitor Interval (minutes)",
+   "depends_on": "eval:doc.monitoring_enabled==1",
+   "default": "15",
+   "description": "How often to check the monitored folder for new files"
   },
   {
    "fieldname": "ocr_section",
