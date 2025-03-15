@@ -1,0 +1,51 @@
+{
+  "creation": "2023-03-15 12:00:00",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "module": "Doc2Sys",
+  "field_order": [
+    "integration",
+    "status",
+    "message",
+    "data",
+    "creation"
+  ],
+  "fields": [
+    {
+      "fieldname": "integration",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Integration",
+      "reqd": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Status",
+      "options": "success\nerror\nwarning\ninfo",
+      "reqd": 1
+    },
+    {
+      "fieldname": "message",
+      "fieldtype": "Text",
+      "label": "Message"
+    },
+    {
+      "fieldname": "data",
+      "fieldtype": "Code",
+      "label": "Data",
+      "options": "JSON"
+    },
+    {
+      "fieldname": "creation",
+      "fieldtype": "Datetime",
+      "in_list_view": 1,
+      "label": "Created On",
+      "read_only": 1
+    }
+  ],
+  "name": "Doc2Sys Integration Log",
+  "sort_field": "creation",
+  "sort_order": "DESC"
+}
