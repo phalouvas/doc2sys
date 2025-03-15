@@ -8,7 +8,7 @@
     "status",
     "message",
     "data",
-    "creation"
+    "created_on"
   ],
   "fields": [
     {
@@ -38,7 +38,7 @@
       "options": "JSON"
     },
     {
-      "fieldname": "creation",
+      "fieldname": "created_on",
       "fieldtype": "Datetime",
       "in_list_view": 1,
       "label": "Created On",
@@ -46,6 +46,6 @@
     }
   ],
   "name": "Doc2Sys Integration Log",
-  "sort_field": "creation",
+  "sort_field": "created_on",
   "sort_order": "DESC"
 }
