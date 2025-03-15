@@ -278,3 +278,17 @@ class Doc2SysItem(Document):
         # Implement based on your requirements
         # This method is called by process_document but not defined
         return ""
+
+@frappe.whitelist()
+def create_item_from_file(file_doc_name):
+    """Create a Doc2Sys Item from an existing File document"""
+    file_doc = frappe.get_doc("File", file_doc_name)
+    if not file_doc:
+        frappe.throw(_("File not found"))
+    
+    # Create new Doc2Sys Item with this file
+    doc = frappe.new_doc("Doc2Sys Item")
+    doc.single_file = file_doc.file_url
+    doc.insert()
+    
+    return doc.name
