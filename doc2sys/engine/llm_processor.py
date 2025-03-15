@@ -392,7 +392,15 @@ class OpenWebUIProcessor:
             return {}
     
     def _clean_json_response(self, content):
-        """Helper method to clean JSON response from markdown formatting"""
+        """Enhanced JSON cleaning with better edge case handling"""
+        # Start by finding the first '{' and last '}' for more robust extraction
+        start_idx = content.find('{')
+        end_idx = content.rfind('}')
+        
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            return content[start_idx:end_idx+1]
+        
+        # Fallback to current cleaning logic
         cleaned_content = content.strip()
         if cleaned_content.startswith("```json"):
             cleaned_content = cleaned_content[7:]
