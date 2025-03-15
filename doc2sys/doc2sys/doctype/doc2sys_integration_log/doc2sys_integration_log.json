@@ -1,16 +1,15 @@
 {
-  "creation": "2023-03-15 12:00:00",
-  "doctype": "DocType",
-  "engine": "InnoDB",
-  "module": "Doc2Sys",
-  "field_order": [
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-03-15 19:03:23.725963",
+ "doctype": "DocType",
+ "field_order": [
     "integration",
     "status",
     "message",
-    "data",
-    "created_on"
+    "data"
   ],
-  "fields": [
+ "fields": [
     {
       "fieldname": "integration",
       "fieldtype": "Data",
@@ -36,16 +35,30 @@
       "fieldtype": "Code",
       "label": "Data",
       "options": "JSON"
-    },
-    {
-      "fieldname": "created_on",
-      "fieldtype": "Datetime",
-      "in_list_view": 1,
-      "label": "Created On",
-      "read_only": 1
     }
   ],
-  "name": "Doc2Sys Integration Log",
-  "sort_field": "created_on",
-  "sort_order": "DESC"
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-03-15 19:04:08.441750",
+ "modified_by": "Administrator",
+ "module": "Doc2Sys",
+ "name": "Doc2Sys Integration Log",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
 }
