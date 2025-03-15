@@ -10,12 +10,12 @@ frappe.ui.form.on('Doc2Sys Settings', {
                 frappe.call({
                     method: 'doc2sys.doc2sys.doctype.doc2sys_settings.doc2sys_settings.run_folder_monitor',
                     freeze: true,
-                    freeze_message: __('Processing files from source folder...'),
+                    freeze_message: __('Processing files from monitor folder...'),
                     callback: function(r) {
                         if (r.message && r.message.success) {
                             frappe.msgprint({
                                 title: __('Folder Processing Complete'),
-                                message: __('Files from the source folder have been processed.'),
+                                message: __('Files from the monitor folder have been processed.'),
                                 indicator: 'green'
                             });
                         } else {
