@@ -1,5 +1,4 @@
 import os
-import shutil
 import frappe
 from frappe import _
 from frappe.utils import get_site_path, get_site_base_path
@@ -35,7 +34,7 @@ def get_absolute_path(path):
 
 def monitor_folders():
     """
-    Check source folder for files, process them, and move to destination folder.
+    Check monitored folder for files, process them, and delete after processing.
     This function will be called by the scheduler at the configured interval.
     """
     settings = frappe.get_single("Doc2Sys Settings")
@@ -43,35 +42,27 @@ def monitor_folders():
     if not settings.monitoring_enabled:
         return
         
-    # Get absolute paths for source and destination folders
-    source_path = get_absolute_path(settings.source_folder)
-    dest_path = get_absolute_path(settings.destination_folder)
+    # Get absolute path for monitor folder
+    monitor_path = get_absolute_path(settings.monitor_folder)
     
-    # Log the resolved paths for debugging
-    frappe.logger().info(f"Source path: {settings.source_folder} resolved to {source_path}")
-    frappe.logger().info(f"Destination path: {settings.destination_folder} resolved to {dest_path}")
+    # Log the resolved path for debugging
+    frappe.logger().info(f"Monitor path: {settings.monitor_folder} resolved to {monitor_path}")
     
-    if not source_path or not os.path.isdir(source_path):
-        frappe.log_error(_("Source folder does not exist or is not configured: {0} (resolved to {1})").format(
-            settings.source_folder, source_path), 
-            _("Doc2Sys Folder Monitor"))
-        return
-        
-    if not dest_path or not os.path.isdir(dest_path):
-        frappe.log_error(_("Destination folder does not exist or is not configured: {0} (resolved to {1})").format(
-            settings.destination_folder, dest_path),
+    if not monitor_path or not os.path.isdir(monitor_path):
+        frappe.log_error(_("Monitored folder does not exist or is not configured: {0} (resolved to {1})").format(
+            settings.monitor_folder, monitor_path), 
             _("Doc2Sys Folder Monitor"))
         return
     
-    # Get list of files in source folder
-    files = [f for f in os.listdir(source_path) 
-             if os.path.isfile(os.path.join(source_path, f))]
+    # Get list of files in monitored folder
+    files = [f for f in os.listdir(monitor_path) 
+             if os.path.isfile(os.path.join(monitor_path, f))]
     
     if not files:
         return  # No files to process
     
     for file_name in files:
-        file_path = os.path.join(source_path, file_name)
+        file_path = os.path.join(monitor_path, file_name)
 
         try:
             # Upload file to Frappe file system and create Doc2SysItem
@@ -92,16 +83,12 @@ def monitor_folders():
             
             # Save document (which triggers file processing through validate method)
             doc2sys_item.insert()
-            
-            # Move file to destination folder
-            destination_path = os.path.join(dest_path, file_name)
-            shutil.move(file_path, destination_path)
-            
-            # Update doc2sys_item with the new file location
-            frappe.db.set_value("Doc2Sys Item", doc2sys_item.name, "file_path", destination_path)
-            
             frappe.db.commit()
-            frappe.log(_("Successfully processed and moved file: {0}").format(file_name))
+
+            # Delete the original file from the monitored folder
+            os.remove(file_path)
+            
+            frappe.logger().info(_("Successfully processed and deleted file: {0}").format(file_name))
             
         except Exception as e:
             frappe.log_error(_("Error processing file {0}: {1}").format(file_name, str(e)), 
@@ -110,6 +97,19 @@ def monitor_folders():
 def upload_file_to_frappe(file_path, file_name):
     """Upload file to Frappe file system and return file URL"""
     try:
+        # Check if Doc2Sys folder exists, create if not
+        doc2sys_folder = "Home/Doc2Sys"
+        if not frappe.db.exists("File", {"is_folder": 1, "file_name": "Doc2Sys", "folder": "Home"}):
+            # Create Doc2Sys folder
+            folder = frappe.get_doc({
+                "doctype": "File",
+                "file_name": "Doc2Sys",
+                "is_folder": 1,
+                "folder": "Home"
+            })
+            folder.insert()
+            frappe.logger().info("Created Doc2Sys folder for file uploads")
+            
         with open(file_path, 'rb') as f:
             file_content = f.read()
             
@@ -118,7 +118,7 @@ def upload_file_to_frappe(file_path, file_name):
             "doctype": "File",
             "file_name": file_name,
             "is_private": 1,
-            "folder": "Home/Attachments",
+            "folder": doc2sys_folder,
             "attached_to_doctype": "Doc2Sys Item",
             "attached_to_name": "New Doc2Sys Item",  # Temporary value
             "content": file_content

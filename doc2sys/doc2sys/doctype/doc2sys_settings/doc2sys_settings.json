@@ -15,8 +15,7 @@
   "supported_file_types",
   "folder_monitoring_section",
   "monitoring_enabled",
-  "source_folder",
-  "destination_folder",
+  "monitor_folder",
   "monitor_interval",
   "ocr_section",
   "ocr_enabled",
@@ -88,21 +87,14 @@
    "fieldtype": "Check",
    "label": "Enable Folder Monitoring",
    "default": "0",
-   "description": "Enable automatic processing of files from the source folder"
+   "description": "Enable automatic processing of files from the monitored folder"
   },
   {
-   "fieldname": "source_folder",
+   "fieldname": "monitor_folder",
    "fieldtype": "Data",
-   "label": "Source Folder Path",
+   "label": "Folder to Monitor",
    "depends_on": "eval:doc.monitoring_enabled==1",
    "description": "Directory where system will look for files to process"
-  },
-  {
-   "fieldname": "destination_folder",
-   "fieldtype": "Data",
-   "label": "Destination Folder Path",
-   "depends_on": "eval:doc.monitoring_enabled==1",
-   "description": "Directory where processed files will be moved"
   },
   {
    "fieldname": "monitor_interval",
@@ -110,7 +102,7 @@
    "label": "Monitor Interval (minutes)",
    "depends_on": "eval:doc.monitoring_enabled==1",
    "default": "15",
-   "description": "How often to check the source folder for new files"
+   "description": "How often to check the monitored folder for new files"
   },
   {
    "fieldname": "ocr_section",
