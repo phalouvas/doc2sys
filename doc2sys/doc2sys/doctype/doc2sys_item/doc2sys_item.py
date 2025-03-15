@@ -6,6 +6,7 @@ import frappe
 from frappe.model.document import Document
 from doc2sys.engine.exceptions import ProcessingError
 from doc2sys.engine.llm_processor import LLMProcessor
+import json
 
 class Doc2SysItem(Document):
     def validate(self):
@@ -58,12 +59,7 @@ class Doc2SysItem(Document):
         """Process file directly with LLM without extracting text"""
         try:
             # Reset token counts and costs for fresh calculation
-            self.input_tokens = 0
-            self.output_tokens = 0
-            self.total_tokens = 0
-            self.input_cost = 0.0
-            self.output_cost = 0.0
-            self.total_cost = 0.0
+            self._reset_token_usage()
             
             # Use the factory method to get the appropriate processor
             processor = LLMProcessor.create()
@@ -207,12 +203,7 @@ class Doc2SysItem(Document):
         processor = LLMProcessor.create()
         
         # Reset token counts and costs for fresh calculation
-        self.input_tokens = 0
-        self.output_tokens = 0
-        self.total_tokens = 0
-        self.input_cost = 0.0
-        self.output_cost = 0.0
-        self.total_cost = 0.0
+        self._reset_token_usage()
         
         # Classify document
         classification_result = processor.classify_document(
@@ -250,3 +241,12 @@ class Doc2SysItem(Document):
         # Save the document
         if self.docstatus == 0:  # Only if not submitted
             self.save()
+
+    def _reset_token_usage(self):
+        """Reset all token usage and cost fields to zero"""
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.total_tokens = 0
+        self.input_cost = 0.0
+        self.output_cost = 0.0
+        self.total_cost = 0.0
