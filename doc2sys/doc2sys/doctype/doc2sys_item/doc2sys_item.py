@@ -58,66 +58,84 @@ class Doc2SysItem(Document):
     def _process_file_with_llm(self, file_path):
         """Process file directly with LLM without extracting text"""
         try:
-            # Reset token counts and costs for fresh calculation
+            # Reset token counts and costs
             self._reset_token_usage()
             
-            # Use the factory method to get the appropriate processor
-            processor = LLMProcessor.create()
+            # Get processor and upload file
+            processor = self._get_processor_and_upload(file_path)
+            if not processor:
+                return False
             
-            # Upload file if not already uploaded or ID isn't stored
-            if not self.llm_file_id:
-                file_id = processor.upload_file(file_path)
-                if file_id:
-                    # Store the file ID for future use
-                    self.llm_file_id = file_id
-                else:
-                    return False
-            
-            # Get stored file_id
-            file_id = self.llm_file_id
-            
-            # Store the file ID in the processor's cache to avoid duplicate uploads
-            if file_id and file_path:
-                processor.file_cache[file_path] = file_id
-            
-            # Classify document using LLM with file path
-            classification = processor.classify_document(file_path=file_path)
-            doc_type = classification["document_type"]
-            confidence = classification["confidence"]
-            target_doctype = classification["target_doctype"]
-            
-            # Update token usage from classification
-            if "token_usage" in classification:
-                self.update_token_usage(classification["token_usage"])
-            
-            # Save classification results
-            self.document_type = doc_type
-            self.classification_confidence = confidence
-            
-            # Extract structured data if document type was identified
-            if doc_type != "unknown":
-                # Extract data using LLM, using the file path
-                extracted_data = processor.extract_data(file_path=file_path, document_type=doc_type)
+            # Classify document
+            classification = self._classify_document(processor, file_path)
+            if not classification:
+                return False
                 
-                # Update token usage from extraction
-                if "_token_usage" in extracted_data:
-                    token_usage = extracted_data.pop("_token_usage", {})
-                    self.update_token_usage(token_usage)
-                
-                # Store extracted data
-                self.extracted_data = frappe.as_json(extracted_data)
-                self.party_name = extracted_data.get("party_name")
-                
-                # Create ERPNext document if configured
-                if self.auto_create_documents and target_doctype:
-                    self.create_erpnext_document(target_doctype, extracted_data)
+            # Extract data if possible
+            if self.document_type != "unknown":
+                self._extract_document_data(processor, file_path)
             
             return True
            
         except Exception as e:
             frappe.log_error(f"Document processing error: {str(e)}")
             return False
-    
+
+    def _get_processor_and_upload(self, file_path):
+        """Get LLM processor and upload file if needed"""
+        processor = LLMProcessor.create()
+        
+        # Upload file if not already uploaded or ID isn't stored
+        if not self.llm_file_id:
+            file_id = processor.upload_file(file_path)
+            if file_id:
+                # Store the file ID for future use
+                self.llm_file_id = file_id
+            else:
+                return None
+        
+        # Get stored file_id and cache it
+        file_id = self.llm_file_id
+        if file_id and file_path:
+            processor.file_cache[file_path] = file_id
+            
+        return processor
+
+    def _classify_document(self, processor, file_path):
+        """Classify document using LLM"""
+        classification = processor.classify_document(file_path=file_path)
+        
+        # Update token usage from classification
+        if "token_usage" in classification:
+            self.update_token_usage(classification["token_usage"])
+        
+        # Save classification results
+        self.document_type = classification.get("document_type")
+        self.classification_confidence = classification.get("confidence")
+        
+        return classification
+
+    def _extract_document_data(self, processor, file_path):
+        """Extract structured data from document"""
+        extracted_data = processor.extract_data(
+            file_path=file_path, 
+            document_type=self.document_type
+        )
+        
+        # Update token usage from extraction
+        if "_token_usage" in extracted_data:
+            token_usage = extracted_data.pop("_token_usage", {})
+            self.update_token_usage(token_usage)
+        
+        # Store extracted data
+        self.extracted_data = frappe.as_json(extracted_data)
+        self.party_name = extracted_data.get("party_name")
+        
+        # Create ERPNext document if configured
+        target_doctype = getattr(self, "target_doctype", None)
+        if self.auto_create_documents and target_doctype:
+            self.create_erpnext_document(target_doctype, extracted_data)
+
     def create_erpnext_document(self, target_doctype, data):
         """Create an ERPNext document based on extracted data"""
         # TODO: Implement document creation logic
@@ -165,8 +183,10 @@ class Doc2SysItem(Document):
         Args:
             token_usage: Dictionary with token usage and cost information
         """
-        try:
+        if not token_usage:
+            return
             
+        try:
             # Ensure we have initial values
             if not self.input_tokens:
                 self.input_tokens = 0
@@ -195,6 +215,8 @@ class Doc2SysItem(Document):
             self.output_cost = float(self.output_cost) + output_cost
             self.total_cost = float(self.total_cost) + total_cost
             
+        except (TypeError, ValueError) as e:
+            frappe.log_error(f"Error updating token usage - type/value error: {str(e)}")
         except Exception as e:
             frappe.log_error(f"Error updating token usage: {str(e)}")
 
