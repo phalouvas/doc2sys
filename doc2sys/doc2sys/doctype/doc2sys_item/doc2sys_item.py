@@ -272,3 +272,9 @@ class Doc2SysItem(Document):
         self.input_cost = 0.0
         self.output_cost = 0.0
         self.total_cost = 0.0
+
+    def get_document_text(self):
+        """Get text content from the document if available"""
+        # Implement based on your requirements
+        # This method is called by process_document but not defined
+        return ""
