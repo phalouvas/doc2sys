@@ -1,5 +1,6 @@
 import frappe
 import requests
+import json
 from typing import Dict, Any, List
 
 from doc2sys.integrations.base import BaseIntegration
@@ -44,21 +45,14 @@ class ERPNextIntegration(BaseIntegration):
     
     def sync_document(self, doc2sys_item: Dict[str, Any]) -> Dict[str, Any]:
         """Sync a doc2sys_item to the external ERPNext system"""
-            
         try:
-            # Get the field mapping from settings
-            field_mapping = self.settings.get("field_mapping", {})
-            if not field_mapping:
-                field_mapping = {
-                    "title": "title",
-                    "description": "description",
-                    "document_type": "document_type",
-                    "extracted_data": "extracted_data"
-                }
-                
-            # Map the fields
-            mapped_data = map_document_fields(doc2sys_item, field_mapping)
-            mapped_data["doctype"] = self.settings.get("target_doctype", "Doc2Sys Item")
+            # Extract and parse mapped data from the extracted_data field
+            extracted_data = doc2sys_item.get("extracted_data", "{}")
+            mapped_data = json.loads(extracted_data)
+            mapped_data =json.dumps(mapped_data)
+            
+            # Get target doctype from settings
+            document_type = doc2sys_item.get("document_type")
             
             # Send to ERPNext
             api_key = self.settings.get("api_key")
@@ -66,8 +60,8 @@ class ERPNextIntegration(BaseIntegration):
             base_url = self.settings.get("base_url")
             
             response = requests.post(
-                f"{base_url}/api/resource/{mapped_data['doctype']}",
-                json=mapped_data,
+                f"{base_url}/api/resource/{document_type}",
+                json={"data": mapped_data},
                 headers={
                     "Authorization": f"token {api_key}:{api_secret}",
                     "Content-Type": "application/json"

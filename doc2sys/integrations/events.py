@@ -8,11 +8,13 @@ def trigger_integrations_on_insert(doc, method=None):
 @frappe.whitelist()
 def trigger_integrations_on_update(doc, method=None):
     """Trigger integrations when a Doc2Sys Item is updated"""
+    is_manual = False
     if isinstance(doc, str):
         doc = frappe.get_doc(frappe.parse_json(doc))
-    _process_integrations(doc)
+        is_manual = True
+    _process_integrations(doc, is_manual)
 
-def _process_integrations(doc):
+def _process_integrations(doc, is_manual=False):
     """Process all enabled integrations for the document"""
     if doc.doctype != "Doc2Sys Item" or not doc.extracted_data:
         return
@@ -20,10 +22,15 @@ def _process_integrations(doc):
     # Discover available integrations
     IntegrationRegistry.discover_integrations()
     
+    # Define filters for getting enabled integration settings
+    filters = {"enabled": 1}
+    if not is_manual:
+        filters["auto_sync"] = 1
+    
     # Get all enabled integration settings
     settings_list = frappe.get_all(
         "Doc2Sys Integration Settings", 
-        filters={"enabled": 1, "auto_sync": 1},
+        filters=filters,
         fields=["name", "integration_type"]
     )
     
