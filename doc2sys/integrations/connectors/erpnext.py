@@ -64,7 +64,8 @@ class ERPNextIntegration(BaseIntegration):
             
             # Send to ERPNext
             api_key = self.settings.get("api_key")
-            api_secret = self.settings.get("api_secret")
+            # Use the decrypted secret
+            api_secret = self.get_decrypted_api_secret()
             base_url = self.settings.get("base_url")
             
             response = requests.post(

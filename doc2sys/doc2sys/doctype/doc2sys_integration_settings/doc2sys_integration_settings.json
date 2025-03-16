@@ -1,133 +1,137 @@
 {
-  "creation": "2023-03-15 12:00:00",
-  "doctype": "DocType",
-  "engine": "InnoDB",
-  "module": "Doc2Sys",
-  "field_order": [
-    "integration_type",
-    "enabled",
-    "section_credentials",
-    "api_key",
-    "api_secret",
-    "access_token",
-    "refresh_token",
-    "base_url",
-    "realm_id",
-    "section_configuration",
-    "target_doctype",
-    "field_mapping",
-    "section_options",
-    "auto_sync",
-    "sync_frequency"
-  ],
-  "fields": [
-    {
-      "fieldname": "integration_type",
-      "fieldtype": "Select",
-      "in_list_view": 1,
-      "label": "Integration Type",
-      "options": "ERPNextIntegration\nQuickBooksIntegration",
-      "reqd": 1
-    },
-    {
-      "default": "1",
-      "fieldname": "enabled",
-      "fieldtype": "Check",
-      "label": "Enabled"
-    },
-    {
-      "fieldname": "section_credentials",
-      "fieldtype": "Section Break",
-      "label": "Credentials"
-    },
-    {
-      "fieldname": "api_key",
-      "fieldtype": "Data",
-      "label": "API Key",
-      "depends_on": "eval:doc.integration_type=='ERPNextIntegration'"
-    },
-    {
-      "fieldname": "api_secret",
-      "fieldtype": "Password",
-      "label": "API Secret",
-      "depends_on": "eval:doc.integration_type=='ERPNextIntegration'"
-    },
-    {
-      "fieldname": "access_token",
-      "fieldtype": "Password",
-      "label": "Access Token",
-      "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'"
-    },
-    {
-      "fieldname": "refresh_token",
-      "fieldtype": "Password",
-      "label": "Refresh Token",
-      "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'"
-    },
-    {
-      "fieldname": "base_url",
-      "fieldtype": "Data",
-      "label": "Base URL",
-      "depends_on": "eval:doc.integration_type=='ERPNextIntegration'"
-    },
-    {
-      "fieldname": "realm_id",
-      "fieldtype": "Data",
-      "label": "Realm ID",
-      "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'"
-    },
-    {
-      "fieldname": "section_configuration",
-      "fieldtype": "Section Break",
-      "label": "Configuration"
-    },
-    {
-      "fieldname": "target_doctype",
-      "fieldtype": "Data",
-      "label": "Target DocType",
-      "depends_on": "eval:doc.integration_type=='ERPNextIntegration'"
-    },
-    {
-      "fieldname": "field_mapping",
-      "fieldtype": "Code",
-      "label": "Field Mapping",
-      "options": "JSON"
-    },
-    {
-      "fieldname": "section_options",
-      "fieldtype": "Section Break",
-      "label": "Options"
-    },
-    {
-      "default": "0",
-      "fieldname": "auto_sync",
-      "fieldtype": "Check",
-      "label": "Auto Sync"
-    },
-    {
-      "depends_on": "auto_sync",
-      "fieldname": "sync_frequency",
-      "fieldtype": "Select",
-      "label": "Sync Frequency",
-      "options": "Hourly\nDaily\nWeekly"
-    }
-  ],
-  "modified": "2023-03-15 12:00:00",
-  "name": "Doc2Sys Integration Settings",
-  "owner": "Administrator",
-  "permissions": [
-    {
-      "create": 1,
-      "delete": 1,
-      "email": 1,
-      "print": 1,
-      "read": 1,
-      "role": "System Manager",
-      "share": 1,
-      "write": 1
-    }
-  ],
-  "sort_field": "modified",
-  "sort_order": "DESC",
-  "track_changes": 1
+ "actions": [],
+ "creation": "2023-03-15 12:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "integration_type",
+  "enabled",
+  "section_credentials",
+  "api_key",
+  "api_secret",
+  "access_token",
+  "refresh_token",
+  "base_url",
+  "realm_id",
+  "section_configuration",
+  "target_doctype",
+  "field_mapping",
+  "section_options",
+  "auto_sync",
+  "sync_frequency"
+ ],
+ "fields": [
+  {
+   "fieldname": "integration_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Integration Type",
+   "options": "ERPNextIntegration\nQuickBooksIntegration",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "section_credentials",
+   "fieldtype": "Section Break",
+   "label": "Credentials"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='ERPNextIntegration'",
+   "fieldname": "api_key",
+   "fieldtype": "Data",
+   "label": "API Key"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='ERPNextIntegration'",
+   "fieldname": "api_secret",
+   "fieldtype": "Data",
+   "label": "API Secret"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'",
+   "fieldname": "access_token",
+   "fieldtype": "Password",
+   "label": "Access Token"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'",
+   "fieldname": "refresh_token",
+   "fieldtype": "Password",
+   "label": "Refresh Token"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='ERPNextIntegration'",
+   "fieldname": "base_url",
+   "fieldtype": "Data",
+   "label": "Base URL"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'",
+   "fieldname": "realm_id",
+   "fieldtype": "Data",
+   "label": "Realm ID"
+  },
+  {
+   "fieldname": "section_configuration",
+   "fieldtype": "Section Break",
+   "label": "Configuration"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='ERPNextIntegration'",
+   "fieldname": "target_doctype",
+   "fieldtype": "Data",
+   "label": "Target DocType"
+  },
+  {
+   "fieldname": "field_mapping",
+   "fieldtype": "Code",
+   "label": "Field Mapping",
+   "options": "JSON"
+  },
+  {
+   "fieldname": "section_options",
+   "fieldtype": "Section Break",
+   "label": "Options"
+  },
+  {
+   "default": "0",
+   "fieldname": "auto_sync",
+   "fieldtype": "Check",
+   "label": "Auto Sync"
+  },
+  {
+   "depends_on": "auto_sync",
+   "fieldname": "sync_frequency",
+   "fieldtype": "Select",
+   "label": "Sync Frequency",
+   "options": "Hourly\nDaily\nWeekly"
+  }
+ ],
+ "links": [],
+ "modified": "2025-03-15 20:10:04.862365",
+ "modified_by": "Administrator",
+ "module": "Doc2Sys",
+ "name": "Doc2Sys Integration Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
 }
