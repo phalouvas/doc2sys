@@ -17,8 +17,7 @@
   "target_doctype",
   "field_mapping",
   "section_options",
-  "auto_sync",
-  "sync_frequency"
+  "auto_sync"
  ],
  "fields": [
   {
@@ -103,13 +102,6 @@
    "fieldname": "auto_sync",
    "fieldtype": "Check",
    "label": "Auto Sync"
-  },
-  {
-   "depends_on": "auto_sync",
-   "fieldname": "sync_frequency",
-   "fieldtype": "Select",
-   "label": "Sync Frequency",
-   "options": "Hourly\nDaily\nWeekly"
   }
  ],
  "links": [],
