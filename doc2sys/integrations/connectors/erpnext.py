@@ -44,8 +44,6 @@ class ERPNextIntegration(BaseIntegration):
     
     def sync_document(self, doc2sys_item: Dict[str, Any]) -> Dict[str, Any]:
         """Sync a doc2sys_item to the external ERPNext system"""
-        if not self.is_authenticated and not self.authenticate():
-            return {"success": False, "message": "Authentication failed"}
             
         try:
             # Get the field mapping from settings

@@ -5,8 +5,11 @@ def trigger_integrations_on_insert(doc, method=None):
     """Trigger integrations when a new Doc2Sys Item is created"""
     _process_integrations(doc)
 
+@frappe.whitelist()
 def trigger_integrations_on_update(doc, method=None):
     """Trigger integrations when a Doc2Sys Item is updated"""
+    if isinstance(doc, str):
+        doc = frappe.get_doc(frappe.parse_json(doc))
     _process_integrations(doc)
 
 def _process_integrations(doc):

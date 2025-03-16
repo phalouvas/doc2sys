@@ -32,6 +32,24 @@ frappe.ui.form.on('Doc2Sys Item', {
                 });
             }, __('Actions'));
         }
+
+        // Add Trigger Integrations button
+        frm.add_custom_button(__('Trigger Integrations'), function() {
+            frappe.call({
+                method: 'doc2sys.integrations.events.trigger_integrations_on_update',
+                args: {
+                    doc: frm.doc
+                },
+                callback: function(r) {
+                    if(r.message) {
+                        frappe.show_alert({
+                            message: __('Integrations triggered successfully'),
+                            indicator: 'green'
+                        }, 3);
+                    }
+                }
+            });
+        }, __('Actions'));
     },
     
     single_file: function(frm) {
