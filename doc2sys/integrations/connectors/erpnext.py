@@ -14,7 +14,7 @@ class ERPNextIntegration(BaseIntegration):
         """Authenticate with ERPNext using API key and secret"""
         try:
             api_key = self.settings.get("api_key")
-            api_secret = self.settings.get("api_secret")
+            api_secret = frappe.utils.password.get_decrypted_password("Doc2Sys Integration Settings", self.settings.name, "api_secret") or ""
             base_url = self.settings.get("base_url")
             
             if not (api_key and api_secret and base_url):
@@ -64,8 +64,7 @@ class ERPNextIntegration(BaseIntegration):
             
             # Send to ERPNext
             api_key = self.settings.get("api_key")
-            # Use the decrypted secret
-            api_secret = self.get_decrypted_api_secret()
+            api_secret = frappe.utils.password.get_decrypted_password("Doc2Sys Integration Settings", self.settings.name, "api_secret") or ""
             base_url = self.settings.get("base_url")
             
             response = requests.post(
