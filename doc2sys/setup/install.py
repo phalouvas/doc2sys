@@ -9,6 +9,11 @@ def after_install():
     dependencies = [
         "python-docx",       # For processing Microsoft Word documents
         "pdf2image",         # For converting PDF pages to images for OCR
+        "easyocr",           # For OCR on images
+        "opencv-python-headless", # For image preprocessing
+        "numpy",             # Required for image processing
+        "pandas",            # For data processing
+        "PyPDF2",            # For PDF text extraction
     ]
     
     # Install each dependency
