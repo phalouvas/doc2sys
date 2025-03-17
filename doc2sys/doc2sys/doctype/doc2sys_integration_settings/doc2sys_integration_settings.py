@@ -3,19 +3,6 @@ from frappe.model.document import Document
 from doc2sys.integrations.registry import IntegrationRegistry
 
 class Doc2SysIntegrationSettings(Document):
-    def validate(self):
-        """Validate integration settings before saving"""
-        self.validate_required_fields()
-        
-    def validate_required_fields(self):
-        """Validate that required fields based on integration type are provided"""
-        if self.integration_type == "ERPNextIntegration":
-            if not (self.api_key and self.api_secret and self.base_url):
-                frappe.throw("API Key, API Secret, and Base URL are required for ERPNext integration")
-                
-        elif self.integration_type == "QuickBooksIntegration":
-            if not (self.access_token and self.realm_id):
-                frappe.throw("Access Token and Realm ID are required for QuickBooks integration")
     
     def before_save(self):
         """Process field mapping JSON if it's provided as a string"""

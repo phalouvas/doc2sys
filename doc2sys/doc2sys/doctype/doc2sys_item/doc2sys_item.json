@@ -10,10 +10,8 @@
   "auto_create_documents",
   "document_section",
   "single_file",
-  "classification_section",
   "document_type",
   "classification_confidence",
-  "party_name",
   "extracted_data",
   "process_stats_section",
   "erpnext_document_type",
@@ -44,11 +42,6 @@
    "fieldname": "single_file",
    "fieldtype": "Attach",
    "label": "Single File"
-  },
-  {
-   "fieldname": "classification_section",
-   "fieldtype": "Section Break",
-   "label": "Classification"
   },
   {
    "fieldname": "document_type",
@@ -92,13 +85,6 @@
    "label": "ERPNext Document",
    "options": "erpnext_document_type",
    "read_only": 1
-  },
-  {
-   "fieldname": "party_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Party Name"
   },
   {
    "fieldname": "llm_file_id",
