@@ -6,6 +6,7 @@
  "field_order": [
   "integration_type",
   "enabled",
+  "auto_sync",
   "section_credentials",
   "api_key",
   "api_secret",
@@ -14,10 +15,7 @@
   "base_url",
   "realm_id",
   "section_configuration",
-  "target_doctype",
-  "field_mapping",
-  "section_options",
-  "auto_sync"
+  "target_doctypes"
  ],
  "fields": [
   {
@@ -81,31 +79,20 @@
    "label": "Configuration"
   },
   {
-   "depends_on": "eval:doc.integration_type=='ERPNextIntegration'",
-   "fieldname": "target_doctype",
-   "fieldtype": "Data",
-   "label": "Target DocType"
-  },
-  {
-   "fieldname": "field_mapping",
-   "fieldtype": "Code",
-   "label": "Field Mapping",
-   "options": "JSON"
-  },
-  {
-   "fieldname": "section_options",
-   "fieldtype": "Section Break",
-   "label": "Options"
-  },
-  {
    "default": "0",
    "fieldname": "auto_sync",
    "fieldtype": "Check",
    "label": "Auto Sync"
+  },
+  {
+   "fieldname": "target_doctypes",
+   "fieldtype": "Table",
+   "label": "Target Doctypes",
+   "options": "Doc2Sys Integration Doctypes"
   }
  ],
  "links": [],
- "modified": "2025-03-16 06:39:13.845123",
+ "modified": "2025-03-17 06:49:33.653720",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Integration Settings",

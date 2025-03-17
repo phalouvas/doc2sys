@@ -26,11 +26,3 @@ def execute_webhook(url: str, data: Dict[str, Any],
         return {"success": True, "data": response.json()}
     except Exception as e:
         return {"success": False, "error": str(e)}
-
-def map_document_fields(doc_data: Dict[str, Any], field_mapping: Dict[str, str]) -> Dict[str, Any]:
-    """Map document fields according to the provided mapping"""
-    result = {}
-    for target_field, source_field in field_mapping.items():
-        if source_field in doc_data:
-            result[target_field] = doc_data[source_field]
-    return result

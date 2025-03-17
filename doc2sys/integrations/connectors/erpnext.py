@@ -5,7 +5,6 @@ from typing import Dict, Any, List
 
 from doc2sys.integrations.base import BaseIntegration
 from doc2sys.integrations.registry import register_integration
-from doc2sys.integrations.utils import map_document_fields
 
 @register_integration
 class ERPNextIntegration(BaseIntegration):

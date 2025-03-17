@@ -26,35 +26,6 @@ frappe.ui.form.on('Doc2Sys Integration Settings', {
             });
         });
         
-        // Add button to get field mapping suggestions
-        frm.add_custom_button(__('Get Mapping Fields'), function() {
-            frm.call({
-                method: 'get_mapping_fields',
-                doc: frm.doc,
-                callback: function(r) {
-                    if (r.message && r.message.length) {
-                        let fields = r.message;
-                        let mapping = {};
-                        
-                        fields.forEach(function(field) {
-                            mapping[field.field] = '';
-                        });
-                        
-                        // Update the field_mapping field with the template
-                        frm.set_value('field_mapping', JSON.stringify(mapping, null, 2));
-                        frappe.show_alert({
-                            message: __('Field mapping template generated'),
-                            indicator: 'green'
-                        });
-                    } else {
-                        frappe.show_alert({
-                            message: __('No fields found or error occurred'),
-                            indicator: 'red'
-                        });
-                    }
-                }
-            });
-        });
     },
     
     integration_type: function(frm) {
@@ -65,6 +36,5 @@ frappe.ui.form.on('Doc2Sys Integration Settings', {
         frm.set_value('refresh_token', '');
         frm.set_value('base_url', '');
         frm.set_value('realm_id', '');
-        frm.set_value('field_mapping', '');
     }
 });
