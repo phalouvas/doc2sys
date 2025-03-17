@@ -25,6 +25,9 @@
   "openwebui_endpoint",
   "openwebui_model",
   "openwebui_apikey",
+  "deepseek_endpoint",
+  "deepseek_model",
+  "deepseek_apikey",
   "input_token_price",
   "output_token_price"
  ],
@@ -132,25 +135,48 @@
    "fieldname": "llm_provider",
    "fieldtype": "Select",
    "label": "LLM Provider",
-   "options": "Open WebUI",
+   "options": "Open WebUI\nDeepSeek",
    "default": "Open WebUI"
   },
   {
    "fieldname": "openwebui_endpoint",
    "fieldtype": "Data",
    "label": "Open WebUI Endpoint",
-   "default": "http://localhost:3000/api/chat/completions"
+   "default": "http://localhost:3000/api/chat/completions",
+   "depends_on": "eval:doc.llm_provider=='Open WebUI'"
   },
   {
    "fieldname": "openwebui_model",
    "fieldtype": "Data",
    "label": "Open WebUI Model",
-   "default": "llama3"
+   "default": "llama3",
+   "depends_on": "eval:doc.llm_provider=='Open WebUI'"
   },
   {
    "fieldname": "openwebui_apikey",
    "fieldtype": "Password",
-   "label": "Open WebUI API Key"
+   "label": "Open WebUI API Key",
+   "depends_on": "eval:doc.llm_provider=='Open WebUI'"
+  },
+  {
+   "fieldname": "deepseek_endpoint",
+   "fieldtype": "Data",
+   "label": "DeepSeek API Endpoint",
+   "default": "https://api.deepseek.com/v1/chat/completions",
+   "depends_on": "eval:doc.llm_provider=='DeepSeek'"  
+  },
+  {
+   "fieldname": "deepseek_model",
+   "fieldtype": "Data",
+   "label": "DeepSeek Model",
+   "default": "deepseek-chat",
+   "depends_on": "eval:doc.llm_provider=='DeepSeek'"
+  },
+  {
+   "fieldname": "deepseek_apikey",
+   "fieldtype": "Password",
+   "label": "DeepSeek API Key",
+   "depends_on": "eval:doc.llm_provider=='DeepSeek'"
   },
   {
    "fieldname": "input_token_price",

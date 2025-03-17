@@ -15,13 +15,12 @@ class LLMProcessor:
     @staticmethod
     def create():
         """Factory method to create the appropriate LLM processor"""
-        # Always return OpenWebUI processor regardless of settings for backward compatibility
         provider = frappe.db.get_single_value("Doc2Sys Settings", "llm_provider") or "Open WebUI"
         
-        if provider != "Open WebUI":
-            logger.warning(f"Only Open WebUI provider is supported, got: {provider}, using Open WebUI")
-            
-        return OpenWebUIProcessor()
+        if provider == "DeepSeek":
+            return DeepSeekProcessor()
+        else:
+            return OpenWebUIProcessor()
 
 
 class OpenWebUIProcessor:
@@ -447,6 +446,358 @@ class OpenWebUIProcessor:
                 return None, None
                 
         return api_payload, messages
+
+    def _prepare_text_content(self, text, prompt):
+        """
+        Prepare text content for API request
+        
+        Args:
+            text (str): Text content to process
+            prompt (str): Prompt to use with the text
+            
+        Returns:
+            dict: API payload to use in the request
+        """
+        if not text:
+            return None
+            
+        text_for_api = text[:MAX_TEXT_LENGTH]  # Truncate if too long
+        
+        api_payload = {
+            "model": self.model,
+            "temperature": DEFAULT_TEMPERATURE,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": "You are an AI language model. Always respond in JSON."},
+                {"role": "user", "content": f"{prompt}\n\n{text_for_api}"}
+            ]
+        }
+        
+        return api_payload
+
+
+class DeepSeekProcessor:
+    """Process documents using DeepSeek API"""
+    
+    def __init__(self):
+        """Initialize DeepSeek processor"""
+        self.endpoint = frappe.db.get_single_value("Doc2Sys Settings", "deepseek_endpoint") or "https://api.deepseek.com/v1/chat/completions"
+        self.model = frappe.db.get_single_value("Doc2Sys Settings", "deepseek_model") or "deepseek-chat"
+        self.api_key = frappe.utils.password.get_decrypted_password("Doc2Sys Settings", "Doc2Sys Settings", "deepseek_apikey") or ""
+        
+        # Cache token pricing
+        self.input_price_per_million = float(frappe.db.get_single_value("Doc2Sys Settings", "input_token_price") or 0.0)
+        self.output_price_per_million = float(frappe.db.get_single_value("Doc2Sys Settings", "output_token_price") or 0.0)
+    
+    def _get_content_type(self, file_extension):
+        """Helper method to determine content type from file extension"""
+        content_types = {
+            ".pdf": "application/pdf",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".txt": "text/plain",
+            ".csv": "text/csv",
+            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+        return content_types.get(file_extension, "application/octet-stream")
+    
+    def classify_document(self, file_path=None, text=None):
+        """
+        Classify document using DeepSeek
+        
+        Args:
+            file_path: Path to the document file (preferred)
+            text: Document text content (fallback if file_path not provided)
+            
+        Returns:
+            dict: Classification result with document type and confidence
+        """
+        try:
+            # Get available document types for context
+            doc_types = frappe.get_all("Doc2Sys Document Type", 
+                                     fields=["document_type"],
+                                     filters={"enabled": 1})
+            
+            available_types = [dt.document_type for dt in doc_types]
+            
+            # Format available types with quotes to clarify they are exact phrases
+            formatted_types = [f'"{doc_type}"' for doc_type in available_types]
+            
+            # Improved prompt with clear formatting
+            prompt = f"""
+            Your task is to classify the attached document. Analyze it and determine what type of document it is.
+            
+            Available document types (use EXACT match from this list):
+            {', '.join(formatted_types)}
+            
+            IMPORTANT: You must select document types EXACTLY as written above, including spaces and capitalization.
+            If the document doesn't match any of the available types, classify it as "unknown".
+            
+            Respond in JSON format only:
+            {{
+                "document_type": "the determined document type - MUST be an exact match from the list above",
+                "confidence": 0.0-1.0 (your confidence level),
+                "reasoning": "brief explanation of why"
+            }}
+            """
+            
+            api_payload = None
+            
+            if file_path:
+                # Extract text from file for DeepSeek
+                extracted_text = self._extract_text_from_file(file_path)
+                if extracted_text:
+                    text = extracted_text
+                    
+            if text:
+                api_payload = self._prepare_text_content(text, prompt)
+            
+            # If we couldn't create a valid payload, return default response
+            if not api_payload:
+                return {"document_type": "unknown", "confidence": 0.0}
+                
+            # Make the API request
+            result = self._make_api_request(self.endpoint, api_payload)
+            
+            if not result:
+                return {"document_type": "unknown", "confidence": 0.0}
+                
+            # Extract content from response
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "{}")
+            
+            # Calculate token usage costs
+            token_cost = self._calculate_token_cost(result.get("usage", {}))
+            
+            try:
+                # Try to parse the JSON response
+                cleaned_content = self._clean_json_response(content)
+                classification = json.loads(cleaned_content)
+                
+                # Add token usage and cost data
+                classification["token_usage"] = token_cost
+                
+                return classification
+            except json.JSONDecodeError:
+                # If we couldn't parse JSON, do basic text analysis
+                logger.warning(f"Failed to parse JSON from DeepSeek: {content}")
+                
+                # Try to extract document type through simple text matching
+                return self._extract_document_type_from_text(content, available_types)
+                
+        except Exception as e:
+            logger.error(f"Classification error: {str(e)}")
+            return {"document_type": "unknown", "confidence": 0.0}
+            
+    def extract_data(self, file_path=None, text=None, document_type=None):
+        """
+        Extract structured data from document using DeepSeek
+        
+        Args:
+            file_path: Path to the document file (preferred)
+            text: Document text content (fallback if file_path not provided)
+            document_type: Type of document
+            
+        Returns:
+            dict: Extracted data fields
+        """
+        try:
+            # Get the custom prompt from the document type
+            custom_prompt = frappe.db.get_value(
+                "Doc2Sys Document Type", 
+                {"document_type": document_type}, 
+                "extract_data_prompt"
+            )
+            
+            # Prepare the default prompt text
+            default_prompt = f"""
+            Identify the JSON structure of an ERPNext {document_type} doctype. 
+            Extract the relevant data and present the extracted data in JSON format.
+            Only include fields that are present in the document.
+            """
+            
+            # Use custom prompt if available, otherwise use default
+            prompt = custom_prompt if custom_prompt else default_prompt
+            
+            api_payload = None
+            
+            if file_path:
+                # Extract text from file for DeepSeek
+                extracted_text = self._extract_text_from_file(file_path)
+                if extracted_text:
+                    text = extracted_text
+                    
+            if text:
+                api_payload = self._prepare_text_content(text, prompt)
+            
+            # If we couldn't create a valid payload, return empty dict
+            if not api_payload:
+                return {}
+                
+            # Make the API request
+            result = self._make_api_request(self.endpoint, api_payload)
+            
+            if not result:
+                return {}
+                
+            # Extract content from response
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "{}")
+            
+            # Calculate token usage costs
+            token_cost = self._calculate_token_cost(result.get("usage", {}))
+            
+            try:
+                # Try to parse the JSON response
+                cleaned_content = self._clean_json_response(content)
+                extracted_data = json.loads(cleaned_content)
+                
+                # Add token usage as metadata
+                extracted_data["_token_usage"] = token_cost
+                
+                return extracted_data
+            except json.JSONDecodeError:
+                logger.error(f"Failed to parse JSON from DeepSeek: {content}")
+                return {}
+                
+        except Exception as e:
+            logger.error(f"Data extraction error: {str(e)}")
+            return {}
+
+    def _extract_text_from_file(self, file_path):
+        """
+        Extract text from a file using appropriate extraction method
+        
+        Args:
+            file_path: Path to the file
+            
+        Returns:
+            str: Extracted text content or None on failure
+        """
+        try:
+            import textract
+            
+            # Extract text using textract library
+            text = textract.process(file_path).decode('utf-8')
+            
+            # Truncate if too long
+            return text[:MAX_TEXT_LENGTH] if text else None
+        except Exception as e:
+            logger.error(f"Text extraction error: {str(e)}")
+            return None
+    
+    def _clean_json_response(self, content):
+        """Enhanced JSON cleaning with better edge case handling"""
+        # Start by finding the first '{' and last '}' for more robust extraction
+        start_idx = content.find('{')
+        end_idx = content.rfind('}')
+        
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            return content[start_idx:end_idx+1]
+        
+        # Fallback to current cleaning logic
+        cleaned_content = content.strip()
+        if cleaned_content.startswith("```json"):
+            cleaned_content = cleaned_content[7:]
+        elif cleaned_content.startswith("```"):
+            cleaned_content = cleaned_content[3:]
+        if cleaned_content.endswith("```"):
+            cleaned_content = cleaned_content[:-3]
+            
+        return cleaned_content.strip()
+    
+    def _extract_document_type_from_text(self, content, available_types):
+        """Helper method to extract document type from text when JSON parsing fails"""
+        content_lower = content.lower()
+        best_match = None
+        for doc_type in available_types:
+            if doc_type.lower() in content_lower:
+                best_match = doc_type
+                break
+        
+        if best_match:
+            return {
+                "document_type": best_match,
+                "confidence": 0.6  # Moderate confidence for text matching
+            }
+        else:
+            return {"document_type": "unknown", "confidence": 0.0}
+
+    def _calculate_token_cost(self, usage):
+        """
+        Calculate cost based on token usage from API response
+        
+        Args:
+            usage: Token usage dict from API response
+            
+        Returns:
+            dict: Token usage and cost information
+        """
+        try:
+            # Extract token counts
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
+            total_tokens = usage.get("total_tokens", 0)
+            
+            # Calculate cost (convert from price per million to price per token)
+            input_cost = (input_tokens * self.input_price_per_million) / 1000000
+            output_cost = (output_tokens * self.output_price_per_million) / 1000000
+            total_cost = input_cost + output_cost
+            
+            # Log calculated costs
+            logger.debug(f"Token counts - Input: {input_tokens}, Output: {output_tokens}, Total: {total_tokens}")
+            logger.debug(f"Calculated costs - Input: {input_cost}, Output: {output_cost}, Total: {total_cost}")
+            
+            return {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+                "input_cost": input_cost,
+                "output_cost": output_cost,
+                "total_cost": total_cost
+            }
+        except Exception as e:
+            logger.error(f"Error calculating token cost: {str(e)}")
+            return {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "input_cost": 0.0,
+                "output_cost": 0.0,
+                "total_cost": 0.0
+            }
+
+    def _make_api_request(self, endpoint, payload, headers=None):
+        """
+        Centralized method to make API requests with proper error handling
+        
+        Args:
+            endpoint (str): API endpoint to call
+            payload (dict): Request payload
+            headers (dict, optional): Request headers
+            
+        Returns:
+            dict: API response or empty dict on failure
+        """
+        try:
+            # Prepare headers
+            request_headers = {"Content-Type": "application/json"}
+            if headers:
+                request_headers.update(headers)
+            if self.api_key:
+                request_headers["Authorization"] = f"Bearer {self.api_key}"
+                
+            # Make request with timeout
+            response = requests.post(endpoint, headers=request_headers, json=payload, timeout=30)
+            
+            if response.status_code != 200:
+                logger.error(f"API error: {response.status_code}, {response.text}")
+                return {}
+                
+            return response.json()
+        except Exception as e:
+            logger.error(f"API request error: {str(e)}")
+            return {}
 
     def _prepare_text_content(self, text, prompt):
         """
