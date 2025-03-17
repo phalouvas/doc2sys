@@ -10,14 +10,7 @@
   "enabled",
   "llm_section",
   "extract_data_prompt",
-  "keywords_section",
-  "keywords",
-  "required_fields",
-  "erpnext_integration_section",
-  "target_doctype",
-  "create_draft",
-  "extraction_fields_section",
-  "extraction_fields"
+  "keywords_section"
  ],
  "fields": [
   {
@@ -38,48 +31,6 @@
    "fieldname": "keywords_section",
    "fieldtype": "Section Break",
    "label": "Classification"
-  },
-  {
-   "description": "Comma-separated keywords that identify this document type",
-   "fieldname": "keywords",
-   "fieldtype": "Small Text",
-   "label": "Keywords"
-  },
-  {
-   "description": "Comma-separated fields that must be present for this classification",
-   "fieldname": "required_fields",
-   "fieldtype": "Small Text",
-   "label": "Required Fields"
-  },
-  {
-   "fieldname": "erpnext_integration_section",
-   "fieldtype": "Section Break",
-   "label": "ERPNext Integration"
-  },
-  {
-   "description": "ERPNext DocType to create when this document type is detected",
-   "fieldname": "target_doctype",
-   "fieldtype": "Link",
-   "label": "Target DocType",
-   "options": "DocType"
-  },
-  {
-   "default": "1",
-   "description": "Create documents as draft instead of submitting them automatically",
-   "fieldname": "create_draft",
-   "fieldtype": "Check",
-   "label": "Create as Draft"
-  },
-  {
-   "fieldname": "extraction_fields_section",
-   "fieldtype": "Section Break",
-   "label": "Field Extraction"
-  },
-  {
-   "fieldname": "extraction_fields",
-   "fieldtype": "Table",
-   "label": "Extraction Fields",
-   "options": "Doc2Sys Extraction Field"
   },
   {
    "fieldname": "llm_section",

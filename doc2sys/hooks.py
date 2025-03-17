@@ -139,37 +139,17 @@ after_install = "doc2sys.setup.install.after_install"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+# Doc Events
+doc_events = {
+    "Doc2Sys Item": {
+        "after_insert": "doc2sys.integrations.events.trigger_integrations_on_insert",
+        "on_update": "doc2sys.integrations.events.trigger_integrations_on_update",
+    }
+}
 
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"doc2sys.tasks.all"
-# 	],
-# 	"daily": [
-# 		"doc2sys.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"doc2sys.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"doc2sys.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"doc2sys.tasks.monthly"
-# 	],
-# }
-
-# Scheduler
-# ---------------
 scheduler_events = {
     "cron": {
         # Monitor folders based on configured interval

@@ -128,18 +128,6 @@ class Doc2SysItem(Document):
         
         # Store extracted data
         self.extracted_data = frappe.as_json(extracted_data)
-        self.party_name = extracted_data.get("party_name")
-        
-        # Create ERPNext document if configured
-        target_doctype = getattr(self, "target_doctype", None)
-        if self.auto_create_documents and target_doctype:
-            self.create_erpnext_document(target_doctype, extracted_data)
-
-    def create_erpnext_document(self, target_doctype, data):
-        """Create an ERPNext document based on extracted data"""
-        # TODO: Implement document creation logic
-        frappe.log_error("Document creation not yet implemented", "Doc2Sys")
-        return
 
     @frappe.whitelist()
     def reprocess_document(self):
@@ -254,10 +242,6 @@ class Doc2SysItem(Document):
             
             # Store extraction results
             self.extracted_data = json.dumps(extraction_result)
-            
-            # Try to extract party name if available
-            if "party_name" in extraction_result:
-                self.party_name = extraction_result.get("party_name")
         
         # Save the document
         if self.docstatus == 0:  # Only if not submitted

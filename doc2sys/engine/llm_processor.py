@@ -121,11 +121,10 @@ class OpenWebUIProcessor:
         try:
             # Get available document types for context
             doc_types = frappe.get_all("Doc2Sys Document Type", 
-                                     fields=["document_type", "target_doctype"],
+                                     fields=["document_type"],
                                      filters={"enabled": 1})
             
             available_types = [dt.document_type for dt in doc_types]
-            type_to_doctype = {dt.document_type: dt.target_doctype for dt in doc_types}
             
             # Format available types with quotes to clarify they are exact phrases
             formatted_types = [f'"{doc_type}"' for doc_type in available_types]
@@ -162,7 +161,7 @@ class OpenWebUIProcessor:
                 
             # If we couldn't create a valid payload, return default response
             if not api_payload:
-                return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
+                return {"document_type": "unknown", "confidence": 0.0}
                 
             # Make the API request
             result = self._make_api_request(
@@ -171,7 +170,7 @@ class OpenWebUIProcessor:
             )
             
             if not result:
-                return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
+                return {"document_type": "unknown", "confidence": 0.0}
                 
             # Extract content from response
             content = result.get("choices", [{}])[0].get("message", {}).get("content", "{}")
@@ -186,7 +185,6 @@ class OpenWebUIProcessor:
                 
                 # Add target doctype based on document type
                 doc_type = classification.get("document_type", "unknown")
-                classification["target_doctype"] = type_to_doctype.get(doc_type)
                 
                 # Add token usage and cost data
                 classification["token_usage"] = token_cost
@@ -197,11 +195,11 @@ class OpenWebUIProcessor:
                 logger.warning(f"Failed to parse JSON from Open WebUI: {content}")
                 
                 # Try to extract document type through simple text matching
-                return self._extract_document_type_from_text(content, available_types, type_to_doctype)
+                return self._extract_document_type_from_text(content, available_types)
                 
         except Exception as e:
             logger.error(f"Classification error: {str(e)}")
-            return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
+            return {"document_type": "unknown", "confidence": 0.0}
             
     def extract_data(self, file_path=None, text=None, document_type=None):
         """
@@ -301,7 +299,7 @@ class OpenWebUIProcessor:
             
         return cleaned_content.strip()
     
-    def _extract_document_type_from_text(self, content, available_types, type_to_doctype):
+    def _extract_document_type_from_text(self, content, available_types):
         """Helper method to extract document type from text when JSON parsing fails"""
         content_lower = content.lower()
         best_match = None
@@ -313,11 +311,10 @@ class OpenWebUIProcessor:
         if best_match:
             return {
                 "document_type": best_match,
-                "confidence": 0.6,  # Moderate confidence for text matching
-                "target_doctype": type_to_doctype.get(best_match)
+                "confidence": 0.6  # Moderate confidence for text matching
             }
         else:
-            return {"document_type": "unknown", "confidence": 0.0, "target_doctype": None}
+            return {"document_type": "unknown", "confidence": 0.0}
 
     def _calculate_token_cost(self, usage):
         """
