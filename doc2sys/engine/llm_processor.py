@@ -381,7 +381,7 @@ class OpenWebUIProcessor:
                 request_headers["Authorization"] = f"Bearer {self.api_key}"
                 
             # Make request with timeout
-            response = requests.post(endpoint, headers=request_headers, json=payload, timeout=30)
+            response = requests.post(endpoint, headers=request_headers, json=payload, timeout=300)
             
             if response.status_code != 200:
                 logger.error(f"API error: {response.status_code}, {response.text}")
