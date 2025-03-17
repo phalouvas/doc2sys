@@ -278,6 +278,70 @@ class OpenWebUIProcessor:
             logger.error(f"Data extraction error: {str(e)}")
             return {}
 
+    def extract_text(self, file_path=None):
+        """
+        Extract text from a document using Open WebUI's capabilities
+        
+        Args:
+            file_path: Path to the document file
+            
+        Returns:
+            dict or str: Extracted text and token usage information
+        """
+        try:
+            # Verify file exists
+            if not file_path or not os.path.exists(file_path):
+                logger.error(f"File not found or invalid path: {file_path}")
+                return ""
+            
+            # Get file extension and content type
+            file_extension = os.path.splitext(file_path)[1].lower()
+            content_type = self._get_content_type(file_extension)
+            
+            # Prompt specifically for text extraction
+            prompt = """
+            Extract all the text content from this document. 
+            Include all readable text, maintaining its logical structure as much as possible.
+            Do not analyze or interpret the content, just extract the raw text.
+            For tables, preserve their structure using plain text formatting.
+            """
+            
+            # Prepare API payload based on file type
+            api_payload, _ = self._prepare_file_content(file_path, prompt)
+            if not api_payload:
+                logger.error(f"Failed to prepare file content for text extraction: {file_path}")
+                return ""
+            
+            # Remove JSON formatting requirement for text extraction to get full content
+            if "response_format" in api_payload:
+                del api_payload["response_format"]
+            
+            # Make the API request
+            result = self._make_api_request(
+                f"{self.endpoint}/api/chat/completions",
+                api_payload
+            )
+            
+            if not result:
+                logger.error("API request failed for text extraction")
+                return ""
+            
+            # Extract content from response
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            # Calculate token usage costs
+            token_cost = self._calculate_token_cost(result.get("usage", {}))
+            
+            # Return both text and token usage information in a structured format
+            return {
+                "text": content,
+                "token_usage": token_cost
+            }
+            
+        except Exception as e:
+            logger.error(f"Text extraction error: {str(e)}")
+            return ""
+
     def _clean_json_response(self, content):
         """Enhanced JSON cleaning with better edge case handling"""
         # Start by finding the first '{' and last '}' for more robust extraction
@@ -663,6 +727,99 @@ class DeepSeekProcessor:
         except Exception as e:
             logger.error(f"Data extraction error: {str(e)}")
             return {}
+
+    def extract_text(self, file_path=None):
+        """
+        Extract text from a document using DeepSeek capabilities
+        
+        Args:
+            file_path: Path to the document file
+            
+        Returns:
+            dict or str: Extracted text and token usage information
+        """
+        try:
+            # Verify file exists
+            if not file_path or not os.path.exists(file_path):
+                logger.error(f"File not found or invalid path: {file_path}")
+                return ""
+            
+            # Use built-in text extraction method
+            extracted_text = self._extract_text_from_file(file_path)
+            if not extracted_text or len(extracted_text.strip()) < 100:
+                # If basic extraction failed or produced minimal text,
+                # try enhanced extraction with LLM
+                return self._enhanced_text_extraction(file_path)
+            
+            # Return the extracted text (no token usage since we used textract)
+            return extracted_text
+            
+        except Exception as e:
+            logger.error(f"Text extraction error: {str(e)}")
+            return ""
+
+    def _enhanced_text_extraction(self, file_path):
+        """
+        Enhanced text extraction using DeepSeek LLM capabilities
+        
+        Args:
+            file_path: Path to the document file
+            
+        Returns:
+            dict: Extracted text and token usage information
+        """
+        try:
+            # Convert file to base64 for API submission
+            with open(file_path, 'rb') as f:
+                file_content = f.read()
+            
+            file_extension = os.path.splitext(file_path)[1].lower()
+            content_type = self._get_content_type(file_extension)
+            base64_file = base64.b64encode(file_content).decode('utf-8')
+            
+            # Prompt specifically for text extraction
+            prompt = """
+            Extract all the text content from this document. 
+            Include all readable text, maintaining its logical structure as much as possible.
+            Do not analyze or interpret the content, just extract the raw text.
+            For tables, preserve their structure using plain text formatting.
+            """
+            
+            # Prepare API payload for DeepSeek
+            api_payload = {
+                "model": self.model,
+                "temperature": DEFAULT_TEMPERATURE,
+                "messages": [
+                    {"role": "system", "content": "You are an AI assistant for document text extraction."},
+                    {"role": "user", "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:{content_type};base64,{base64_file}"}}
+                    ]}
+                ]
+            }
+            
+            # Make the API request
+            result = self._make_api_request(self.endpoint, api_payload)
+            
+            if not result:
+                logger.error("API request failed for enhanced text extraction")
+                return ""
+            
+            # Extract content from response
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            # Calculate token usage costs
+            token_cost = self._calculate_token_cost(result.get("usage", {}))
+            
+            # Return both text and token usage information in a structured format
+            return {
+                "text": content,
+                "token_usage": token_cost
+            }
+            
+        except Exception as e:
+            logger.error(f"Enhanced text extraction error: {str(e)}")
+            return ""
 
     def _extract_text_from_file(self, file_path):
         """
