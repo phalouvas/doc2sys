@@ -19,7 +19,6 @@ class EngineConfig:
         """
         # Default settings
         self.temp_dir = kwargs.get('temp_dir', '/tmp/doc2sys')
-        self.output_format = kwargs.get('output_format', 'json')
         self.supported_file_types = kwargs.get(
             'supported_file_types', 
             ['pdf', 'docx', 'txt', 'jpg', 'png']
@@ -51,7 +50,6 @@ class EngineConfig:
             if doc2sys_settings:
                 config['temp_dir'] = doc2sys_settings.temp_dir
                 config['ocr_enabled'] = doc2sys_settings.ocr_enabled
-                config['output_format'] = doc2sys_settings.output_format
                 config['max_file_size'] = doc2sys_settings.get_max_file_size_bytes()
                 
                 # Get OCR languages
