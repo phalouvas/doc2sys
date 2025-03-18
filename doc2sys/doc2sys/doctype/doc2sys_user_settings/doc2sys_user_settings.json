@@ -1,0 +1,146 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-03-12 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "folder_monitoring_section",
+  "monitoring_enabled",
+  "folder_to_monitor",
+  "monitor_interval",
+  "ocr_settings_section",
+  "ocr_enabled",
+  "ocr_languages",
+  "llm_integration_section",
+  "llm_provider",
+  "openwebui_endpoint",
+  "openwebui_model",
+  "openwebui_apikey",
+  "column_break_ghrw",
+  "input_token_price",
+  "output_token_price"
+ ],
+ "fields": [
+  {
+   "description": "Select the user for whom these settings apply",
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "User",
+   "options": "User"
+  },
+  {
+   "default": "1",
+   "description": "Enable Optical Character Recognition for images and scanned documents",
+   "fieldname": "ocr_enabled",
+   "fieldtype": "Check",
+   "label": "Enable OCR"
+  },
+  {
+   "default": "15",
+   "depends_on": "eval:doc.monitoring_enabled==1",
+   "description": "How often to check the monitored folder for new files",
+   "fieldname": "monitor_interval",
+   "fieldtype": "Int",
+   "label": "Monitor Interval (minutes)"
+  },
+  {
+   "default": "0",
+   "description": "Enable automatic processing of files from the monitored folder",
+   "fieldname": "monitoring_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Folder Monitoring"
+  },
+  {
+   "fieldname": "ocr_languages",
+   "fieldtype": "Table",
+   "label": "OCR Languages",
+   "options": "Doc2Sys OCR Language"
+  },
+  {
+   "default": "Open WebUI",
+   "fieldname": "llm_provider",
+   "fieldtype": "Select",
+   "label": "LLM Provider",
+   "options": "Open WebUI"
+  },
+  {
+   "default": "http://localhost:3000/api/chat/completions",
+   "fieldname": "openwebui_endpoint",
+   "fieldtype": "Data",
+   "label": "Open WebUI Endpoint"
+  },
+  {
+   "default": "llama3",
+   "fieldname": "openwebui_model",
+   "fieldtype": "Data",
+   "label": "Open WebUI Model"
+  },
+  {
+   "fieldname": "openwebui_apikey",
+   "fieldtype": "Password",
+   "label": "Open WebUI API Key"
+  },
+  {
+   "default": "0",
+   "fieldname": "input_token_price",
+   "fieldtype": "Currency",
+   "label": "Input Token Price (\u20ac / million)"
+  },
+  {
+   "default": "0",
+   "fieldname": "output_token_price",
+   "fieldtype": "Currency",
+   "label": "Output Token Price (\u20ac / million)"
+  },
+  {
+   "fieldname": "folder_monitoring_section",
+   "fieldtype": "Section Break",
+   "label": "Folder Monitoring"
+  },
+  {
+   "depends_on": "eval:doc.monitoring_enabled==1",
+   "fieldname": "folder_to_monitor",
+   "fieldtype": "Data",
+   "label": "Folder to Monitor"
+  },
+  {
+   "fieldname": "ocr_settings_section",
+   "fieldtype": "Section Break",
+   "label": "OCR Settings"
+  },
+  {
+   "fieldname": "llm_integration_section",
+   "fieldtype": "Section Break",
+   "label": "LLM Integration"
+  },
+  {
+   "fieldname": "column_break_ghrw",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-03-18 18:04:49.814745",
+ "modified_by": "Administrator",
+ "module": "Doc2Sys",
+ "name": "Doc2Sys User Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
