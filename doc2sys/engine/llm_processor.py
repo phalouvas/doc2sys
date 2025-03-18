@@ -7,7 +7,7 @@ from .utils import logger
 
 # Move hardcoded values to constants
 MAX_TEXT_LENGTH = 10000
-DEFAULT_TEMPERATURE = 0.1
+DEFAULT_TEMPERATURE = 0
 
 class LLMProcessor:
     """Process documents using various LLM providers"""
