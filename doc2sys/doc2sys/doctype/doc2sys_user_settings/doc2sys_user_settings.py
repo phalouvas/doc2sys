@@ -11,6 +11,8 @@ class Doc2SysUserSettings(Document):
         # Ensure at least one OCR language is enabled if OCR is enabled
         if self.ocr_enabled and not any(lang.enabled for lang in self.ocr_languages):
             frappe.throw(_("At least one OCR language must be enabled if OCR is activated."))
+        
+        self.update_scheduler()
 
     def get_enabled_languages(self):
         """Return a list of enabled OCR languages"""
@@ -27,6 +29,16 @@ class Doc2SysUserSettings(Document):
             setattr(self, key, value)
         self.save()
         
+    def update_scheduler(self):
+        """Update the scheduler interval for this specific user"""
+        if not self.monitor_interval or not self.monitoring_enabled:
+            return
+            
+        # Schedule logic for this specific user
+        # This is just a placeholder - you'll need to implement the actual scheduler logic
+        # for individual users. Possibly via a dedicated scheduled job that checks all user settings
+        pass
+    
     @frappe.whitelist()
     def add_common_languages(self):
         """Add common OCR languages to the user settings"""
@@ -76,7 +88,7 @@ class Doc2SysUserSettings(Document):
             
             results = []
             for lang_code in enabled_langs:
-                if (lang_code in available_languages):
+                if lang_code in available_languages:
                     results.append({
                         "language_code": lang_code,
                         "success": True,
