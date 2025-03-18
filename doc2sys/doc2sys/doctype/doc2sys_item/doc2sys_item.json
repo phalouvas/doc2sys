@@ -12,8 +12,6 @@
   "single_file",
   "document_type",
   "classification_confidence",
-  "extracted_data",
-  "extracted_text",
   "process_stats_section",
   "erpnext_document_type",
   "erpnext_document",
@@ -24,7 +22,11 @@
   "column_break_bosq",
   "input_cost",
   "output_cost",
-  "total_cost"
+  "total_cost",
+  "extracted_data_tab",
+  "extracted_text",
+  "column_break_ibav",
+  "extracted_data"
  ],
  "fields": [
   {
@@ -146,11 +148,20 @@
   {
    "fieldname": "column_break_bosq",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "extracted_data_tab",
+   "fieldtype": "Tab Break",
+   "label": "Extracted Data"
+  },
+  {
+   "fieldname": "column_break_ibav",
+   "fieldtype": "Column Break"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-18 06:57:08.725245",
+ "modified": "2025-03-18 10:06:31.947159",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",

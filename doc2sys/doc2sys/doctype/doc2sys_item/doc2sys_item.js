@@ -31,6 +31,33 @@ frappe.ui.form.on('Doc2Sys Item', {
                     }
                 });
             }, __('Actions'));
+            
+            // Add Extract Text Only button
+            frm.add_custom_button(__('Extract Text Only'), function() {
+                // Show full screen processing overlay
+                frappe.dom.freeze(__('Extracting text from document...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'extract_text_only',
+                    callback: function(r) {
+                        // Unfreeze UI when processing is complete
+                        frappe.dom.unfreeze();
+                        
+                        if(r.message) {
+                            frappe.show_alert({
+                                message: __('Text extraction completed'),
+                                indicator: 'green'
+                            }, 3);
+                            frm.refresh();
+                        }
+                    },
+                    error: function() {
+                        // Make sure to unfreeze UI even if there's an error
+                        frappe.dom.unfreeze();
+                    }
+                });
+            }, __('Actions'));
         }
 
         // Add Trigger Integrations button

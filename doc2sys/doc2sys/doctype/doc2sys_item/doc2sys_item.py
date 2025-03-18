@@ -310,6 +310,38 @@ class Doc2SysItem(Document):
             frappe.log_error(f"Text extraction error: {str(e)}", "Doc2Sys")
             return ""
 
+    @frappe.whitelist()
+    def extract_text_only(self):
+        """Extract text from the attached document without LLM processing"""
+        if not self.single_file:
+            frappe.msgprint("No document is attached to extract text from")
+            return False
+        
+        try:
+            # Get the full file path from the attached file
+            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
+            if not file_doc:
+                frappe.msgprint("Could not find the attached file in the system")
+                return False
+                
+            file_path = file_doc.get_full_path()
+            
+            # Extract text from the file
+            extracted_text = self.get_document_text(file_path)
+            
+            # Store the extracted text in the document
+            self.extracted_text = extracted_text
+            
+            # Save the document to persist the extracted text
+            self.save()
+            
+            return True
+            
+        except Exception as e:
+            frappe.log_error(f"Text extraction error: {str(e)}")
+            frappe.msgprint(f"An error occurred while extracting text: {str(e)}")
+            return False
+
 @frappe.whitelist()
 def create_item_from_file(file_doc_name):
     """Create a Doc2Sys Item from an existing File document"""
