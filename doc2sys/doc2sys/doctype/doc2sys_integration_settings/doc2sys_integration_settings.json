@@ -15,9 +15,7 @@
   "access_token",
   "refresh_token",
   "base_url",
-  "realm_id",
-  "section_configuration",
-  "target_doctypes"
+  "realm_id"
  ],
  "fields": [
   {
@@ -76,21 +74,10 @@
    "label": "Realm ID"
   },
   {
-   "fieldname": "section_configuration",
-   "fieldtype": "Section Break",
-   "label": "Configuration"
-  },
-  {
    "default": "0",
    "fieldname": "auto_sync",
    "fieldtype": "Check",
    "label": "Auto Sync"
-  },
-  {
-   "fieldname": "target_doctypes",
-   "fieldtype": "Table",
-   "label": "Target Doctypes",
-   "options": "Doc2Sys Integration Doctypes"
   },
   {
    "fieldname": "naming_series",
@@ -101,7 +88,7 @@
   }
  ],
  "links": [],
- "modified": "2025-03-18 17:22:35.107809",
+ "modified": "2025-03-18 17:24:58.986129",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Integration Settings",
