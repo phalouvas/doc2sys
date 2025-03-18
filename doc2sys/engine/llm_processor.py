@@ -149,16 +149,14 @@ class OpenWebUIProcessor:
             
             api_payload = None
             
-            # Process file or text input
-            if file_path:
-                api_payload, _ = self._prepare_file_content(file_path, prompt)
-                
-                # If file processing failed, try using text if available
-                if api_payload is None and text:
-                    api_payload = self._prepare_text_content(text, prompt)
-            elif text:
+            # Process text input first if available
+            if text:
                 api_payload = self._prepare_text_content(text, prompt)
-                
+            
+            # If text is not available or failed, process file input
+            if not api_payload and file_path:
+                api_payload, _ = self._prepare_file_content(file_path, prompt)
+            
             # If we couldn't create a valid payload, return default response
             if not api_payload:
                 return {"document_type": "unknown", "confidence": 0.0}
@@ -233,16 +231,14 @@ class OpenWebUIProcessor:
             
             api_payload = None
             
-            # Process file or text input
-            if file_path:
-                api_payload, _ = self._prepare_file_content(file_path, prompt)
-                
-                # If file processing failed, try using text if available
-                if api_payload is None and text:
-                    api_payload = self._prepare_text_content(text, prompt)
-            elif text:
+            # Process text input first if available
+            if text:
                 api_payload = self._prepare_text_content(text, prompt)
-                
+            
+            # If text is not available or failed, process file input
+            if not api_payload and file_path:
+                api_payload, _ = self._prepare_file_content(file_path, prompt)
+            
             # If we couldn't create a valid payload, return empty dict
             if not api_payload:
                 return {}
@@ -392,17 +388,22 @@ class OpenWebUIProcessor:
             logger.error(f"API request error: {str(e)}")
             return {}
 
-    def _prepare_file_content(self, file_path, prompt):
+    def _prepare_file_content(self, file_path, prompt, use_text_only=False):
         """
         Prepare file content for API request based on file type
         
         Args:
             file_path (str): Path to the file
             prompt (str): Prompt to use with the file
+            use_text_only (bool): If True, skip file upload when possible
             
         Returns:
             tuple: (api_payload, messages) to use in the request
         """
+        # If text_only mode is enabled, return None to force text-based processing
+        if use_text_only and not file_path.lower().endswith(('.jpg', '.jpeg', '.png', '.gif')):
+            return None, None
+        
         file_extension = os.path.splitext(file_path)[1].lower()
         content_type = self._get_content_type(file_extension)
         

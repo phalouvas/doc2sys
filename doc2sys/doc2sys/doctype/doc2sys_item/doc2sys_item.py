@@ -6,6 +6,7 @@ import frappe
 from frappe.model.document import Document
 from doc2sys.engine.exceptions import ProcessingError
 from doc2sys.engine.llm_processor import LLMProcessor
+from doc2sys.engine.text_extractor import TextExtractor
 import json
 
 class Doc2SysItem(Document):
@@ -37,7 +38,7 @@ class Doc2SysItem(Document):
             if success:
                 # Use db_set to directly update fields without triggering validation
                 for field in ["input_tokens", "output_tokens", "total_tokens", 
-                             "input_cost", "output_cost", "total_cost"]:
+                             "input_cost", "output_cost", "total_cost", "extracted_text"]:
                     self.db_set(field, self.get(field))
                     
                 frappe.db.commit()  # Commit the changes to database
@@ -55,24 +56,30 @@ class Doc2SysItem(Document):
             frappe.msgprint(f"An unexpected error occurred while processing the document")
     
     def _process_file_with_llm(self, file_path):
-        """Process file directly with LLM without extracting text"""
+        """Process file with LLM after extracting text"""
         try:
             # Reset token counts and costs
             self._reset_token_usage()
             
-            # Get processor and upload file
-            processor = self._get_processor_and_upload(file_path)
+            # Extract text from file first
+            extracted_text = self.get_document_text(file_path)
+            
+            # Store the extracted text in the document
+            self.extracted_text = extracted_text
+            
+            # Get processor and upload file only if needed
+            processor = self._get_processor_and_upload(file_path, extracted_text)
             if not processor:
                 return False
             
-            # Classify document
-            classification = self._classify_document(processor, file_path)
+            # Classify document with extracted text (prioritizing text over file)
+            classification = self._classify_document(processor, file_path, extracted_text)
             if not classification:
                 return False
                 
             # Extract data if possible
             if self.document_type != "unknown":
-                self._extract_document_data(processor, file_path)
+                self._extract_document_data(processor, file_path, extracted_text)
             
             return True
            
@@ -80,11 +87,24 @@ class Doc2SysItem(Document):
             frappe.log_error(f"Document processing error: {str(e)}")
             return False
 
-    def _get_processor_and_upload(self, file_path):
-        """Get LLM processor and upload file if needed"""
+    def _get_processor_and_upload(self, file_path, extracted_text=None):
+        """Get LLM processor and upload file if needed
+        
+        Args:
+            file_path: Path to the document file
+            extracted_text: Already extracted text content (if available)
+            
+        Returns:
+            LLMProcessor: The processor instance
+        """
         processor = LLMProcessor.create()
         
-        # Upload file if not already uploaded or ID isn't stored
+        # Skip file upload if we have sufficient extracted text
+        if extracted_text and len(extracted_text) > 100:
+            frappe.log_error("Using extracted text instead of uploading file", "Doc2Sys")
+            return processor
+        
+        # Upload file only if not already uploaded or ID isn't stored
         if not self.llm_file_id:
             file_id = processor.upload_file(file_path)
             if file_id:
@@ -100,9 +120,9 @@ class Doc2SysItem(Document):
             
         return processor
 
-    def _classify_document(self, processor, file_path):
-        """Classify document using LLM"""
-        classification = processor.classify_document(file_path=file_path)
+    def _classify_document(self, processor, file_path, extracted_text=None):
+        """Classify document using LLM with extracted text"""
+        classification = processor.classify_document(file_path=file_path, text=extracted_text)
         
         # Update token usage from classification
         if "token_usage" in classification:
@@ -114,10 +134,11 @@ class Doc2SysItem(Document):
         
         return classification
 
-    def _extract_document_data(self, processor, file_path):
-        """Extract structured data from document"""
+    def _extract_document_data(self, processor, file_path, extracted_text=None):
+        """Extract structured data from document with extracted text"""
         extracted_data = processor.extract_data(
             file_path=file_path, 
+            text=extracted_text,
             document_type=self.document_type
         )
         
@@ -209,15 +230,25 @@ class Doc2SysItem(Document):
 
     def process_document(self):
         """Process document with LLM classification and extraction"""
-        processor = LLMProcessor.create()
-        
         # Reset token counts and costs for fresh calculation
         self._reset_token_usage()
         
-        # Classify document
+        # Extract text from the document
+        extracted_text = self.get_document_text()
+        
+        # Store the extracted text
+        self.extracted_text = extracted_text
+        
+        # Get processor with optimized file upload
+        processor = self._get_processor_and_upload(self.single_file, extracted_text)
+        if not processor:
+            frappe.msgprint("Failed to initialize document processor")
+            return
+        
+        # Classify document prioritizing extracted text
         classification_result = processor.classify_document(
             file_path=self.single_file, 
-            text=self.get_document_text()
+            text=extracted_text
         )
         
         # Store document type
@@ -232,7 +263,7 @@ class Doc2SysItem(Document):
         if self.document_type and self.document_type != "unknown":
             extraction_result = processor.extract_data(
                 file_path=self.single_file,
-                text=self.get_document_text(),
+                text=extracted_text,
                 document_type=self.document_type
             )
             
@@ -256,11 +287,60 @@ class Doc2SysItem(Document):
         self.output_cost = 0.0
         self.total_cost = 0.0
 
-    def get_document_text(self):
+    def get_document_text(self, file_path=None):
         """Get text content from the document if available"""
-        # Implement based on your requirements
-        # This method is called by process_document but not defined
-        return ""
+        if not file_path and self.single_file:
+            # If file_path not provided but single_file exists, get the path
+            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
+            if file_doc:
+                file_path = file_doc.get_full_path()
+        
+        if not file_path:
+            return ""
+        
+        try:
+            # Initialize TextExtractor with default language settings from Doc2Sys Settings
+            extractor = TextExtractor()
+            
+            # Extract text from the file
+            extracted_text = extractor.extract_text(file_path)
+            
+            return extracted_text
+        except Exception as e:
+            frappe.log_error(f"Text extraction error: {str(e)}", "Doc2Sys")
+            return ""
+
+    @frappe.whitelist()
+    def extract_text_only(self):
+        """Extract text from the attached document without LLM processing"""
+        if not self.single_file:
+            frappe.msgprint("No document is attached to extract text from")
+            return False
+        
+        try:
+            # Get the full file path from the attached file
+            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
+            if not file_doc:
+                frappe.msgprint("Could not find the attached file in the system")
+                return False
+                
+            file_path = file_doc.get_full_path()
+            
+            # Extract text from the file
+            extracted_text = self.get_document_text(file_path)
+            
+            # Store the extracted text in the document
+            self.extracted_text = extracted_text
+            
+            # Save the document to persist the extracted text
+            self.save()
+            
+            return True
+            
+        except Exception as e:
+            frappe.log_error(f"Text extraction error: {str(e)}")
+            frappe.msgprint(f"An error occurred while extracting text: {str(e)}")
+            return False
 
 @frappe.whitelist()
 def create_item_from_file(file_doc_name):
