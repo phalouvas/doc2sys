@@ -64,12 +64,12 @@ class Doc2SysItem(Document):
             # Extract text from file first
             extracted_text = self.get_document_text(file_path)
             
-            # Get processor and upload file
-            processor = self._get_processor_and_upload(file_path)
+            # Get processor and upload file only if needed
+            processor = self._get_processor_and_upload(file_path, extracted_text)
             if not processor:
                 return False
             
-            # Classify document with both file_path and extracted text
+            # Classify document with extracted text (prioritizing text over file)
             classification = self._classify_document(processor, file_path, extracted_text)
             if not classification:
                 return False
@@ -84,11 +84,24 @@ class Doc2SysItem(Document):
             frappe.log_error(f"Document processing error: {str(e)}")
             return False
 
-    def _get_processor_and_upload(self, file_path):
-        """Get LLM processor and upload file if needed"""
+    def _get_processor_and_upload(self, file_path, extracted_text=None):
+        """Get LLM processor and upload file if needed
+        
+        Args:
+            file_path: Path to the document file
+            extracted_text: Already extracted text content (if available)
+            
+        Returns:
+            LLMProcessor: The processor instance
+        """
         processor = LLMProcessor.create()
         
-        # Upload file if not already uploaded or ID isn't stored
+        # Skip file upload if we have sufficient extracted text
+        if extracted_text and len(extracted_text) > 100:
+            frappe.log_error("Using extracted text instead of uploading file", "Doc2Sys")
+            return processor
+        
+        # Upload file only if not already uploaded or ID isn't stored
         if not self.llm_file_id:
             file_id = processor.upload_file(file_path)
             if file_id:
@@ -214,15 +227,22 @@ class Doc2SysItem(Document):
 
     def process_document(self):
         """Process document with LLM classification and extraction"""
-        processor = LLMProcessor.create()
-        
         # Reset token counts and costs for fresh calculation
         self._reset_token_usage()
         
-        # Classify document
+        # Extract text from the document
+        extracted_text = self.get_document_text()
+        
+        # Get processor with optimized file upload
+        processor = self._get_processor_and_upload(self.single_file, extracted_text)
+        if not processor:
+            frappe.msgprint("Failed to initialize document processor")
+            return
+        
+        # Classify document prioritizing extracted text
         classification_result = processor.classify_document(
             file_path=self.single_file, 
-            text=self.get_document_text()
+            text=extracted_text
         )
         
         # Store document type
@@ -237,7 +257,7 @@ class Doc2SysItem(Document):
         if self.document_type and self.document_type != "unknown":
             extraction_result = processor.extract_data(
                 file_path=self.single_file,
-                text=self.get_document_text(),
+                text=extracted_text,
                 document_type=self.document_type
             )
             
