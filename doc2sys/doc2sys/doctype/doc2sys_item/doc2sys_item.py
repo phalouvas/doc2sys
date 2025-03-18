@@ -38,7 +38,7 @@ class Doc2SysItem(Document):
             if success:
                 # Use db_set to directly update fields without triggering validation
                 for field in ["input_tokens", "output_tokens", "total_tokens", 
-                             "input_cost", "output_cost", "total_cost"]:
+                             "input_cost", "output_cost", "total_cost", "extracted_text"]:
                     self.db_set(field, self.get(field))
                     
                 frappe.db.commit()  # Commit the changes to database
@@ -63,6 +63,9 @@ class Doc2SysItem(Document):
             
             # Extract text from file first
             extracted_text = self.get_document_text(file_path)
+            
+            # Store the extracted text in the document
+            self.extracted_text = extracted_text
             
             # Get processor and upload file only if needed
             processor = self._get_processor_and_upload(file_path, extracted_text)
@@ -232,6 +235,9 @@ class Doc2SysItem(Document):
         
         # Extract text from the document
         extracted_text = self.get_document_text()
+        
+        # Store the extracted text
+        self.extracted_text = extracted_text
         
         # Get processor with optimized file upload
         processor = self._get_processor_and_upload(self.single_file, extracted_text)

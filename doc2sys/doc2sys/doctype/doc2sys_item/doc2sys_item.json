@@ -13,6 +13,7 @@
   "document_type",
   "classification_confidence",
   "extracted_data",
+  "extracted_text",
   "process_stats_section",
   "erpnext_document_type",
   "erpnext_document",
@@ -66,6 +67,12 @@
    "fieldtype": "Code",
    "label": "Extracted Data",
    "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "extracted_text",
+   "fieldtype": "Long Text",
+   "label": "Extracted Text",
    "read_only": 1
   },
   {
