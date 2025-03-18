@@ -17,12 +17,9 @@ def after_install():
         "PyPDF2>=2.0.0",           # For PDF text extraction
         "pandas",                  # For data processing
         
-        # PyTorch dependencies (required by EasyOCR)
-        "torch",                   # Deep learning framework
-        "torchvision",             # Computer vision package for PyTorch
-        
-        # OCR - install last after other dependencies
-        "easyocr",                 # For OCR functionality
+        # OCR dependencies
+        "pytesseract",             # Python wrapper for Tesseract OCR
+        "pdf2image",               # For PDF to image conversion for OCR
     ]
     
     frappe.log_error("Starting Doc2Sys dependency installation", "Doc2Sys Setup")
@@ -54,10 +51,20 @@ def after_install():
                 f"✗ Error installing {package}: {str(e)}", 
                 "Doc2Sys Setup Error"
             )
-            
+    
+    # Display message about system dependencies
+    frappe.log_error(
+        "IMPORTANT: To use OCR features, you must install Tesseract OCR on your system.",
+        "Doc2Sys Setup"
+    )
+    frappe.log_error(
+        "For Ubuntu/Debian: sudo apt-get install tesseract-ocr tesseract-ocr-eng tesseract-ocr-ell",
+        "Doc2Sys Setup"
+    )
+    
     # Verify key installations
     try:
-        verify_packages = ["easyocr", "torch", "PyPDF2", "docx", "cv2"]
+        verify_packages = ["pytesseract", "PyPDF2", "docx", "cv2", "pdf2image"]
         for pkg in verify_packages:
             try:
                 module = __import__(pkg)
@@ -67,6 +74,18 @@ def after_install():
     except Exception as e:
         frappe.log_error(f"Failed to verify package installations: {str(e)}", "Doc2Sys Setup Error")
         
+    # Check if Tesseract is installed on the system
+    try:
+        import pytesseract
+        version = pytesseract.get_tesseract_version()
+        frappe.log_error(f"✓ Tesseract OCR found - version: {version}", "Doc2Sys Setup")
+        
+        # Get available languages
+        languages = pytesseract.get_languages()
+        frappe.log_error(f"✓ Tesseract languages available: {', '.join(languages)}", "Doc2Sys Setup")
+    except Exception as e:
+        frappe.log_error(f"✗ Unable to detect Tesseract OCR: {str(e)}", "Doc2Sys Setup Error")
+    
     # Initialize default settings
     try:
         # Create default OCR language settings if needed

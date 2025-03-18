@@ -58,21 +58,21 @@ class Doc2SysSettings(Document):
     def add_common_languages(self):
         """Add common OCR languages to the settings"""
         common_languages = [
-            {"language_code": "en", "language_name": "English", "enabled": 1},
-            {"language_code": "fr", "language_name": "French", "enabled": 0},
-            {"language_code": "de", "language_name": "German", "enabled": 0},
-            {"language_code": "es", "language_name": "Spanish", "enabled": 0},
-            {"language_code": "it", "language_name": "Italian", "enabled": 0},
-            {"language_code": "zh", "language_name": "Chinese (Simplified)", "enabled": 0},
-            {"language_code": "ja", "language_name": "Japanese", "enabled": 0},
-            {"language_code": "ko", "language_name": "Korean", "enabled": 0},
-            {"language_code": "ru", "language_name": "Russian", "enabled": 0},
-            {"language_code": "ar", "language_name": "Arabic", "enabled": 0},
-            {"language_code": "hi", "language_name": "Hindi", "enabled": 0},
-            {"language_code": "pt", "language_name": "Portuguese", "enabled": 0},
-            {"language_code": "nl", "language_name": "Dutch", "enabled": 0},
-            {"language_code": "tr", "language_name": "Turkish", "enabled": 0},
-            {"language_code": "el", "language_name": "Greek", "enabled": 0}
+            {"language_code": "eng", "language_name": "English", "enabled": 1},
+            {"language_code": "fra", "language_name": "French", "enabled": 0},
+            {"language_code": "deu", "language_name": "German", "enabled": 0},
+            {"language_code": "spa", "language_name": "Spanish", "enabled": 0},
+            {"language_code": "ita", "language_name": "Italian", "enabled": 0},
+            {"language_code": "chi_sim", "language_name": "Chinese (Simplified)", "enabled": 0},
+            {"language_code": "jpn", "language_name": "Japanese", "enabled": 0},
+            {"language_code": "kor", "language_name": "Korean", "enabled": 0},
+            {"language_code": "rus", "language_name": "Russian", "enabled": 0},
+            {"language_code": "ara", "language_name": "Arabic", "enabled": 0},
+            {"language_code": "hin", "language_name": "Hindi", "enabled": 0},
+            {"language_code": "por", "language_name": "Portuguese", "enabled": 0},
+            {"language_code": "nld", "language_name": "Dutch", "enabled": 0},
+            {"language_code": "tur", "language_name": "Turkish", "enabled": 0},
+            {"language_code": "ell", "language_name": "Greek", "enabled": 1}  # Enable Greek by default
         ]
         
         # Clear existing languages
@@ -87,7 +87,7 @@ class Doc2SysSettings(Document):
     
     @frappe.whitelist()
     def download_language_models(self):
-        """Download language models for enabled languages"""
+        """Check for Tesseract language availability"""
         if not self.ocr_enabled:
             return {"success": False, "message": "OCR is not enabled"}
         
@@ -96,139 +96,136 @@ class Doc2SysSettings(Document):
         if not enabled_langs:
             return {"success": False, "message": "No languages are enabled"}
         
-        # Try to download each language model
+        # Check availability of each language
         results = []
-        for lang_code in enabled_langs:
-            try:
-                frappe.publish_progress(
-                    title=f"Downloading language model for {lang_code}",
-                    percent=0,
-                    description="Starting download..."
-                )
-                
-                # Download the model
-                success, message = self._download_language_model(lang_code)
-                
-                frappe.publish_progress(
-                    percent=100,
-                    description=f"{'Success' if success else 'Failed'}: {message}"
-                )
-                
-                results.append({
-                    "language_code": lang_code,
-                    "success": success,
-                    "message": message
-                })
-                
-            except Exception as e:
-                frappe.log_error(f"Error downloading language model for {lang_code}: {str(e)}", "Doc2Sys")
-                results.append({
-                    "language_code": lang_code,
-                    "success": False,
-                    "message": str(e)
-                })
+        try:
+            import pytesseract
+            available_languages = pytesseract.get_languages()
+            
+            for lang_code in enabled_langs:
+                if lang_code in available_languages:
+                    results.append({
+                        "language_code": lang_code,
+                        "success": True,
+                        "message": f"Language {lang_code} is available"
+                    })
+                else:
+                    results.append({
+                        "language_code": lang_code,
+                        "success": False,
+                        "message": f"Language {lang_code} is not installed. Please install the Tesseract language pack."
+                    })
+        except Exception as e:
+            frappe.log_error(f"Error checking Tesseract languages: {str(e)}", "Doc2Sys")
+            return {
+                "success": False,
+                "message": f"Failed to check languages: {str(e)}",
+                "results": []
+            }
         
-        # Update download status of languages
+        # Update language status
         self.update_language_download_status()
         
         return {
             "success": True,
-            "message": f"Processed {len(enabled_langs)} language models",
+            "message": "Checked Tesseract languages",
             "results": results
         }
     
     def _download_language_model(self, lang_code):
-        """Download an individual language model"""
+        """Check if a Tesseract language model is available"""
         try:
-            import easyocr
+            import pytesseract
+            available_languages = pytesseract.get_languages()
             
-            # Initialize reader with language to trigger download
-            frappe.log_error(f"Downloading model for language: {lang_code}", "Doc2Sys")
-            reader = easyocr.Reader([lang_code], verbose=True)
-            
-            # Verify the download was successful
-            if self.is_language_model_downloaded(lang_code):
-                return True, f"Language model for {lang_code} downloaded successfully"
+            if lang_code in available_languages:
+                return True, f"Language {lang_code} is available"
             else:
-                return False, f"Language model for {lang_code} could not be verified after download"
-                
+                return False, f"Language {lang_code} is not installed. Please install the Tesseract language pack."
         except ImportError:
-            return False, "EasyOCR is not installed. Please install dependencies first."
+            return False, "Pytesseract is not installed"
         except Exception as e:
-            frappe.log_error(f"Error downloading language model: {str(e)}", "Doc2Sys")
+            frappe.log_error(f"Error checking language {lang_code}: {str(e)}", "Doc2Sys")
             return False, str(e)
     
     @frappe.whitelist()
     def update_language_download_status(self):
-        """Update download status for all languages in settings"""
+        """Update availability status for all languages in settings"""
         results = []
         
-        for lang in self.ocr_languages:
-            downloaded = self.is_language_model_downloaded(lang.language_code)
-            lang.model_downloaded = 1 if downloaded else 0
-            results.append({
-                "language_code": lang.language_code,
-                "language_name": lang.language_name,
-                "downloaded": downloaded
-            })
+        try:
+            import pytesseract
+            available_languages = pytesseract.get_languages()
+            
+            for lang in self.ocr_languages:
+                available = lang.language_code in available_languages
+                lang.model_downloaded = 1 if available else 0
+                results.append({
+                    "language_code": lang.language_code,
+                    "language_name": lang.language_name,
+                    "downloaded": available
+                })
+        except Exception as e:
+            frappe.log_error(f"Error updating language status: {str(e)}", "Doc2Sys")
+            return {
+                "success": False,
+                "message": str(e),
+                "languages": []
+            }
         
         # Save changes
         self.save()
         
         return {
             "success": True,
-            "message": "Language download status updated",
+            "message": "Language status updated",
             "languages": results
         }
     
     def is_language_model_downloaded(self, lang_code):
-        """Check if a specific language model is downloaded"""
+        """Check if a Tesseract language model is available"""
         try:
-            # Get the EasyOCR model directory
-            home = str(Path.home())
-            model_dir = os.path.join(home, '.EasyOCR')
-            
-            if not os.path.exists(model_dir):
-                return False
-            
-            # Check for recognition model (language specific)
-            recognition_model = os.path.join(model_dir, f'{lang_code}_g2.pth')
-            return os.path.exists(recognition_model)
-            
-        except Exception as e:
-            frappe.log_error(f"Error checking language model: {str(e)}", "Doc2Sys")
+            import pytesseract
+            available_languages = pytesseract.get_languages()
+            return lang_code in available_languages
+        except Exception:
             return False
     
     @frappe.whitelist()
     def list_downloaded_languages(self):
-        """List all downloaded language models"""
+        """List all available Tesseract language models"""
         try:
-            # Get the EasyOCR model directory
-            home = str(Path.home())
-            model_dir = os.path.join(home, '.EasyOCR')
+            import pytesseract
+            languages = pytesseract.get_languages()
             
-            if not os.path.exists(model_dir):
-                return {
-                    "success": False,
-                    "message": "EasyOCR model directory not found",
-                    "languages": []
-                }
-            
-            # List all files in the model directory
-            files = os.listdir(model_dir)
-            
-            # Filter out language model files
-            languages = [f.split('_')[0] for f in files if f.endswith('_g2.pth')]
+            # Try to get the tessdata directory
+            import subprocess
+            try:
+                result = subprocess.run(
+                    ["tesseract", "--list-langs"], 
+                    capture_output=True, 
+                    text=True
+                )
+                output_lines = result.stdout.strip().split('\n')
+                # First line is typically "List of available languages (xxx):"
+                tessdata_dir = output_lines[0].split('(')[-1].split(')')[0] if '(' in output_lines[0] else None
+            except:
+                tessdata_dir = "Unknown (check 'tesseract --list-langs')"
             
             return {
                 "success": True,
-                "message": f"Found {len(languages)} downloaded language models",
+                "message": f"Found {len(languages)} available languages",
                 "languages": languages,
-                "model_dir": model_dir
+                "model_dir": tessdata_dir
             }
-            
+        except ImportError:
+            return {
+                "success": False,
+                "message": "Pytesseract is not installed",
+                "languages": []
+            }
         except Exception as e:
-            frappe.log_error(f"Error listing language models: {str(e)}", "Doc2Sys")
+            frappe.log_error(f"Error listing languages: {str(e)}", "Doc2Sys")
             return {
                 "success": False,
                 "message": str(e),
@@ -236,125 +233,21 @@ class Doc2SysSettings(Document):
             }
     
     @frappe.whitelist()
-    def delete_not_enabled_languages(self):
-        """Delete language models for languages that are not enabled"""
-        try:
-            # Get the EasyOCR model directory
-            home = str(Path.home())
-            model_dir = os.path.join(home, '.EasyOCR')
-            
-            if not os.path.exists(model_dir):
-                return {"success": False, "message": "EasyOCR model directory not found"}
-            
-            # Get list of enabled languages
-            enabled_langs = [lang.language_code for lang in self.ocr_languages if lang.enabled]
-            
-            # List all files in the model directory
-            files = os.listdir(model_dir)
-            
-            # Filter out language model files that are not enabled
-            deleted_files = []
-            for file in files:
-                lang_code = file.split('_')[0]
-                if file.endswith('_g2.pth') and lang_code not in enabled_langs:
-                    os.remove(os.path.join(model_dir, file))
-                    deleted_files.append(file)
-            
-            return {
-                "success": True,
-                "message": f"Deleted {len(deleted_files)} language models",
-                "deleted_files": deleted_files
-            }
-            
-        except Exception as e:
-            frappe.log_error(f"Error deleting language models: {str(e)}", "Doc2Sys")
-            return {"success": False, "message": str(e)}
-
-    @frappe.whitelist()
     def delete_not_enabled_language_models(self):
-        """Delete language models that are not enabled in settings"""
-        if not self.ocr_enabled:
-            return {"success": False, "message": "OCR is not enabled"}
+        """
+        Display information about deleting Tesseract language models
         
-        # Get list of enabled languages
-        enabled_langs = [lang.language_code for lang in self.ocr_languages if lang.enabled]
-        
-        # Get list of all downloaded languages
-        downloaded_langs = []
-        try:
-            # Get the EasyOCR model directory
-            home = str(Path.home())
-            model_dir = os.path.join(home, '.EasyOCR')
-            
-            if os.path.exists(model_dir):
-                # List all files in the model directory
-                files = os.listdir(model_dir)
-                
-                # Filter out language model files
-                downloaded_langs = [f.split('_')[0] for f in files if f.endswith('_g2.pth')]
-        except Exception as e:
-            frappe.log_error(f"Error getting downloaded language list: {str(e)}", "Doc2Sys")
-        
-        # Find languages to delete (downloaded but not enabled)
-        to_delete = [lang for lang in downloaded_langs if lang not in enabled_langs]
-        
-        if not to_delete:
-            return {
-                "success": True,
-                "message": "No language models to delete",
-                "results": []
-            }
-        
-        # Delete each language model
-        results = []
-        for lang_code in to_delete:
-            try:
-                # Get the model file path
-                home = str(Path.home())
-                model_dir = os.path.join(home, '.EasyOCR')
-                recognition_model = os.path.join(model_dir, f'{lang_code}_g2.pth')
-                
-                # Check if model exists
-                if not os.path.exists(recognition_model):
-                    results.append({
-                        "language_code": lang_code,
-                        "success": False,
-                        "message": f"Language model not found"
-                    })
-                    continue
-                
-                # Delete the model file
-                os.remove(recognition_model)
-                
-                # Verify deletion
-                if os.path.exists(recognition_model):
-                    results.append({
-                        "language_code": lang_code,
-                        "success": False,
-                        "message": f"Failed to delete language model"
-                    })
-                else:
-                    results.append({
-                        "language_code": lang_code,
-                        "success": True,
-                        "message": f"Language model deleted successfully"
-                    })
-                    
-            except Exception as e:
-                frappe.log_error(f"Error deleting language model for {lang_code}: {str(e)}", "Doc2Sys")
-                results.append({
-                    "language_code": lang_code,
-                    "success": False,
-                    "message": str(e)
-                })
-        
-        # Update download status of languages
-        self.update_language_download_status()
-        
+        Note: Tesseract language models are system-wide and cannot be deleted
+        through Python code for security reasons. This method provides guidance.
+        """
         return {
             "success": True,
-            "message": f"Processed {len(to_delete)} language models for deletion",
-            "results": results
+            "message": "Tesseract language management notice",
+            "results": [{
+                "language_code": "info",
+                "success": True,
+                "message": "Tesseract language packs are managed at the system level. To remove languages, use your system's package manager."
+            }]
         }
 
 @frappe.whitelist()

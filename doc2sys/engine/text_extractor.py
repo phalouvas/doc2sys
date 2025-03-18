@@ -16,7 +16,7 @@ except ImportError:
 # Make all dependency imports conditional
 HAS_DOCX = False
 HAS_PDF = PdfReader is not None
-HAS_OCR = False
+HAS_TESSERACT = False
 HAS_CV2 = False
 
 # Try importing docx
@@ -34,30 +34,37 @@ try:
 except ImportError:
     pass
 
+# Try importing pytesseract
+try:
+    import pytesseract
+    HAS_TESSERACT = True
+except ImportError:
+    pass
+
+from PIL import Image
+
 class TextExtractor:
     def __init__(self, languages=None):
         """
         Initialize text extractor with specified languages
         
         Args:
-            languages: List of language codes for OCR (e.g., ['en', 'fr', 'de'])
+            languages: List of language codes for OCR (e.g., ['eng', 'ell'])
                        If None, will fetch from Doc2Sys Settings
         """
         # Get languages from settings if not provided
         if languages is None:
             self.languages = self._get_languages_from_settings()
         else:
-            self.languages = languages if isinstance(languages, list) else ['en']
+            self.languages = languages if isinstance(languages, list) else ['eng']
             
         # Ensure we have at least English as fallback
         if not self.languages:
-            self.languages = ['en']
+            self.languages = ['eng']
             
-        self.reader = None
-        
     def _get_languages_from_settings(self):
         """Get configured OCR languages from settings"""
-        languages = ['en']  # Default to English
+        languages = ['eng']  # Default to English
         
         try:
             # Get the settings document
@@ -102,25 +109,23 @@ class TextExtractor:
             frappe.log_error(f"Error extracting text from {file_path}: {str(e)}", "Doc2Sys")
             return f"Error extracting text: {str(e)}"
     
-    def _load_easyocr_if_needed(self):
-        """Lazy loading of EasyOCR to avoid startup errors"""
-        global HAS_OCR
+    def _check_tesseract_available(self):
+        """Check if Tesseract OCR is available"""
+        global HAS_TESSERACT
         
-        if self.reader is not None:
+        if HAS_TESSERACT:
             return True
             
         try:
-            # Only import easyocr when actually needed
-            import easyocr
-            frappe.log_error(f"Initializing EasyOCR with languages: {', '.join(self.languages)}", "Doc2Sys")
-            self.reader = easyocr.Reader(self.languages)
-            HAS_OCR = True
+            import pytesseract
+            pytesseract.get_tesseract_version()
+            HAS_TESSERACT = True
             return True
         except ImportError:
-            frappe.log_error("EasyOCR not available - cannot perform image OCR", "Doc2Sys")
+            frappe.log_error("Pytesseract not installed - cannot perform OCR", "Doc2Sys")
             return False
         except Exception as e:
-            frappe.log_error(f"Error initializing EasyOCR: {str(e)}", "Doc2Sys")
+            frappe.log_error(f"Tesseract OCR not available: {str(e)}", "Doc2Sys")
             return False
     
     def preprocess_image(self, image_path):
@@ -149,17 +154,23 @@ class TextExtractor:
             return image_path
     
     def extract_text_from_image(self, image_path):
-        """Extract text from image using EasyOCR with preprocessing"""
-        # Try to load EasyOCR only when needed
-        if not self._load_easyocr_if_needed():
+        """Extract text from image using Tesseract OCR with preprocessing"""
+        # Check if Tesseract OCR is available
+        if not self._check_tesseract_available():
             return "OCR functionality not available. Cannot extract text from image."
         
         try:
             # Preprocess the image for better OCR results if OpenCV is available
             processed_path = self.preprocess_image(image_path)
             
-            # Extract text from the image
-            results = self.reader.readtext(processed_path)
+            # Join languages with + for Tesseract format (e.g., eng+ell)
+            lang_param = '+'.join(self.languages)
+            
+            # Configure OCR options
+            config = f'--psm 3'  # Page segmentation mode 3: Fully automatic
+            
+            # Extract text using Tesseract
+            text = pytesseract.image_to_string(Image.open(processed_path), lang=lang_param, config=config)
             
             # Clean up the temporary file if it was created
             if processed_path != image_path and os.path.exists(processed_path):
@@ -167,11 +178,6 @@ class TextExtractor:
                     os.remove(processed_path)
                 except:
                     pass
-                
-            # Compile results into text
-            text = ""
-            for detection in results:
-                text += detection[1] + " "
             
             # If no text detected
             if not text.strip():
@@ -196,8 +202,10 @@ class TextExtractor:
                 if page_text:
                     text += page_text + "\n\n"
             
-            if not text.strip():
+            if not text.strip() and self._check_tesseract_available():
                 # If no text extracted, try OCR on the PDF as images
+                return self._extract_text_from_pdf_using_ocr(pdf_path)
+            elif not text.strip():
                 return f"No readable text found in PDF. Consider converting to images for OCR."
                 
             return text.strip()
@@ -205,6 +213,36 @@ class TextExtractor:
         except Exception as e:
             frappe.log_error(f"Error extracting text from PDF: {str(e)}", "Doc2Sys")
             return f"Error extracting text from PDF: {str(e)}"
+    
+    def _extract_text_from_pdf_using_ocr(self, pdf_path):
+        """Extract text from PDF using OCR by converting to images first"""
+        try:
+            # Try importing pdf2image for PDF to image conversion
+            import pdf2image
+            pages = pdf2image.convert_from_path(pdf_path)
+            
+            text = ""
+            for i, page in enumerate(pages):
+                # Save page as temporary image
+                temp_img = f"/tmp/pdf_page_{i}.png"
+                page.save(temp_img, "PNG")
+                
+                # Extract text from the image
+                page_text = self.extract_text_from_image(temp_img)
+                text += page_text + "\n\n"
+                
+                # Remove temporary image
+                try:
+                    os.remove(temp_img)
+                except:
+                    pass
+            
+            return text.strip()
+        except ImportError:
+            return "PDF to image conversion not available. Please install pdf2image."
+        except Exception as e:
+            frappe.log_error(f"Error extracting text from PDF using OCR: {str(e)}", "Doc2Sys")
+            return f"Error extracting text from PDF using OCR: {str(e)}"
     
     def extract_text_from_word(self, docx_path):
         """Extract text from Word document"""
