@@ -234,6 +234,128 @@ class Doc2SysSettings(Document):
                 "message": str(e),
                 "languages": []
             }
+    
+    @frappe.whitelist()
+    def delete_not_enabled_languages(self):
+        """Delete language models for languages that are not enabled"""
+        try:
+            # Get the EasyOCR model directory
+            home = str(Path.home())
+            model_dir = os.path.join(home, '.EasyOCR')
+            
+            if not os.path.exists(model_dir):
+                return {"success": False, "message": "EasyOCR model directory not found"}
+            
+            # Get list of enabled languages
+            enabled_langs = [lang.language_code for lang in self.ocr_languages if lang.enabled]
+            
+            # List all files in the model directory
+            files = os.listdir(model_dir)
+            
+            # Filter out language model files that are not enabled
+            deleted_files = []
+            for file in files:
+                lang_code = file.split('_')[0]
+                if file.endswith('_g2.pth') and lang_code not in enabled_langs:
+                    os.remove(os.path.join(model_dir, file))
+                    deleted_files.append(file)
+            
+            return {
+                "success": True,
+                "message": f"Deleted {len(deleted_files)} language models",
+                "deleted_files": deleted_files
+            }
+            
+        except Exception as e:
+            frappe.log_error(f"Error deleting language models: {str(e)}", "Doc2Sys")
+            return {"success": False, "message": str(e)}
+
+    @frappe.whitelist()
+    def delete_not_enabled_language_models(self):
+        """Delete language models that are not enabled in settings"""
+        if not self.ocr_enabled:
+            return {"success": False, "message": "OCR is not enabled"}
+        
+        # Get list of enabled languages
+        enabled_langs = [lang.language_code for lang in self.ocr_languages if lang.enabled]
+        
+        # Get list of all downloaded languages
+        downloaded_langs = []
+        try:
+            # Get the EasyOCR model directory
+            home = str(Path.home())
+            model_dir = os.path.join(home, '.EasyOCR')
+            
+            if os.path.exists(model_dir):
+                # List all files in the model directory
+                files = os.listdir(model_dir)
+                
+                # Filter out language model files
+                downloaded_langs = [f.split('_')[0] for f in files if f.endswith('_g2.pth')]
+        except Exception as e:
+            frappe.log_error(f"Error getting downloaded language list: {str(e)}", "Doc2Sys")
+        
+        # Find languages to delete (downloaded but not enabled)
+        to_delete = [lang for lang in downloaded_langs if lang not in enabled_langs]
+        
+        if not to_delete:
+            return {
+                "success": True,
+                "message": "No language models to delete",
+                "results": []
+            }
+        
+        # Delete each language model
+        results = []
+        for lang_code in to_delete:
+            try:
+                # Get the model file path
+                home = str(Path.home())
+                model_dir = os.path.join(home, '.EasyOCR')
+                recognition_model = os.path.join(model_dir, f'{lang_code}_g2.pth')
+                
+                # Check if model exists
+                if not os.path.exists(recognition_model):
+                    results.append({
+                        "language_code": lang_code,
+                        "success": False,
+                        "message": f"Language model not found"
+                    })
+                    continue
+                
+                # Delete the model file
+                os.remove(recognition_model)
+                
+                # Verify deletion
+                if os.path.exists(recognition_model):
+                    results.append({
+                        "language_code": lang_code,
+                        "success": False,
+                        "message": f"Failed to delete language model"
+                    })
+                else:
+                    results.append({
+                        "language_code": lang_code,
+                        "success": True,
+                        "message": f"Language model deleted successfully"
+                    })
+                    
+            except Exception as e:
+                frappe.log_error(f"Error deleting language model for {lang_code}: {str(e)}", "Doc2Sys")
+                results.append({
+                    "language_code": lang_code,
+                    "success": False,
+                    "message": str(e)
+                })
+        
+        # Update download status of languages
+        self.update_language_download_status()
+        
+        return {
+            "success": True,
+            "message": f"Processed {len(to_delete)} language models for deletion",
+            "results": results
+        }
 
 @frappe.whitelist()
 def run_folder_monitor():

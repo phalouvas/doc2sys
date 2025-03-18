@@ -159,6 +159,69 @@ frappe.ui.form.on('Doc2Sys Settings', {
                 }
             });
         }, __('OCR Settings'));
+
+        // Add button to delete unused language models
+        frm.add_custom_button(__('Delete Unused Models'), function() {
+            frappe.confirm(
+                __('This will permanently delete language models that are not enabled in settings. Continue?'),
+                function() {
+                    frm.call({
+                        doc: frm.doc,
+                        method: 'delete_not_enabled_language_models',
+                        freeze: true,
+                        freeze_message: __('Deleting unused language models...'),
+                        callback: function(r) {
+                            if (r.message && r.message.success) {
+                                let results = r.message.results || [];
+                                let successes = results.filter(res => res.success).length;
+                                let failures = results.length - successes;
+                                
+                                if (results.length === 0) {
+                                    frappe.show_alert({
+                                        message: __('No unused language models to delete'),
+                                        indicator: 'blue'
+                                    }, 5);
+                                } else {
+                                    frappe.show_alert({
+                                        message: __(`Deleted ${successes} language models, ${failures} failed`),
+                                        indicator: failures > 0 ? 'orange' : 'green'
+                                    }, 5);
+                                    
+                                    // Show detailed results
+                                    let details = "";
+                                    results.forEach(result => {
+                                        details += `<tr>
+                                            <td>${result.language_code}</td>
+                                            <td>${result.success ? 'Success' : 'Failed'}</td>
+                                            <td>${result.message}</td>
+                                        </tr>`;
+                                    });
+                                    
+                                    frappe.msgprint({
+                                        title: __('Language Model Deletion Results'),
+                                        message: `
+                                            <table class="table table-bordered">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Language</th>
+                                                        <th>Status</th>
+                                                        <th>Message</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>${details}</tbody>
+                                            </table>
+                                        `,
+                                        indicator: failures > 0 ? 'orange' : 'green'
+                                    });
+                                }
+                                
+                                frm.refresh();
+                            }
+                        }
+                    });
+                }
+            );
+        }, __('OCR Settings'));
     },
     
     ocr_enabled: function(frm) {
