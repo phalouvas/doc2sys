@@ -48,33 +48,99 @@ class ERPNextIntegration(BaseIntegration):
             # Extract and parse mapped data from the extracted_data field
             extracted_data = doc2sys_item.get("extracted_data", "{}")
             mapped_data = json.loads(extracted_data)
-            mapped_data =json.dumps(mapped_data)
             
-            # Get target doctype from settings
-            document_type = doc2sys_item.get("document_type")
-            
-            # Send to ERPNext
+            # Verify integration type
+            if mapped_data.get("integration_type") != "ERPNextIntegration":
+                self.log_activity("error", "Invalid integration type. Expected ERPNextIntegration.")
+                return {"success": False, "message": "Invalid integration type"}
+                
+            # Get API credentials
             api_key = self.settings.get("api_key")
             api_secret = frappe.utils.password.get_decrypted_password("Doc2Sys Integration Settings", self.settings.name, "api_secret") or ""
             base_url = self.settings.get("base_url")
             
-            response = requests.post(
-                f"{base_url}/api/resource/{document_type}",
-                json={"data": mapped_data},
-                headers={
-                    "Authorization": f"token {api_key}:{api_secret}",
-                    "Content-Type": "application/json"
-                }
-            )
+            auth_headers = {
+                "Authorization": f"token {api_key}:{api_secret}",
+                "Content-Type": "application/json"
+            }
             
-            if response.status_code in (200, 201):
-                result = response.json()
-                self.log_activity("success", f"Document synced successfully", 
-                                 {"doc_name": result.get("data", {}).get("name")})
-                return {"success": True, "data": result}
-            else:
-                self.log_activity("error", f"Failed to sync document: {response.text}")
-                return {"success": False, "message": response.text}
+            creation_order = mapped_data.get("creation_order", [])
+            doctypes = mapped_data.get("doctypes", {})
+            search_ids = mapped_data.get("search_id", {})
+            
+            created_documents = {}
+            
+            # Process doctypes in the specified order
+            for doctype_name in creation_order:
+                doctype_data = doctypes.get(doctype_name)
+                search_id_field = search_ids.get(doctype_name)
+                
+                if not doctype_data or not search_id_field:
+                    self.log_activity("error", f"Missing data or search field for {doctype_name}")
+                    continue
+                    
+                # Handle both single objects and lists of objects
+                if not isinstance(doctype_data, list):
+                    doctype_data = [doctype_data]
+                    
+                doctype_results = []
+                
+                for item in doctype_data:
+                    search_value = item.get(search_id_field)
+                    if not search_value:
+                        self.log_activity("error", f"Search value missing for {doctype_name}")
+                        continue
+                        
+                    # Check if document exists
+                    exists_response = requests.get(
+                        f"{base_url}/api/method/frappe.client.get_list",
+                        params={
+                            "doctype": doctype_name,
+                            "filters": json.dumps([[doctype_name, search_id_field, "=", search_value]]),
+                            "fields": ["name"]
+                        },
+                        headers=auth_headers
+                    )
+                    
+                    document_exists = False
+                    document_name = None
+                    
+                    if exists_response.status_code == 200:
+                        results = exists_response.json().get("message", [])
+                        if results and len(results) > 0:
+                            document_exists = True
+                            document_name = results[0].get("name")
+                            self.log_activity("info", f"{doctype_name} already exists with {search_id_field}={search_value}")
+                    
+                    # Create document if it doesn't exist
+                    if not document_exists:
+                        # Add doctype to the item
+                        item["doctype"] = doctype_name
+                        
+                        create_response = requests.post(
+                            f"{base_url}/api/method/frappe.client.insert",
+                            json={"doc": item},
+                            headers=auth_headers
+                        )
+                        
+                        if create_response.status_code in (200, 201):
+                            result = create_response.json()
+                            document_name = result.get("message", {}).get("name")
+                            self.log_activity("success", f"Created {doctype_name} successfully", 
+                                             {"doc_name": document_name})
+                        else:
+                            error_message = f"Failed to create {doctype_name}: {create_response.text}"
+                            self.log_activity("error", error_message)
+                            return {"success": False, "message": error_message}
+                    
+                    if document_name:
+                        doctype_results.append(document_name)
+                
+                if doctype_results:
+                    created_documents[doctype_name] = doctype_results
+            
+            return {"success": True, "data": created_documents}
+            
         except Exception as e:
             self.log_activity("error", f"Sync error: {str(e)}")
             return {"success": False, "message": str(e)}
