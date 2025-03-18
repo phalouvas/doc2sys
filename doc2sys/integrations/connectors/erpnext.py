@@ -47,7 +47,13 @@ class ERPNextIntegration(BaseIntegration):
         try:
             # Extract and parse mapped data from the extracted_data field
             extracted_data = doc2sys_item.get("extracted_data", "{}")
-            mapped_data = json.loads(extracted_data)
+            
+            # Check if extracted_data is a valid JSON string
+            try:
+                mapped_data = json.loads(extracted_data)
+            except json.JSONDecodeError:
+                self.log_activity("error", "Invalid JSON in extracted_data")
+                return {"success": False, "message": "Invalid JSON in extracted_data"}
             
             # Verify integration type
             if mapped_data.get("integration_type") != "ERPNextIntegration":
@@ -97,7 +103,7 @@ class ERPNextIntegration(BaseIntegration):
                         params={
                             "doctype": doctype_name,
                             "filters": json.dumps([[doctype_name, search_id_field, "=", search_value]]),
-                            "fields": ["name"]
+                            "fields": json.dumps(["name"])  # Ensure fields is a valid JSON string
                         },
                         headers=auth_headers
                     )
