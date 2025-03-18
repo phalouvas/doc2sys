@@ -1,11 +1,13 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "naming_series:",
  "creation": "2025-03-12 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "user",
+  "naming_series",
   "folder_monitoring_section",
   "monitoring_enabled",
   "folder_to_monitor",
@@ -27,8 +29,12 @@
    "description": "Select the user for whom these settings apply",
    "fieldname": "user",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "User",
-   "options": "User"
+   "no_copy": 1,
+   "options": "User",
+   "reqd": 1,
+   "unique": 1
   },
   {
    "default": "1",
@@ -118,14 +124,22 @@
   {
    "fieldname": "column_break_ghrw",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "D2S-US-.YYYY.-"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-18 18:04:49.814745",
+ "modified": "2025-03-18 18:23:00.967600",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
@@ -142,5 +156,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
+ "title_field": "user",
  "track_changes": 1
 }
