@@ -5,22 +5,27 @@ import os
 
 def after_install():
     """Run after app installation"""
-    # List of required Python dependencies in proper order
+    # List of required Python dependencies with specific versions
     dependencies = [
-        "python-docx",       # For processing Microsoft Word documents
-        "pdf2image",         # For converting PDF pages to images for OCR
-        "easyocr",           # For OCR on images
-        "opencv-python-headless", # For image preprocessing
-        "numpy",             # Required for image processing
-        "pandas",            # For data processing
-        "PyPDF2",            # For PDF text extraction
+        # Core dependencies 
+        "numpy",                # Numeric processing
+        "pillow",               # Image processing (more stable than pdf2image)
+        "opencv-python",        # OpenCV for image preprocessing (standard version)
+        
+        # Document processing
+        "python-docx",          # For processing Microsoft Word documents
+        "PyPDF2",         # For PDF text extraction
+        "pandas",               # For data processing
+        
+        # OCR - install last after other dependencies
+        "easyocr",              # For OCR (without version constraint)
     ]
     
     # Install each dependency
     for package in dependencies:
         try:
-            # Install using bench pip
+            # Install using bench pip without forcing reinstall
             subprocess.run(["bench", "pip", "install", package], check=True)
             frappe.log_error(f"{package} installed successfully", "Doc2Sys Setup")
         except Exception as e:
-            frappe.log_error(f"Failed to install {package}: {str(e)}", "Doc2Sys Setup Error")
+            frappe.log_error(f"Failed to install {package}", "Doc2Sys Setup Error")

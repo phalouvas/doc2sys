@@ -38,11 +38,6 @@ class TextExtractor:
     def __init__(self, languages=['en']):
         self.languages = languages
         self.reader = None
-        
-        # Lazy import EasyOCR only when needed to avoid startup errors
-        if not HAS_OCR:
-            # Log this once, not every time we create an extractor
-            frappe.log_error("OCR libraries not fully available - some functionality limited", "Doc2Sys Setup")
     
     def extract_text(self, file_path):
         """Extract text from various file types"""
@@ -76,6 +71,7 @@ class TextExtractor:
             return True
             
         try:
+            # Only import easyocr when actually needed
             import easyocr
             self.reader = easyocr.Reader(self.languages)
             HAS_OCR = True
@@ -87,6 +83,37 @@ class TextExtractor:
             frappe.log_error(f"Error initializing EasyOCR: {str(e)}", "Doc2Sys")
             return False
     
+    def preprocess_image(self, image_path):
+        """Preprocess image for better OCR results if OpenCV is available"""
+        if not HAS_CV2:
+            return None
+        
+        try:
+            # Read image
+            img = cv2.imread(image_path)
+            
+            # Convert to grayscale
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            
+            # Apply adaptive thresholding
+            thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                         cv2.THRESH_BINARY, 31, 2)
+            
+            # Apply noise reduction
+            denoised = cv2.fastNlMeansDenoising(thresh, None, 10, 7, 21)
+            
+            # Create a temporary file path for the processed image
+            base_path, ext = os.path.splitext(image_path)
+            processed_path = f"{base_path}_processed{ext}"
+            
+            # Save the processed image
+            cv2.imwrite(processed_path, denoised)
+            
+            return processed_path
+        except Exception as e:
+            frappe.log_error(f"Image preprocessing error: {str(e)}", "Doc2Sys")
+            return None
+    
     def extract_text_from_image(self, image_path):
         """Extract text from image using EasyOCR with preprocessing"""
         # Try to load EasyOCR only when needed
@@ -94,12 +121,36 @@ class TextExtractor:
             return "OCR functionality not available. Cannot extract text from image."
         
         try:
-            # Perform OCR directly without preprocessing first
-            results = self.reader.readtext(image_path)
+            # Preprocess image if OpenCV is available
+            processed_path = None
+            results = None
+            
+            if HAS_CV2:
+                processed_path = self.preprocess_image(image_path)
+            
+            # First try with preprocessed image if available
+            if processed_path:
+                try:
+                    results = self.reader.readtext(processed_path)
+                    # Remove temporary file after processing
+                    try:
+                        os.remove(processed_path)
+                    except:
+                        pass
+                except Exception as e:
+                    frappe.log_error(f"OCR with preprocessed image failed: {str(e)}", "Doc2Sys")
+            
+            # If preprocessing failed or no results, try with original image
+            if not results:
+                results = self.reader.readtext(image_path)
             
             # Extract text from results
-            text = ' '.join([result[1] for result in results])
-            return text
+            if results:
+                text = ' '.join([result[1] for result in results])
+                return text
+            else:
+                return "No text detected in image"
+                
         except Exception as e:
             frappe.log_error(f"Image text extraction error: {str(e)}", "Doc2Sys")
             return f"Error extracting text from image: {str(e)}"

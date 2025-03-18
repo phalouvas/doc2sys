@@ -279,10 +279,6 @@ class Doc2SysItem(Document):
             # Extract text from the file
             extracted_text = extractor.extract_text(file_path)
             
-            # Log the first 100 characters for debugging
-            preview = (extracted_text[:100] + '...') if len(extracted_text) > 100 else extracted_text
-            frappe.log_error(f"Extracted text from {file_path} (preview): {preview}", "Doc2Sys Text Extraction")
-            
             return extracted_text
         except Exception as e:
             frappe.log_error(f"Text extraction error: {str(e)}", "Doc2Sys")
