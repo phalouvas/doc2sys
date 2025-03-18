@@ -7,25 +7,74 @@ def after_install():
     """Run after app installation"""
     # List of required Python dependencies with specific versions
     dependencies = [
-        # Core dependencies 
-        "numpy",                # Numeric processing
-        "pillow",               # Image processing (more stable than pdf2image)
-        "opencv-python",        # OpenCV for image preprocessing (standard version)
+        # Core dependencies (install first)
+        "numpy>=1.21.0",           # Numeric processing - base requirement
+        "pillow>=9.0.0",           # Image processing
+        "opencv-python-headless",  # OpenCV for image preprocessing (headless version for servers)
         
         # Document processing
-        "python-docx",          # For processing Microsoft Word documents
-        "PyPDF2",         # For PDF text extraction
-        "pandas",               # For data processing
+        "python-docx",             # For processing Microsoft Word documents
+        "PyPDF2>=2.0.0",           # For PDF text extraction
+        "pandas",                  # For data processing
+        
+        # PyTorch dependencies (required by EasyOCR)
+        "torch",                   # Deep learning framework
+        "torchvision",             # Computer vision package for PyTorch
         
         # OCR - install last after other dependencies
-        "easyocr",              # For OCR (without version constraint)
+        "easyocr",                 # For OCR functionality
     ]
+    
+    frappe.log_error("Starting Doc2Sys dependency installation", "Doc2Sys Setup")
     
     # Install each dependency
     for package in dependencies:
         try:
-            # Install using bench pip without forcing reinstall
-            subprocess.run(["bench", "pip", "install", package], check=True)
-            frappe.log_error(f"{package} installed successfully", "Doc2Sys Setup")
+            # Show installation progress
+            frappe.log_error(f"Installing {package}...", "Doc2Sys Setup")
+            
+            # Install using bench pip 
+            result = subprocess.run(
+                ["bench", "pip", "install", "--quiet", package],
+                check=False,
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                frappe.log_error(f"✓ {package} installed successfully", "Doc2Sys Setup")
+            else:
+                frappe.log_error(
+                    f"✗ Failed to install {package}: {result.stderr}",
+                    "Doc2Sys Setup Error"
+                )
+                
         except Exception as e:
-            frappe.log_error(f"Failed to install {package}", "Doc2Sys Setup Error")
+            frappe.log_error(
+                f"✗ Error installing {package}: {str(e)}", 
+                "Doc2Sys Setup Error"
+            )
+            
+    # Verify key installations
+    try:
+        verify_packages = ["easyocr", "torch", "PyPDF2", "docx", "cv2"]
+        for pkg in verify_packages:
+            try:
+                module = __import__(pkg)
+                frappe.log_error(f"✓ {pkg} verified - version: {getattr(module, '__version__', 'unknown')}", "Doc2Sys Setup")
+            except ImportError:
+                frappe.log_error(f"✗ {pkg} import failed after installation", "Doc2Sys Setup Error")
+    except Exception as e:
+        frappe.log_error(f"Failed to verify package installations: {str(e)}", "Doc2Sys Setup Error")
+        
+    # Initialize default settings
+    try:
+        # Create default OCR language settings if needed
+        if not frappe.db.exists("DocType", "Doc2Sys OCR Language"):
+            frappe.log_error("Setting up default OCR languages", "Doc2Sys Setup")
+            settings = frappe.get_doc("Doc2Sys Settings")
+            settings.add_common_languages()
+    except Exception as e:
+        frappe.log_error(f"Failed to setup initial settings: {str(e)}", "Doc2Sys Setup Error")
+        
+    frappe.log_error("Doc2Sys dependency installation completed", "Doc2Sys Setup")

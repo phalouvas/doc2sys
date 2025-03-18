@@ -1,8 +1,8 @@
+from io import StringIO
 import os
 import frappe
 import csv
 import warnings
-from io import StringIO
 
 # Suppress PyPDF2 deprecation warning
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="PyPDF2")
@@ -35,9 +35,48 @@ except ImportError:
     pass
 
 class TextExtractor:
-    def __init__(self, languages=['en']):
-        self.languages = languages
+    def __init__(self, languages=None):
+        """
+        Initialize text extractor with specified languages
+        
+        Args:
+            languages: List of language codes for OCR (e.g., ['en', 'fr', 'de'])
+                       If None, will fetch from Doc2Sys Settings
+        """
+        # Get languages from settings if not provided
+        if languages is None:
+            self.languages = self._get_languages_from_settings()
+        else:
+            self.languages = languages if isinstance(languages, list) else ['en']
+            
+        # Ensure we have at least English as fallback
+        if not self.languages:
+            self.languages = ['en']
+            
         self.reader = None
+        
+    def _get_languages_from_settings(self):
+        """Get configured OCR languages from settings"""
+        languages = ['en']  # Default to English
+        
+        try:
+            # Get the settings document
+            settings = frappe.get_doc("Doc2Sys Settings")
+            
+            # Check if OCR is enabled
+            if settings.ocr_enabled:
+                # Get enabled languages from the child table
+                enabled_langs = [lang.language_code for lang in settings.ocr_languages if lang.enabled]
+                
+                # Use enabled languages if available, otherwise default to English
+                if enabled_langs:
+                    languages = enabled_langs
+                    
+            frappe.log_error(f"Using OCR languages: {', '.join(languages)}", "Doc2Sys")
+        except Exception as e:
+            frappe.log_error(f"Error fetching OCR language settings: {str(e)}", "Doc2Sys")
+            
+        return languages
     
     def extract_text(self, file_path):
         """Extract text from various file types"""
@@ -73,6 +112,7 @@ class TextExtractor:
         try:
             # Only import easyocr when actually needed
             import easyocr
+            frappe.log_error(f"Initializing EasyOCR with languages: {', '.join(self.languages)}", "Doc2Sys")
             self.reader = easyocr.Reader(self.languages)
             HAS_OCR = True
             return True
@@ -86,33 +126,27 @@ class TextExtractor:
     def preprocess_image(self, image_path):
         """Preprocess image for better OCR results if OpenCV is available"""
         if not HAS_CV2:
-            return None
+            return image_path
         
         try:
-            # Read image
-            img = cv2.imread(image_path)
+            # Read the image
+            image = cv2.imread(image_path)
             
             # Convert to grayscale
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             
             # Apply adaptive thresholding
             thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                         cv2.THRESH_BINARY, 31, 2)
+                                          cv2.THRESH_BINARY, 11, 2)
             
-            # Apply noise reduction
-            denoised = cv2.fastNlMeansDenoising(thresh, None, 10, 7, 21)
+            # Save processed image to a temporary file
+            temp_path = f"{image_path}_processed.png"
+            cv2.imwrite(temp_path, thresh)
             
-            # Create a temporary file path for the processed image
-            base_path, ext = os.path.splitext(image_path)
-            processed_path = f"{base_path}_processed{ext}"
-            
-            # Save the processed image
-            cv2.imwrite(processed_path, denoised)
-            
-            return processed_path
+            return temp_path
         except Exception as e:
-            frappe.log_error(f"Image preprocessing error: {str(e)}", "Doc2Sys")
-            return None
+            frappe.log_error(f"Error preprocessing image: {str(e)}", "Doc2Sys")
+            return image_path
     
     def extract_text_from_image(self, image_path):
         """Extract text from image using EasyOCR with preprocessing"""
@@ -121,38 +155,32 @@ class TextExtractor:
             return "OCR functionality not available. Cannot extract text from image."
         
         try:
-            # Preprocess image if OpenCV is available
-            processed_path = None
-            results = None
+            # Preprocess the image for better OCR results if OpenCV is available
+            processed_path = self.preprocess_image(image_path)
             
-            if HAS_CV2:
-                processed_path = self.preprocess_image(image_path)
+            # Extract text from the image
+            results = self.reader.readtext(processed_path)
             
-            # First try with preprocessed image if available
-            if processed_path:
+            # Clean up the temporary file if it was created
+            if processed_path != image_path and os.path.exists(processed_path):
                 try:
-                    results = self.reader.readtext(processed_path)
-                    # Remove temporary file after processing
-                    try:
-                        os.remove(processed_path)
-                    except:
-                        pass
-                except Exception as e:
-                    frappe.log_error(f"OCR with preprocessed image failed: {str(e)}", "Doc2Sys")
+                    os.remove(processed_path)
+                except:
+                    pass
+                
+            # Compile results into text
+            text = ""
+            for detection in results:
+                text += detection[1] + " "
             
-            # If preprocessing failed or no results, try with original image
-            if not results:
-                results = self.reader.readtext(image_path)
-            
-            # Extract text from results
-            if results:
-                text = ' '.join([result[1] for result in results])
-                return text
-            else:
-                return "No text detected in image"
+            # If no text detected
+            if not text.strip():
+                return "No text detected in the image."
+                
+            return text.strip()
                 
         except Exception as e:
-            frappe.log_error(f"Image text extraction error: {str(e)}", "Doc2Sys")
+            frappe.log_error(f"Error extracting text from image: {str(e)}", "Doc2Sys")
             return f"Error extracting text from image: {str(e)}"
     
     def extract_text_from_pdf(self, pdf_path):
@@ -161,16 +189,21 @@ class TextExtractor:
             return "PDF extraction not available. Please install PyPDF2."
             
         try:
-            text = []
-            pdf_reader = PdfReader(pdf_path)
+            reader = PdfReader(pdf_path)
+            text = ""
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n\n"
             
-            for page in pdf_reader.pages:
-                page_text = page.extract_text() or ""
-                text.append(page_text)
+            if not text.strip():
+                # If no text extracted, try OCR on the PDF as images
+                return f"No readable text found in PDF. Consider converting to images for OCR."
+                
+            return text.strip()
             
-            return "\n\n".join(text)
         except Exception as e:
-            frappe.log_error(f"PDF text extraction error: {str(e)}", "Doc2Sys")
+            frappe.log_error(f"Error extracting text from PDF: {str(e)}", "Doc2Sys")
             return f"Error extracting text from PDF: {str(e)}"
     
     def extract_text_from_word(self, docx_path):
@@ -180,31 +213,37 @@ class TextExtractor:
             
         try:
             doc = docx.Document(docx_path)
-            text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
-            return text
+            text = ""
+            for para in doc.paragraphs:
+                text += para.text + "\n"
+            
+            return text.strip()
+            
         except Exception as e:
-            frappe.log_error(f"Word document text extraction error: {str(e)}", "Doc2Sys")
-            return f"Error extracting text from Word document: {str(e)}"
+            frappe.log_error(f"Error extracting text from Word doc: {str(e)}", "Doc2Sys")
+            return f"Error extracting text from Word doc: {str(e)}"
     
     def extract_text_from_csv(self, csv_path):
         """Extract text from CSV file"""
         try:
-            text = []
-            with open(csv_path, 'r', encoding='utf-8', errors='replace') as csv_file:
-                csv_reader = csv.reader(csv_file)
-                for row in csv_reader:
-                    text.append(" | ".join(row))
+            text = ""
+            with open(csv_path, 'r', encoding='utf-8', errors='ignore') as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    text += ", ".join(row) + "\n"
             
-            return "\n".join(text)
+            return text.strip()
+            
         except Exception as e:
-            frappe.log_error(f"CSV text extraction error: {str(e)}", "Doc2Sys")
+            frappe.log_error(f"Error extracting text from CSV: {str(e)}", "Doc2Sys")
             return f"Error extracting text from CSV: {str(e)}"
     
     def extract_text_from_text_file(self, text_file_path):
         """Extract text from plain text file"""
         try:
-            with open(text_file_path, 'r', encoding='utf-8', errors='replace') as file:
-                return file.read()
+            with open(text_file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                return f.read().strip()
+                
         except Exception as e:
-            frappe.log_error(f"Text file extraction error: {str(e)}", "Doc2Sys")
-            return f"Error extracting text from file: {str(e)}"
+            frappe.log_error(f"Error extracting text from text file: {str(e)}", "Doc2Sys")
+            return f"Error extracting text from text file: {str(e)}"

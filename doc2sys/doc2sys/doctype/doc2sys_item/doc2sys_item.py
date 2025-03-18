@@ -299,8 +299,8 @@ class Doc2SysItem(Document):
             return ""
         
         try:
-            # Initialize TextExtractor with English language
-            extractor = TextExtractor(languages=['en'])
+            # Initialize TextExtractor with default language settings from Doc2Sys Settings
+            extractor = TextExtractor()
             
             # Extract text from the file
             extracted_text = extractor.extract_text(file_path)
