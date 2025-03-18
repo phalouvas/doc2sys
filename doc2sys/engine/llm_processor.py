@@ -149,16 +149,14 @@ class OpenWebUIProcessor:
             
             api_payload = None
             
-            # Process file or text input
-            if file_path:
-                api_payload, _ = self._prepare_file_content(file_path, prompt)
-                
-                # If file processing failed, try using text if available
-                if api_payload is None and text:
-                    api_payload = self._prepare_text_content(text, prompt)
-            elif text:
+            # Process text input first if available
+            if text:
                 api_payload = self._prepare_text_content(text, prompt)
-                
+            
+            # If text is not available or failed, process file input
+            if not api_payload and file_path:
+                api_payload, _ = self._prepare_file_content(file_path, prompt)
+            
             # If we couldn't create a valid payload, return default response
             if not api_payload:
                 return {"document_type": "unknown", "confidence": 0.0}
@@ -233,16 +231,14 @@ class OpenWebUIProcessor:
             
             api_payload = None
             
-            # Process file or text input
-            if file_path:
-                api_payload, _ = self._prepare_file_content(file_path, prompt)
-                
-                # If file processing failed, try using text if available
-                if api_payload is None and text:
-                    api_payload = self._prepare_text_content(text, prompt)
-            elif text:
+            # Process text input first if available
+            if text:
                 api_payload = self._prepare_text_content(text, prompt)
-                
+            
+            # If text is not available or failed, process file input
+            if not api_payload and file_path:
+                api_payload, _ = self._prepare_file_content(file_path, prompt)
+            
             # If we couldn't create a valid payload, return empty dict
             if not api_payload:
                 return {}
