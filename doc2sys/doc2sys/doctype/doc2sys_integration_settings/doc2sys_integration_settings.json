@@ -1,9 +1,11 @@
 {
  "actions": [],
+ "autoname": "naming_series:",
  "creation": "2023-03-15 12:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
   "integration_type",
   "enabled",
   "auto_sync",
@@ -89,13 +91,21 @@
    "fieldtype": "Table",
    "label": "Target Doctypes",
    "options": "Doc2Sys Integration Doctypes"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "D2S-IS-.YYYY.-"
   }
  ],
  "links": [],
- "modified": "2025-03-17 06:49:33.653720",
+ "modified": "2025-03-18 17:22:35.107809",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Integration Settings",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
