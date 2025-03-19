@@ -34,14 +34,20 @@ class BaseIntegration(ABC):
         """Return a list of fields available for mapping in the external system"""
         pass
     
-    def log_activity(self, status: str, message: str, data: Dict[str, Any] = None) -> str:
+    def log_activity(self, status, message, data=None):
         """Log integration activity"""
-        log = frappe.get_doc({
-            "doctype": "Doc2Sys Integration Log",
-            "integration": self.name,
-            "status": status,
-            "message": message,
-            "data": frappe.as_json(data) if data else None,
-        })
-        log.insert(ignore_permissions=True)
-        return log.name
+        from doc2sys.integrations.utils import create_integration_log
+        
+        # Extract user and integration reference from settings
+        user = self.settings.get("user") or frappe.session.user
+        integration_reference = self.settings.get("name")
+        
+        # Create log with user information
+        create_integration_log(
+            self.__class__.__name__.replace("Integration", ""),
+            status,
+            message,
+            data=data,
+            user=user,
+            integration_reference=integration_reference
+        )

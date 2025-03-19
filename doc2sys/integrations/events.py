@@ -22,39 +22,69 @@ def _process_integrations(doc, is_manual=False):
     # Discover available integrations
     IntegrationRegistry.discover_integrations()
     
-    # Define filters for getting enabled integration settings
-    filters = {"enabled": 1}
-    if not is_manual:
-        filters["auto_sync"] = 1
-    
-    # Get all enabled integration settings
-    settings_list = frappe.get_all(
-        "Doc2Sys Integration Settings", 
-        filters=filters,
-        fields=["name", "integration_type"]
+    # Get all users with settings
+    user_settings_list = frappe.get_all(
+        "Doc2Sys User Settings",
+        fields=["name", "user"]
     )
     
-    for settings_doc in settings_list:
+    for user_settings in user_settings_list:
         try:
-            # Get complete settings
-            settings = frappe.get_doc("Doc2Sys Integration Settings", settings_doc.name)
+            # Get complete user settings
+            settings_doc = frappe.get_doc("Doc2Sys User Settings", user_settings.name)
             
-            # Create integration instance
-            integration_instance = IntegrationRegistry.create_instance(
-                settings_doc.integration_type,
-                settings=settings.as_dict()
-            )
-            
-            # Sync the document
-            result = integration_instance.sync_document(doc.as_dict())
-            
-            if not result.get("success"):
-                frappe.log_error(
-                    f"Integration failed: {result.get('message')}",
-                    f"Doc2Sys Integration: {settings_doc.integration_type}"
-                )
+            # Process each enabled integration for this user
+            for integration in settings_doc.user_integrations:
+                if not integration.enabled:
+                    continue
+                    
+                if not is_manual and not integration.auto_sync:
+                    continue
+                
+                try:
+                    # Create integration instance with user context
+                    integration_settings = integration.as_dict()
+                    integration_settings['parent'] = settings_doc.name
+                    integration_settings['user'] = settings_doc.user
+                    
+                    integration_instance = IntegrationRegistry.create_instance(
+                        integration.integration_type,
+                        settings=integration_settings
+                    )
+                    
+                    # Sync the document
+                    result = integration_instance.sync_document(doc.as_dict())
+                    
+                    if not result.get("success"):
+                        from doc2sys.integrations.utils import create_integration_log
+                        create_integration_log(
+                            integration.integration_type,
+                            "error",
+                            f"Integration failed: {result.get('message')}",
+                            data={
+                                "doc_name": doc.name,
+                                "error": result.get('message')
+                            },
+                            user=settings_doc.user,
+                            integration_reference=integration.name
+                        )
+                        
+                except Exception as e:
+                    from doc2sys.integrations.utils import create_integration_log
+                    create_integration_log(
+                        integration.integration_type,
+                        "error",
+                        f"Error processing integration: {str(e)}",
+                        data={
+                            "doc_name": doc.name,
+                            "error": str(e)
+                        },
+                        user=settings_doc.user,
+                        integration_reference=integration.name
+                    )
+                    
         except Exception as e:
             frappe.log_error(
-                f"Error processing integration {settings_doc.integration_type}: {str(e)}",
+                f"Error processing integrations for user {user_settings.user}: {str(e)}",
                 "Doc2Sys Integration Error"
             )
