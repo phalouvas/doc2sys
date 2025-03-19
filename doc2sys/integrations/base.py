@@ -39,10 +39,14 @@ class BaseIntegration(ABC):
         """Log integration activity"""
         integration_type = getattr(self, "integration_type", self.__class__.__name__)
         
-        # Extract document reference from data if available
-        document = None
-        if isinstance(data, dict) and data.get("doc_name"):
-            document = data.get("doc_name")
+        # Get document reference from instance attribute if available
+        document = getattr(self, "current_document", None)
+        
+        # Add document reference to data if available
+        if document and data is None:
+            data = {"doc_name": document}
+        elif document and isinstance(data, dict) and "doc_name" not in data:
+            data["doc_name"] = document
             
         create_integration_log(
             integration_type=integration_type,
@@ -51,5 +55,5 @@ class BaseIntegration(ABC):
             data=data,
             user=self.settings.get("user"),
             integration_reference=self.settings.get("name"),
-            document=document
+            document=document  # Use the document reference
         )

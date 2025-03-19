@@ -58,6 +58,9 @@ class ERPNextIntegration(BaseIntegration):
     def sync_document(self, doc2sys_item: Dict[str, Any]) -> Dict[str, Any]:
         """Sync a doc2sys_item to the external ERPNext system"""
         try:
+            # Add this line at the beginning of the method
+            self.current_document = doc2sys_item.get("name")
+            
             # Extract and parse mapped data from the extracted_data field
             extracted_data = doc2sys_item.get("extracted_data", "{}")
             
