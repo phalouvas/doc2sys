@@ -9,6 +9,7 @@
     "integration_type",
     "status",
     "message",
+    "document",
     "data",
     "user",
     "integration_reference"
@@ -31,6 +32,12 @@
       "fieldname": "message",
       "fieldtype": "Text",
       "label": "Message"
+    },
+    {
+      "fieldname": "document",
+      "fieldtype": "Link",
+      "options": "Doc2Sys Item",
+      "label": "Document"
     },
     {
       "fieldname": "data",

@@ -97,7 +97,8 @@ def _process_integrations(doc, is_manual=False):
                         "error": result.get('message')
                     },
                     user=settings_doc.user,
-                    integration_reference=integration.name
+                    integration_reference=integration.name,
+                    document=doc.name  # Add this line
                 )
             else:
                 # Log successful integrations as well
@@ -110,7 +111,8 @@ def _process_integrations(doc, is_manual=False):
                         "result": result.get('data', {})
                     },
                     user=settings_doc.user,
-                    integration_reference=integration.name
+                    integration_reference=integration.name,
+                    document=doc.name  # Add this line
                 )
                 
         except Exception as e:
@@ -123,5 +125,6 @@ def _process_integrations(doc, is_manual=False):
                     "error": str(e)
                 },
                 user=settings_doc.user,
-                integration_reference=integration.name
+                integration_reference=integration.name,
+                document=doc.name  # Add the direct document reference
             )

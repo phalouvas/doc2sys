@@ -359,13 +359,10 @@ class Doc2SysItem(Document):
         if not self.name:
             return []
             
-        # Query integration logs for this document
+        # Query integration logs for this document using the direct link field
         logs = frappe.get_all(
             "Doc2Sys Integration Log",
-            filters={
-                "data": ["like", f"%{self.name}%"],
-                "user": self.user
-            },
+            filters={"document": self.name},  # Use the document field directly
             fields=["integration_type", "status", "message", "creation", "integration_reference", "name"],
             order_by="creation desc"
         )

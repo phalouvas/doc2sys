@@ -22,12 +22,16 @@ def execute_webhook(url: str, data: Dict[str, Any],
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-def create_integration_log(integration_type, status, message, data=None, user=None, integration_reference=None):
+def create_integration_log(integration_type, status, message, data=None, user=None, integration_reference=None, document=None):
     """Create an integration log entry"""
     try:
         # Ensure integration_type is always provided
         if not integration_type:
             integration_type = "Unknown"  # Provide a default value
+        
+        # Extract document reference from data if not explicitly provided
+        if not document and isinstance(data, dict) and data.get("doc_name"):
+            document = data.get("doc_name")
         
         # Convert data to JSON string if it's a dict/list
         if data and isinstance(data, (dict, list)):
@@ -40,7 +44,8 @@ def create_integration_log(integration_type, status, message, data=None, user=No
             "message": message,
             "data": data,
             "user": user,
-            "integration_reference": integration_reference
+            "integration_reference": integration_reference,
+            "document": document
         })
         
         log.insert(ignore_permissions=True)
