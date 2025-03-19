@@ -12,6 +12,10 @@ import json
 class Doc2SysItem(Document):
     def validate(self):
         """Validate the document before saving"""
+        # Set default user if not specified
+        if not self.user:
+            self.user = frappe.session.user
+            
         if self.has_value_changed("single_file"):
             # Clear the existing file ID if file changed
             self.llm_file_id = ""
@@ -61,13 +65,13 @@ class Doc2SysItem(Document):
             # Reset token counts and costs
             self._reset_token_usage()
             
-            # Extract text from file first
+            # Extract text from file first - pass user for user-specific settings
             extracted_text = self.get_document_text(file_path)
             
             # Store the extracted text in the document
             self.extracted_text = extracted_text
             
-            # Get processor and upload file only if needed
+            # Get processor and upload file only if needed - pass user for user-specific settings
             processor = self._get_processor_and_upload(file_path, extracted_text)
             if not processor:
                 return False
@@ -97,7 +101,8 @@ class Doc2SysItem(Document):
         Returns:
             LLMProcessor: The processor instance
         """
-        processor = LLMProcessor.create()
+        # Create processor with user-specific settings
+        processor = LLMProcessor(user=self.user)
         
         # Skip file upload if we have sufficient extracted text
         if extracted_text and len(extracted_text) > 100:
@@ -233,13 +238,13 @@ class Doc2SysItem(Document):
         # Reset token counts and costs for fresh calculation
         self._reset_token_usage()
         
-        # Extract text from the document
+        # Extract text from the document - pass user for user-specific settings
         extracted_text = self.get_document_text()
         
         # Store the extracted text
         self.extracted_text = extracted_text
         
-        # Get processor with optimized file upload
+        # Get processor with optimized file upload - pass user for user-specific settings
         processor = self._get_processor_and_upload(self.single_file, extracted_text)
         if not processor:
             frappe.msgprint("Failed to initialize document processor")
@@ -299,8 +304,8 @@ class Doc2SysItem(Document):
             return ""
         
         try:
-            # Initialize TextExtractor with default language settings from Doc2Sys Settings
-            extractor = TextExtractor()
+            # Initialize TextExtractor with user-specific settings
+            extractor = TextExtractor(user=self.user)
             
             # Extract text from the file
             extracted_text = extractor.extract_text(file_path)
@@ -326,7 +331,7 @@ class Doc2SysItem(Document):
                 
             file_path = file_doc.get_full_path()
             
-            # Extract text from the file
+            # Extract text from the file - pass user for user-specific settings
             extracted_text = self.get_document_text(file_path)
             
             # Store the extracted text in the document
@@ -352,6 +357,8 @@ def create_item_from_file(file_doc_name):
     # Create new Doc2Sys Item with this file
     doc = frappe.new_doc("Doc2Sys Item")
     doc.single_file = file_doc.file_url
+    # Set the current user as the document owner
+    doc.user = frappe.session.user
     doc.insert()
     
     return doc.name

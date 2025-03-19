@@ -25,15 +25,22 @@ class DocumentProcessor:
     and data extraction.
     """
     
-    def __init__(self, config=None):
+    def __init__(self, config=None, user=None):
         """
         Initialize the document processor with optional configuration.
         
         Args:
             config: Optional configuration object or dict
+            user: User for whom to load settings. If None, uses current user.
         """
-        self.config = config or EngineConfig()
+        # If no config is provided, create one with the specified user
+        if config is None:
+            self.config = EngineConfig.from_settings(user=user)
+        else:
+            self.config = config
+            
         self.logger = logger
+        self.user = user or frappe.session.user
         
         # Check if required tools are installed
         self._check_dependencies()
@@ -150,6 +157,7 @@ class DocumentProcessor:
                 text = f.read()
             
             # If text is empty and OCR is enabled, try OCR instead
+            # This now uses the user-specific OCR setting
             if not text.strip() and self.config.ocr_enabled:
                 self.logger.info(f"No text found in PDF, attempting OCR: {pdf_path}")
                 return self._extract_text_from_pdf_with_ocr(pdf_path)
@@ -165,8 +173,9 @@ class DocumentProcessor:
     
     def _extract_text_from_pdf_with_ocr(self, pdf_path):
         """Extract text from a PDF using OCR by converting to images first"""
+        # Check the user-specific OCR setting
         if not self.config.ocr_enabled:
-            self.logger.warning("OCR is disabled in settings")
+            self.logger.warning(f"OCR is disabled for user {self.user} in settings")
             return ""
             
         if not PDF2IMAGE_AVAILABLE:
@@ -202,8 +211,9 @@ class DocumentProcessor:
     
     def _extract_text_with_ocr(self, image_path):
         """Extract text from images using Tesseract OCR"""
+        # Check the user-specific OCR setting
         if not self.config.ocr_enabled:
-            self.logger.warning("OCR is disabled in settings")
+            self.logger.warning(f"OCR is disabled for user {self.user} in settings")
             return ""
         
         self.logger.info(f"Extracting text with OCR: {image_path}")
@@ -213,16 +223,17 @@ class DocumentProcessor:
             temp_txt_path = temp_file.name
         
         try:
-            # Run tesseract for OCR with configured languages
+            # Run tesseract for OCR with configured languages from user settings
             output_base = os.path.splitext(temp_txt_path)[0]
             
             # Join language codes with '+' for tesseract
+            # These are user-specific languages from their settings
             lang_param = '+'.join(self.config.ocr_languages)
             
             # Build command with language parameter
             cmd = ["tesseract", image_path, output_base, "-l", lang_param]
             
-            self.logger.info(f"Running OCR with languages: {lang_param}")
+            self.logger.info(f"Running OCR for user {self.user} with languages: {lang_param}")
             
             process = subprocess.run(
                 cmd,

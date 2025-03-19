@@ -4,6 +4,7 @@ import json
 import os
 import base64
 from .utils import logger
+from .exceptions import ProcessingError, LLMProcessingError  # Import the LLMProcessingError
 
 # Move hardcoded values to constants
 MAX_TEXT_LENGTH = 10000
@@ -13,30 +14,107 @@ class LLMProcessor:
     """Process documents using various LLM providers"""
     
     @staticmethod
-    def create():
-        """Factory method to create the appropriate LLM processor"""
-        # Always return OpenWebUI processor regardless of settings for backward compatibility
-        provider = frappe.db.get_single_value("Doc2Sys Settings", "llm_provider") or "Open WebUI"
+    def create(user=None):
+        """
+        Factory method to create the appropriate LLM processor
+        
+        Args:
+            user (str): Optional user for user-specific settings. 
+                        If None, uses current user.
+        
+        Returns:
+            Processor instance based on user's preferred provider
+        """
+        # Determine which user to use for settings
+        user = user or frappe.session.user
+        
+        # Try to get user-specific settings
+        user_settings_list = frappe.get_all(
+            'Doc2Sys User Settings',
+            filters={'user': user},
+            fields=['name']
+        )
+        
+        if user_settings_list:
+            # User settings exist, use them
+            user_settings = frappe.get_doc('Doc2Sys User Settings', user_settings_list[0].name)
+            provider = user_settings.llm_provider
+        else:
+            # Fallback to global settings for backward compatibility
+            logger.warning(f"No Doc2Sys User Settings found for user {user}, using defaults")
+            provider = frappe.db.get_single_value("Doc2Sys Settings", "llm_provider") or "Open WebUI"
         
         if provider != "Open WebUI":
             logger.warning(f"Only Open WebUI provider is supported, got: {provider}, using Open WebUI")
             
-        return OpenWebUIProcessor()
+        return OpenWebUIProcessor(user=user)
+    
+    def __init__(self, user=None):
+        """
+        Initialize LLMProcessor directly - delegates to factory method
+        
+        Args:
+            user (str): Optional user for user-specific settings.
+                        If None, uses current user.
+        """
+        # Delegate to the appropriate processor
+        processor = self.create(user=user)
+        
+        # Copy attributes from the created processor
+        self.__dict__.update(processor.__dict__)
+        
+        # Store methods from the processor
+        for attr_name in dir(processor):
+            if callable(getattr(processor, attr_name)) and not attr_name.startswith('__'):
+                setattr(self, attr_name, getattr(processor, attr_name))
 
 
 class OpenWebUIProcessor:
     """Process documents using Open WebUI"""
     
-    def __init__(self):
-        """Initialize Open WebUI processor"""
-        self.endpoint = frappe.db.get_single_value("Doc2Sys Settings", "openwebui_endpoint") or "http://localhost:3000/api/v1"
-        self.model = frappe.db.get_single_value("Doc2Sys Settings", "openwebui_model") or "llama3"
-        self.api_key = frappe.utils.password.get_decrypted_password("Doc2Sys Settings", "Doc2Sys Settings", "openwebui_apikey") or ""
-        self.file_cache = {}  # Cache for uploaded file IDs
+    def __init__(self, user=None):
+        """
+        Initialize Open WebUI processor with user-specific settings
         
-        # Cache token pricing
-        self.input_price_per_million = float(frappe.db.get_single_value("Doc2Sys Settings", "input_token_price") or 0.0)
-        self.output_price_per_million = float(frappe.db.get_single_value("Doc2Sys Settings", "output_token_price") or 0.0)
+        Args:
+            user (str): Optional user for user-specific settings.
+                        If None, uses current user.
+        """
+        self.user = user or frappe.session.user
+        
+        # Try to get user-specific settings first
+        user_settings = None
+        user_settings_list = frappe.get_all(
+            'Doc2Sys User Settings',
+            filters={'user': self.user},
+            fields=['name']
+        )
+        
+        if user_settings_list:
+            user_settings = frappe.get_doc('Doc2Sys User Settings', user_settings_list[0].name)
+            
+            # Get settings from user preferences
+            self.endpoint = user_settings.openwebui_endpoint or "http://localhost:3000/api/v1"
+            self.model = user_settings.openwebui_model or "llama3"
+            
+            # Get API key securely from user settings
+            self.api_key = frappe.utils.password.get_decrypted_password(
+                "Doc2Sys User Settings", 
+                user_settings_list[0].name, 
+                "openwebui_apikey"
+            ) or ""
+            
+            # Cache token pricing (per million tokens)
+            self.input_price_per_million = float(user_settings.input_token_price or 0.0)
+            self.output_price_per_million = float(user_settings.output_token_price or 0.0)
+            
+            logger.info(f"Using user-specific LLM settings for {self.user}")
+        else:
+            # Use 'raise' instead of 'throw' to raise the exception
+            raise LLMProcessingError(f"No Doc2Sys User Settings found for user {self.user}")
+        
+        # Initialize file cache
+        self.file_cache = {}
     
     def upload_file(self, file_path):
         """

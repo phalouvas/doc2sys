@@ -89,6 +89,13 @@ frappe.ui.form.on('Doc2Sys Item', {
         }
     },
     
+    onload: function(frm) {
+        // Set the user to current user if creating a new document and user is not set
+        if(frm.doc.__islocal && (!frm.doc.user || frm.doc.user === "")) {
+            frm.set_value('user', frappe.session.user);
+        }
+    },
+    
     before_save: function(frm) {
         if(frm.doc.single_file && (frm.doc.__unsaved || frm.doc.text_content === '' || 
            frm.doc.text_content === undefined)) {
