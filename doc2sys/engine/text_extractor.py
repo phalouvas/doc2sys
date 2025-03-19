@@ -3,6 +3,8 @@ import os
 import frappe
 import csv
 import warnings
+import base64
+from .llm_processor import LLMProcessor  # Import the LLMProcessor
 
 # Suppress PyPDF2 deprecation warning
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="PyPDF2")
@@ -55,6 +57,23 @@ class TextExtractor:
         """
         self.user = user or frappe.session.user
         
+        # Get user settings
+        self.user_settings = self._get_user_settings()
+        
+        # Determine OCR engine
+        self.ocr_engine = "tesseract"  # Default
+        if self.user_settings and self.user_settings.ocr_enabled:
+            self.ocr_engine = self.user_settings.ocr_engine or "tesseract"
+            
+        # Initialize LLM processor if needed
+        self.llm_processor = None
+        if self.ocr_engine == "llm_api":
+            try:
+                self.llm_processor = LLMProcessor(user=self.user)
+            except Exception as e:
+                frappe.log_error(f"Failed to initialize LLM processor for OCR: {str(e)}", "Doc2Sys")
+                self.ocr_engine = "tesseract"  # Fallback to tesseract on error
+                
         # Get languages from settings if not provided
         if languages is None:
             self.languages = self._get_languages_from_settings()
@@ -65,29 +84,34 @@ class TextExtractor:
         if not self.languages:
             self.languages = ['eng']
             
-    def _get_languages_from_settings(self):
-        """Get configured OCR languages from user-specific settings"""
-        languages = ['eng']  # Default to English
-        
+    def _get_user_settings(self):
+        """Get user-specific settings document"""
         try:
-            # Find settings for the current user
             user_settings_list = frappe.get_all(
                 'Doc2Sys User Settings',
                 filters={'user': self.user},
                 fields=['name']
             )
             
-            if not user_settings_list:
-                frappe.log_error(f"No Doc2Sys User Settings found for user {self.user}, using default language", "Doc2Sys")
+            if user_settings_list:
+                return frappe.get_doc('Doc2Sys User Settings', user_settings_list[0].name)
+        except Exception as e:
+            frappe.log_error(f"Error fetching user settings for {self.user}: {str(e)}", "Doc2Sys")
+            
+        return None
+            
+    def _get_languages_from_settings(self):
+        """Get configured OCR languages from user-specific settings"""
+        languages = ['eng']  # Default to English
+        
+        try:
+            if not self.user_settings:
                 return languages
                 
-            # Get the user settings document
-            user_settings = frappe.get_doc('Doc2Sys User Settings', user_settings_list[0].name)
-            
-            # Check if OCR is enabled
-            if user_settings.ocr_enabled:
+            # Check if OCR is enabled and using tesseract
+            if self.user_settings.ocr_enabled and self.user_settings.ocr_engine == "tesseract":
                 # Get enabled languages from the child table
-                enabled_langs = [lang.language_code for lang in user_settings.ocr_languages if lang.enabled]
+                enabled_langs = [lang.language_code for lang in self.user_settings.ocr_languages if lang.enabled]
                 
                 # Use enabled languages if available, otherwise default to English
                 if enabled_langs:
@@ -167,8 +191,84 @@ class TextExtractor:
             frappe.log_error(f"Error preprocessing image: {str(e)}", "Doc2Sys")
             return image_path
     
+    def _extract_text_using_llm(self, image_path):
+        """Extract text from image using LLM API"""
+        if not self.llm_processor:
+            frappe.log_error("LLM processor not available for OCR", "Doc2Sys")
+            return "OCR functionality not available. Cannot extract text from image."
+            
+        try:
+            # Get the configured OCR model and endpoint
+            model = self.user_settings.llm_ocr_model if self.user_settings else None
+            
+            # Create a prompt for OCR
+            prompt = """
+            Extract ALL text visible in this image. 
+            Maintain the original format where possible, including paragraphs, bullet points, and tables.
+            If there are multiple columns, process them from left to right, top to bottom.
+            If text is in multiple languages, extract all text regardless of language.
+            Only return the extracted text, no additional comments or explanations.
+            """
+            
+            # Process the image using LLM
+            result = self.llm_processor._make_api_request(
+                f"{self.llm_processor.endpoint}/api/chat/completions",
+                {
+                    "model": model or self.llm_processor.model,
+                    "temperature": 0.0,
+                    "messages": [
+                        {"role": "system", "content": "You are an OCR tool that extracts text from images."},
+                        {"role": "user", "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": self._get_image_data_url(image_path)}}
+                        ]}
+                    ]
+                }
+            )
+            
+            if not result or "choices" not in result:
+                return "Failed to extract text using LLM OCR."
+                
+            # Extract content from response
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            # If no text detected
+            if not content.strip():
+                return "No text detected in the image."
+                
+            return content.strip()
+                
+        except Exception as e:
+            frappe.log_error(f"Error extracting text using LLM: {str(e)}", "Doc2Sys")
+            return f"Error extracting text using LLM: {str(e)}"
+    
+    def _get_image_data_url(self, image_path):
+        """Convert image to data URL format for LLM API"""
+        try:
+            file_extension = os.path.splitext(image_path)[1].lower()
+            content_type = {
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.png': 'image/png',
+                '.gif': 'image/gif',
+                '.bmp': 'image/bmp',
+                '.tiff': 'image/tiff'
+            }.get(file_extension, 'image/jpeg')
+            
+            with open(image_path, 'rb') as img_file:
+                base64_image = base64.b64encode(img_file.read()).decode('utf-8')
+                return f"data:{content_type};base64,{base64_image}"
+        except Exception as e:
+            frappe.log_error(f"Error converting image to data URL: {str(e)}", "Doc2Sys")
+            return None
+    
     def extract_text_from_image(self, image_path):
-        """Extract text from image using Tesseract OCR with preprocessing"""
+        """Extract text from image using configured OCR method"""
+        # Use LLM-based OCR if configured
+        if self.ocr_engine == "llm_api":
+            return self._extract_text_using_llm(image_path)
+            
+        # Fallback to Tesseract OCR
         # Check if Tesseract OCR is available
         if not self._check_tesseract_available():
             return "OCR functionality not available. Cannot extract text from image."
@@ -216,17 +316,64 @@ class TextExtractor:
                 if page_text:
                     text += page_text + "\n\n"
             
-            if not text.strip() and self._check_tesseract_available():
-                # If no text extracted, try OCR on the PDF as images
-                return self._extract_text_from_pdf_using_ocr(pdf_path)
-            elif not text.strip():
-                return f"No readable text found in PDF. Consider converting to images for OCR."
+            if not text.strip():
+                # If no text extracted, use the configured OCR method
+                if self.ocr_engine == "llm_api" and self.llm_processor:
+                    # Try direct LLM processing of the PDF if possible
+                    result = self._try_direct_llm_pdf_processing(pdf_path)
+                    if result:
+                        return result
+                
+                # Otherwise try the PDF to image conversion approach
+                if self._check_tesseract_available() or (self.ocr_engine == "llm_api" and self.llm_processor):
+                    return self._extract_text_from_pdf_using_ocr(pdf_path)
+                else:
+                    return f"No readable text found in PDF. Consider converting to images for OCR."
                 
             return text.strip()
             
         except Exception as e:
             frappe.log_error(f"Error extracting text from PDF: {str(e)}", "Doc2Sys")
             return f"Error extracting text from PDF: {str(e)}"
+    
+    def _try_direct_llm_pdf_processing(self, pdf_path):
+        """Attempt to process PDF directly with LLM if supported"""
+        if self.ocr_engine != "llm_api" or not self.llm_processor:
+            return None
+            
+        try:
+            # Use LLM processor's file handling capabilities if available
+            file_id = self.llm_processor.upload_file(pdf_path)
+            if not file_id:
+                return None
+                
+            # Create a prompt for extracting text
+            prompt = "Extract ALL text content from this PDF document. Maintain the original format where possible."
+            
+            # Process using LLM
+            result = self.llm_processor._make_api_request(
+                f"{self.llm_processor.endpoint}/api/chat/completions",
+                {
+                    "model": self.llm_processor.model,
+                    "temperature": 0.0,
+                    "messages": [
+                        {"role": "system", "content": "You are a tool that extracts text from PDF documents."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "files": [{"type": "file", "id": file_id}]
+                }
+            )
+            
+            if not result or "choices" not in result:
+                return None
+                
+            # Extract content from response
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            return content.strip() if content.strip() else None
+            
+        except Exception as e:
+            frappe.log_error(f"Error processing PDF directly with LLM: {str(e)}", "Doc2Sys")
+            return None
     
     def _extract_text_from_pdf_using_ocr(self, pdf_path):
         """Extract text from PDF using OCR by converting to images first"""
@@ -241,7 +388,7 @@ class TextExtractor:
                 temp_img = f"/tmp/pdf_page_{i}.png"
                 page.save(temp_img, "PNG")
                 
-                # Extract text from the image
+                # Extract text from the image using the configured OCR method
                 page_text = self.extract_text_from_image(temp_img)
                 text += page_text + "\n\n"
                 

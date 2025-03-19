@@ -302,10 +302,86 @@ frappe.ui.form.on('Doc2Sys User Settings', {
                 }
             });
         }, __('Integrations'));
+
+        // Add button to test LLM OCR connection if LLM OCR is enabled
+        if (frm.doc.ocr_enabled && frm.doc.ocr_engine === "llm_api") {
+            frm.add_custom_button(__('Test LLM OCR Connection'), function() {
+                frappe.call({
+                    doc: frm.doc,
+                    method: 'test_llm_ocr_connection',
+                    freeze: true,
+                    freeze_message: __('Testing LLM API connection...'),
+                    callback: function(r) {
+                        if (r.message) {
+                            let message = r.message.message || '';
+                            let success = r.message.success;
+                            let model = r.message.model || 'Unknown';
+                            let apiResponse = r.message.api_response || '';
+                            
+                            // Check if we have visual test results
+                            let visualTestHtml = '';
+                            if (r.message.visual_test) {
+                                const visualSuccess = r.message.visual_test.success;
+                                visualTestHtml = `
+                                    <div class="mt-3">
+                                        <h5>Visual OCR Test</h5>
+                                        <div class="alert alert-${visualSuccess ? 'success' : 'warning'}">
+                                            ${r.message.visual_test.message}
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                            
+                            // Build detailed result HTML
+                            const resultHtml = `
+                                <div>
+                                    <div class="mb-3">
+                                        <strong>Model:</strong> ${model}
+                                    </div>
+                                    <div class="mb-3">
+                                        <strong>Connection Status:</strong> 
+                                        <span class="indicator ${success ? 'green' : 'red'}">
+                                            ${success ? 'Connected' : 'Failed'}
+                                        </span>
+                                    </div>
+                                    <div class="mb-3">
+                                        <strong>Details:</strong> ${message}
+                                    </div>
+                                    ${visualTestHtml}
+                                    ${apiResponse ? `
+                                    <div class="mt-3">
+                                        <h5>API Response Sample</h5>
+                                        <pre class="bg-light p-2" style="max-height: 150px; overflow: auto;">${apiResponse}</pre>
+                                    </div>
+                                    ` : ''}
+                                </div>
+                            `;
+                            
+                            frappe.msgprint({
+                                title: __('LLM OCR Connection Test'),
+                                message: resultHtml,
+                                indicator: success ? 'green' : 'red'
+                            });
+                        } else {
+                            frappe.msgprint({
+                                title: __('Test Failed'),
+                                indicator: 'red',
+                                message: __('No response from server')
+                            });
+                        }
+                    }
+                });
+            }, __('OCR Settings'));
+        }
     },
     
     ocr_enabled: function(frm) {
         // When OCR is enabled/disabled, refresh form to show/hide related fields
+        frm.refresh();
+    },
+
+    ocr_engine: function(frm) {
+        // When OCR engine changes, refresh form to show/hide related sections
         frm.refresh();
     }
 });

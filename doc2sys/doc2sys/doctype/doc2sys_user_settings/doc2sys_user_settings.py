@@ -164,7 +164,158 @@ class Doc2SysUserSettings(Document):
         # This delegates to the global settings functionality since it's system-wide
         settings = frappe.get_doc("Doc2Sys Settings")
         return settings.delete_not_enabled_language_models()
-
+    
+    @frappe.whitelist()
+    def test_llm_ocr_connection(self):
+        """Test the connection to the LLM API for OCR functionality"""
+        if not self.ocr_enabled or self.ocr_engine != "llm_api":
+            return {
+                "success": False,
+                "message": "LLM OCR is not enabled or selected as the OCR engine"
+            }
+            
+        try:
+            # Create an LLM processor instance with current user settings
+            from doc2sys.engine.llm_processor import LLMProcessor
+            from doc2sys.engine.text_extractor import TextExtractor
+            
+            # First test basic connectivity with LLM API
+            llm_processor = LLMProcessor(user=self.user)
+            
+            # Check if we have valid endpoint and model
+            if not self.llm_ocr_endpoint and not self.openwebui_endpoint:
+                return {
+                    "success": False,
+                    "message": "No LLM API endpoint configured"
+                }
+                
+            # Create a simple test prompt to verify the API works
+            test_payload = {
+                "model": self.llm_ocr_model or self.openwebui_model or "llama3",
+                "temperature": 0.0,
+                "messages": [
+                    {"role": "system", "content": "You are a test system."},
+                    {"role": "user", "content": "Reply with 'CONNECTION_OK' if you receive this message."}
+                ]
+            }
+            
+            # Use the appropriate endpoint
+            endpoint = (self.llm_ocr_endpoint or self.openwebui_endpoint)
+            if not endpoint.endswith("/api/chat/completions"):
+                if not endpoint.endswith("/"):
+                    endpoint += "/"
+                endpoint += "api/chat/completions"
+                
+            # Make test API call
+            result = llm_processor._make_api_request(endpoint, test_payload)
+            
+            if not result:
+                return {
+                    "success": False,
+                    "message": "Failed to connect to LLM API. Check endpoint and credentials."
+                }
+                
+            # Check if the response has the expected structure
+            if "choices" not in result or not result["choices"]:
+                return {
+                    "success": False,
+                    "message": "Connected to API but received unexpected response format."
+                }
+                
+            # Extract content to verify response
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            # Test if image processing is supported (multimodal)
+            has_multimodal = False
+            model_info = result.get("model", "").lower()
+            
+            # Add a note about multimodal capability based on the model name
+            multimodal_note = ""
+            if any(term in model_info for term in ["gpt-4", "claude-3", "llava", "vision", "multimodal", "gemini"]):
+                multimodal_note = " Model appears to support multimodality/images."
+                has_multimodal = True
+            
+            # Test visual capability using a simple image if we detect multimodal support
+            visual_test_result = {}
+            if has_multimodal:
+                try:
+                    # Create a TextExtractor to leverage its image handling
+                    text_extractor = TextExtractor(user=self.user)
+                    
+                    # Use a mock image test - create a temporary test image or use system icon
+                    import tempfile
+                    from PIL import Image, ImageDraw, ImageFont
+                    
+                    # Create a simple test image with text
+                    img = Image.new('RGB', (300, 100), color=(255, 255, 255))
+                    d = ImageDraw.Draw(img)
+                    
+                    # Try to add text (with fallback to simple drawing if font issues)
+                    try:
+                        d.text((10, 10), "OCR TEST IMAGE", fill=(0, 0, 0))
+                    except Exception:
+                        d.rectangle(((10, 10), (290, 90)), outline=(0, 0, 0))
+                    
+                    # Save test image
+                    test_img_path = tempfile.mktemp(suffix=".png")
+                    img.save(test_img_path)
+                    
+                    # Try OCR on the test image
+                    visual_test_result = {
+                        "success": False,
+                        "message": "Visual testing failed"
+                    }
+                    
+                    # Attempt OCR with the test image
+                    ocr_text = text_extractor._extract_text_using_llm(test_img_path)
+                    
+                    # Check if we got some text back
+                    if ocr_text and "OCR TEST IMAGE" in ocr_text:
+                        visual_test_result = {
+                            "success": True,
+                            "message": f"Successfully OCR'd test image: '{ocr_text.strip()}'"
+                        }
+                    else:
+                        visual_test_result = {
+                            "success": False,
+                            "message": f"OCR succeeded but couldn't find expected text. Got: '{ocr_text}'"
+                        }
+                        
+                    # Clean up temp file
+                    import os
+                    if os.path.exists(test_img_path):
+                        os.unlink(test_img_path)
+                        
+                except Exception as e:
+                    visual_test_result = {
+                        "success": False,
+                        "message": f"Visual test error: {str(e)}"
+                    }
+            
+            # Overall result
+            if "CONNECTION_OK" in content:
+                return {
+                    "success": True,
+                    "message": f"Successfully connected to LLM API.{multimodal_note}",
+                    "visual_test": visual_test_result if has_multimodal else None,
+                    "model": model_info,
+                    "api_response": content
+                }
+            else:
+                return {
+                    "success": True,
+                    "message": f"Connected to LLM API but received unexpected response.{multimodal_note}",
+                    "visual_test": visual_test_result if has_multimodal else None,
+                    "model": model_info,
+                    "api_response": content
+                }
+                
+        except Exception as e:
+            frappe.log_error(f"Error testing LLM OCR connection: {str(e)}", "Doc2Sys")
+            return {
+                "success": False,
+                "message": f"Failed to test LLM OCR connection: {str(e)}"
+            }
 
 @frappe.whitelist()
 def process_user_folder(user_settings):
