@@ -20,6 +20,7 @@
   "input_tokens",
   "output_tokens",
   "total_tokens",
+  "total_duration",
   "column_break_bosq",
   "input_cost",
   "output_cost",
@@ -129,6 +130,13 @@
    "fieldname": "total_tokens",
    "fieldtype": "Int",
    "label": "Total Tokens",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_duration",
+   "fieldtype": "Float",
+   "label": "Processing Duration (s)",
+   "precision": "2",
    "read_only": 1
   },
   {

@@ -3,6 +3,7 @@ import requests
 import json
 import os
 import base64
+import time  # Add time module import
 from .utils import logger
 from .exceptions import ProcessingError, LLMProcessingError  # Import the LLMProcessingError
 
@@ -127,7 +128,7 @@ class OpenWebUIProcessor:
             str: File ID or URL for reference in API calls
         """
         # Check if this file has already been uploaded in this session
-        if file_path in self.file_cache:
+        if (file_path in self.file_cache):
             return self.file_cache[file_path]
             
         try:
@@ -405,15 +406,15 @@ class OpenWebUIProcessor:
             input_tokens = usage.get("prompt_tokens", 0)
             output_tokens = usage.get("completion_tokens", 0)
             total_tokens = usage.get("total_tokens", 0)
+            total_duration = usage.get("total_duration", 0)
+            
+            # Convert duration from nanoseconds to seconds (1 second = 1,000,000,000 nanoseconds)
+            total_duration_seconds = total_duration / 1_000_000_000 if total_duration else 0.0
             
             # Calculate cost (convert from price per million to price per token)
             input_cost = (input_tokens * self.input_price_per_million) / 1000000
             output_cost = (output_tokens * self.output_price_per_million) / 1000000
             total_cost = input_cost + output_cost
-            
-            # Log calculated costs
-            logger.debug(f"Token counts - Input: {input_tokens}, Output: {output_tokens}, Total: {total_tokens}")
-            logger.debug(f"Calculated costs - Input: {input_cost}, Output: {output_cost}, Total: {total_cost}")
             
             return {
                 "input_tokens": input_tokens,
@@ -421,7 +422,8 @@ class OpenWebUIProcessor:
                 "total_tokens": total_tokens,
                 "input_cost": input_cost,
                 "output_cost": output_cost,
-                "total_cost": total_cost
+                "total_cost": total_cost,
+                "total_duration": total_duration_seconds  # Now in seconds
             }
         except Exception as e:
             logger.error(f"Error calculating token cost: {str(e)}")
@@ -431,7 +433,8 @@ class OpenWebUIProcessor:
                 "total_tokens": 0,
                 "input_cost": 0.0,
                 "output_cost": 0.0,
-                "total_cost": 0.0
+                "total_cost": 0.0,
+                "total_duration": 0.0
             }
 
     def _make_api_request(self, endpoint, payload, headers=None):
@@ -460,12 +463,19 @@ class OpenWebUIProcessor:
             if response.status_code != 200:
                 logger.error(f"API error: {response.status_code}, {response.text}")
                 return {}
+            
+            # Parse the response
+            result = response.json()
+            
+            # Add duration to the response
+            if "usage" not in result:
+                result["usage"] = {}
                 
-            return response.json()
+            return result
         except Exception as e:
             logger.error(f"API request error: {str(e)}")
             return {}
-
+    
     def _prepare_file_content(self, file_path, prompt, use_text_only=False):
         """
         Prepare file content for API request based on file type
