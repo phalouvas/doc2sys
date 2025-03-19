@@ -92,3 +92,13 @@ class Doc2SysIntegrationLog(Document):
         except Exception as e:
             frappe.log_error(f"Retry failed: {str(e)}", "Integration Retry Error")
             return {"status": "error", "message": str(e)}
+
+@frappe.whitelist()
+def retry_integration(log_name):
+    """Retry an integration from its log entry"""
+    try:
+        log = frappe.get_doc("Doc2Sys Integration Log", log_name)
+        return log.retry_integration()
+    except Exception as e:
+        frappe.log_error(f"Retry failed: {str(e)}", "Integration Retry Error")
+        return {"status": "error", "message": str(e)}

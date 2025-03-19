@@ -28,7 +28,9 @@
   "extracted_data_tab",
   "extracted_text",
   "column_break_ibav",
-  "extracted_data"
+  "extracted_data",
+  "integration_status_tab",
+  "integration_status_html"
  ],
  "fields": [
   {
@@ -174,11 +176,21 @@
   {
    "fieldname": "column_break_ibav",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "integration_status_html",
+   "fieldtype": "HTML",
+   "label": "Integration Status"
+  },
+  {
+   "fieldname": "integration_status_tab",
+   "fieldtype": "Tab Break",
+   "label": "Integration Status"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-19 06:34:59.750771",
+ "modified": "2025-03-19 18:12:25.400800",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",

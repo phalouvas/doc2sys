@@ -1,5 +1,6 @@
 import frappe
 from doc2sys.integrations.registry import IntegrationRegistry
+from doc2sys.integrations.utils import create_integration_log  # Add this import
 
 def trigger_integrations_on_insert(doc, method=None):
     """Trigger integrations when a new Doc2Sys Item is created"""
@@ -87,7 +88,6 @@ def _process_integrations(doc, is_manual=False):
             result = integration_instance.sync_document(doc.as_dict())
             
             if not result.get("success"):
-                from doc2sys.integrations.utils import create_integration_log
                 create_integration_log(
                     integration.integration_type,
                     "error",
@@ -101,7 +101,6 @@ def _process_integrations(doc, is_manual=False):
                 )
             else:
                 # Log successful integrations as well
-                from doc2sys.integrations.utils import create_integration_log
                 create_integration_log(
                     integration.integration_type,
                     "success",
@@ -115,7 +114,6 @@ def _process_integrations(doc, is_manual=False):
                 )
                 
         except Exception as e:
-            from doc2sys.integrations.utils import create_integration_log
             create_integration_log(
                 integration.integration_type,
                 "error",
