@@ -5,6 +5,7 @@ import os
 import frappe
 from frappe.model.document import Document
 from doc2sys.engine.exceptions import ProcessingError
+from frappe import _
 from doc2sys.engine.llm_processor import LLMProcessor
 from doc2sys.engine.text_extractor import TextExtractor
 import json
