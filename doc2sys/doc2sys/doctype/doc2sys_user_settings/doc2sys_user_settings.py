@@ -218,6 +218,9 @@ def test_integration_connection(user_settings, selected):
         # Track results for all tested integrations
         results = []
         
+        # Flag to track if we need to save the settings doc
+        need_to_save = False
+        
         # Test each selected integration
         for integration_name in integration_names:
             # Find the integration by name
@@ -251,26 +254,53 @@ def test_integration_connection(user_settings, selected):
                 # Test connection
                 result = integration_instance.test_connection()
                 
+                # Set enabled status based on test result
+                if result.get("success"):
+                    # Enable integration if test was successful
+                    if integration.enabled != 1:
+                        integration.enabled = 1
+                        need_to_save = True
+                        result["message"] += " (Integration automatically enabled)"
+                else:
+                    # Disable integration if test failed
+                    if integration.enabled == 1:
+                        integration.enabled = 0
+                        need_to_save = True
+                        result["message"] += " (Integration automatically disabled)"
+                
                 # Add result with integration info
                 results.append({
                     "integration": display_name,
                     "integration_type": integration.integration_type,
                     "status": "success" if result.get("success") else "error",
-                    "message": result.get("message", "No message returned")
+                    "message": result.get("message", "No message returned"),
+                    "enabled": integration.enabled
                 })
                 
             except Exception as e:
-                # Handle individual integration errors
+                # Handle individual integration errors and disable integration
                 frappe.log_error(
                     f"Connection test failed for {display_name}: {str(e)}", 
                     "Integration Error"
                 )
+                
+                # Disable integration on exception
+                was_enabled = integration.enabled
+                integration.enabled = 0
+                if was_enabled:
+                    need_to_save = True
+                
                 results.append({
                     "integration": display_name,
                     "integration_type": getattr(integration, "integration_type", "Unknown"),
                     "status": "error",
-                    "message": str(e)
+                    "message": f"{str(e)} (Integration automatically disabled)",
+                    "enabled": 0
                 })
+        
+        # Save settings doc if we made any changes
+        if need_to_save:
+            settings_doc.save()
         
         # Determine overall status
         overall_status = "success" if all(r["status"] == "success" for r in results) else "error"

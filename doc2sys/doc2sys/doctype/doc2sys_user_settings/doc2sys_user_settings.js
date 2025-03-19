@@ -254,14 +254,19 @@ frappe.ui.form.on('Doc2Sys User Settings', {
                         
                         if (results.length > 0) {
                             message = '<div class="table-responsive"><table class="table table-bordered">';
-                            message += '<tr><th>Integration</th><th>Type</th><th>Status</th><th>Message</th></tr>';
+                            message += '<tr><th>Integration</th><th>Type</th><th>Status</th><th>Enabled</th><th>Message</th></tr>';
                             
                             results.forEach(result => {
                                 const statusColor = result.status === 'success' ? 'green' : 'red';
+                                const enabledStatus = result.enabled ? 
+                                    '<span class="indicator green">Yes</span>' : 
+                                    '<span class="indicator red">No</span>';
+                                
                                 message += `<tr>
                                     <td>${result.integration || ''}</td>
                                     <td>${result.integration_type || ''}</td>
                                     <td><span class="indicator ${statusColor}">${result.status}</span></td>
+                                    <td>${enabledStatus}</td>
                                     <td>${result.message || ''}</td>
                                 </tr>`;
                             });
@@ -271,11 +276,22 @@ frappe.ui.form.on('Doc2Sys User Settings', {
                             message = __('No results returned');
                         }
                         
-                        frappe.msgprint({
-                            title: __('Integration Test Results'),
-                            indicator: r.message.status === 'success' ? 'green' : 'red',
-                            message: message
-                        });
+                        // First refresh the form to update the UI
+                        frm.refresh();
+                        
+                        // Use setTimeout to ensure the refresh has completed before showing dialog
+                        setTimeout(() => {
+                            frappe.msgprint({
+                                title: __('Integration Test Results'),
+                                indicator: r.message.status === 'success' ? 'green' : 'red',
+                                message: message,
+                                onhide: function() {
+                                    // Refresh again after the dialog is closed to ensure
+                                    // any changes are visible
+                                    frm.reload_doc();
+                                }
+                            });
+                        }, 300);
                     } else {
                         frappe.msgprint({
                             title: __('Test Failed'),
@@ -318,5 +334,13 @@ frappe.ui.form.on('Doc2Sys User Integration', {
         frappe.model.set_value(cdt, cdn, 'refresh_token', '');
         frappe.model.set_value(cdt, cdn, 'base_url', '');
         frappe.model.set_value(cdt, cdn, 'realm_id', '');
+    },
+    
+    integration_name: function(frm, cdt, cdn) {
+        // When adding a new integration, show reminder to test before it's enabled
+        frappe.show_alert({
+            message: __('Remember to test the integration to enable it'),
+            indicator: 'blue'
+        }, 5);
     }
 });
