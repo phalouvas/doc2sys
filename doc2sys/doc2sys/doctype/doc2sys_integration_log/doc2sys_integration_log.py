@@ -36,25 +36,53 @@ class Doc2SysIntegrationLog(Document):
             doc_name = data.get("doc_name")
             doc = frappe.get_doc("Doc2Sys Item", doc_name)
             
-            # Get integration settings
-            settings_list = frappe.get_all(
-                "Doc2Sys Integration Settings",
-                filters={"integration_type": self.integration, "enabled": 1},
+            # Determine which user and integration to use
+            user = self.user or frappe.session.user
+            integration_reference = self.integration_reference
+            
+            # Get user settings
+            user_settings_list = frappe.get_list(
+                "Doc2Sys User Settings", 
+                filters={"user": user},
                 fields=["name"]
             )
             
-            if not settings_list:
-                frappe.throw(f"No enabled settings found for {self.integration}")
+            if not user_settings_list:
+                frappe.throw(f"No settings found for user {user}")
                 
-            settings = frappe.get_doc("Doc2Sys Integration Settings", settings_list[0].name)
+            user_settings = frappe.get_doc("Doc2Sys User Settings", user_settings_list[0].name)
             
-            # Create integration instance and retry
-            integration = IntegrationRegistry.create_instance(
+            # Find the correct integration
+            integration = None
+            
+            # First try by integration_reference if available
+            if integration_reference:
+                for integ in user_settings.user_integrations:
+                    if integ.name == integration_reference and integ.integration_type == self.integration:
+                        integration = integ
+                        break
+                        
+            # If not found, try by integration_type
+            if not integration:
+                for integ in user_settings.user_integrations:
+                    if integ.integration_type == self.integration and integ.enabled:
+                        integration = integ
+                        break
+                        
+            if not integration:
+                frappe.throw(f"No enabled {self.integration} integration found for user {user}")
+                
+            # Create integration instance with the found settings
+            integration_settings = integration.as_dict()
+            # Add parent reference for password retrieval
+            integration_settings['parent'] = user_settings.name
+            
+            integration_instance = IntegrationRegistry.create_instance(
                 self.integration,
-                settings=settings.as_dict()
+                settings=integration_settings
             )
             
-            result = integration.sync_document(doc.as_dict())
+            result = integration_instance.sync_document(doc.as_dict())
             
             if result.get("success"):
                 return {"status": "success", "message": "Integration retried successfully"}

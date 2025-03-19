@@ -1,9 +1,11 @@
 {
  "actions": [],
- "creation": "2023-03-15 12:00:00",
+ "autoname": "hash",
+ "creation": "2025-03-19 10:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "integration_name",
   "integration_type",
   "enabled",
   "auto_sync",
@@ -13,9 +15,7 @@
   "access_token",
   "refresh_token",
   "base_url",
-  "realm_id",
-  "section_configuration",
-  "target_doctypes"
+  "realm_id"
  ],
  "fields": [
   {
@@ -30,7 +30,9 @@
    "default": "1",
    "fieldname": "enabled",
    "fieldtype": "Check",
-   "label": "Enabled"
+   "in_list_view": 1,
+   "label": "Enabled",
+   "read_only": 1
   },
   {
    "fieldname": "section_credentials",
@@ -74,43 +76,30 @@
    "label": "Realm ID"
   },
   {
-   "fieldname": "section_configuration",
-   "fieldtype": "Section Break",
-   "label": "Configuration"
-  },
-  {
    "default": "0",
    "fieldname": "auto_sync",
    "fieldtype": "Check",
    "label": "Auto Sync"
   },
   {
-   "fieldname": "target_doctypes",
-   "fieldtype": "Table",
-   "label": "Target Doctypes",
-   "options": "Doc2Sys Integration Doctypes"
+   "fieldname": "integration_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Integration Name",
+   "no_copy": 1,
+   "reqd": 1
   }
  ],
+ "istable": 1,
  "links": [],
- "modified": "2025-03-17 06:49:33.653720",
+ "modified": "2025-03-19 10:59:41.734528",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
- "name": "Doc2Sys Integration Settings",
+ "name": "Doc2Sys User Integration",
+ "naming_rule": "Random",
  "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
+ "permissions": [],
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+ "states": []
 }

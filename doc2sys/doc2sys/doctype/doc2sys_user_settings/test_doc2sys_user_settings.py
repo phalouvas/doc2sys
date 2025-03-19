@@ -5,5 +5,5 @@
 from frappe.tests.utils import FrappeTestCase
 
 
-class TestDoc2SysIntegrationSettings(FrappeTestCase):
+class TestDoc2SysUserSettings(FrappeTestCase):
 	pass

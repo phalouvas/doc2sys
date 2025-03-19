@@ -2,22 +2,14 @@
 Custom exceptions for the document processing engine.
 """
 
-class EngineError(Exception):
-    """Base exception for all engine errors"""
-    pass
-
-class ProcessingError(EngineError):
-    """Exception raised when document processing fails"""
+class ProcessingError(Exception):
+    """Base exception for all document processing errors"""
     pass
 
 class UnsupportedDocumentError(ProcessingError):
-    """Exception raised when document type is not supported"""
+    """Exception raised when an unsupported document type is processed"""
     pass
 
-class DocumentTooLargeError(ProcessingError):
-    """Exception raised when document exceeds size limits"""
-    pass
-
-class ConfigurationError(EngineError):
-    """Exception raised when there's an issue with engine configuration"""
+class LLMProcessingError(ProcessingError):
+    """Exception raised when there's an error interacting with LLM services"""
     pass

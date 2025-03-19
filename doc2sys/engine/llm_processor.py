@@ -3,7 +3,9 @@ import requests
 import json
 import os
 import base64
+import time  # Add time module import
 from .utils import logger
+from .exceptions import ProcessingError, LLMProcessingError  # Import the LLMProcessingError
 
 # Move hardcoded values to constants
 MAX_TEXT_LENGTH = 10000
@@ -13,30 +15,107 @@ class LLMProcessor:
     """Process documents using various LLM providers"""
     
     @staticmethod
-    def create():
-        """Factory method to create the appropriate LLM processor"""
-        # Always return OpenWebUI processor regardless of settings for backward compatibility
-        provider = frappe.db.get_single_value("Doc2Sys Settings", "llm_provider") or "Open WebUI"
+    def create(user=None):
+        """
+        Factory method to create the appropriate LLM processor
+        
+        Args:
+            user (str): Optional user for user-specific settings. 
+                        If None, uses current user.
+        
+        Returns:
+            Processor instance based on user's preferred provider
+        """
+        # Determine which user to use for settings
+        user = user or frappe.session.user
+        
+        # Try to get user-specific settings
+        user_settings_list = frappe.get_all(
+            'Doc2Sys User Settings',
+            filters={'user': user},
+            fields=['name']
+        )
+        
+        if user_settings_list:
+            # User settings exist, use them
+            user_settings = frappe.get_doc('Doc2Sys User Settings', user_settings_list[0].name)
+            provider = user_settings.llm_provider
+        else:
+            # Fallback to global settings for backward compatibility
+            logger.warning(f"No Doc2Sys User Settings found for user {user}, using defaults")
+            provider = frappe.db.get_single_value("Doc2Sys Settings", "llm_provider") or "Open WebUI"
         
         if provider != "Open WebUI":
             logger.warning(f"Only Open WebUI provider is supported, got: {provider}, using Open WebUI")
             
-        return OpenWebUIProcessor()
+        return OpenWebUIProcessor(user=user)
+    
+    def __init__(self, user=None):
+        """
+        Initialize LLMProcessor directly - delegates to factory method
+        
+        Args:
+            user (str): Optional user for user-specific settings.
+                        If None, uses current user.
+        """
+        # Delegate to the appropriate processor
+        processor = self.create(user=user)
+        
+        # Copy attributes from the created processor
+        self.__dict__.update(processor.__dict__)
+        
+        # Store methods from the processor
+        for attr_name in dir(processor):
+            if callable(getattr(processor, attr_name)) and not attr_name.startswith('__'):
+                setattr(self, attr_name, getattr(processor, attr_name))
 
 
 class OpenWebUIProcessor:
     """Process documents using Open WebUI"""
     
-    def __init__(self):
-        """Initialize Open WebUI processor"""
-        self.endpoint = frappe.db.get_single_value("Doc2Sys Settings", "openwebui_endpoint") or "http://localhost:3000/api/v1"
-        self.model = frappe.db.get_single_value("Doc2Sys Settings", "openwebui_model") or "llama3"
-        self.api_key = frappe.utils.password.get_decrypted_password("Doc2Sys Settings", "Doc2Sys Settings", "openwebui_apikey") or ""
-        self.file_cache = {}  # Cache for uploaded file IDs
+    def __init__(self, user=None):
+        """
+        Initialize Open WebUI processor with user-specific settings
         
-        # Cache token pricing
-        self.input_price_per_million = float(frappe.db.get_single_value("Doc2Sys Settings", "input_token_price") or 0.0)
-        self.output_price_per_million = float(frappe.db.get_single_value("Doc2Sys Settings", "output_token_price") or 0.0)
+        Args:
+            user (str): Optional user for user-specific settings.
+                        If None, uses current user.
+        """
+        self.user = user or frappe.session.user
+        
+        # Try to get user-specific settings first
+        user_settings = None
+        user_settings_list = frappe.get_all(
+            'Doc2Sys User Settings',
+            filters={'user': self.user},
+            fields=['name']
+        )
+        
+        if user_settings_list:
+            user_settings = frappe.get_doc('Doc2Sys User Settings', user_settings_list[0].name)
+            
+            # Get settings from user preferences
+            self.endpoint = user_settings.openwebui_endpoint or "http://localhost:3000/api/v1"
+            self.model = user_settings.openwebui_model or "llama3"
+            
+            # Get API key securely from user settings
+            self.api_key = frappe.utils.password.get_decrypted_password(
+                "Doc2Sys User Settings", 
+                user_settings_list[0].name, 
+                "openwebui_apikey"
+            ) or ""
+            
+            # Cache token pricing (per million tokens)
+            self.input_price_per_million = float(user_settings.input_token_price or 0.0)
+            self.output_price_per_million = float(user_settings.output_token_price or 0.0)
+            
+            logger.info(f"Using user-specific LLM settings for {self.user}")
+        else:
+            # Use 'raise' instead of 'throw' to raise the exception
+            raise LLMProcessingError(f"No Doc2Sys User Settings found for user {self.user}")
+        
+        # Initialize file cache
+        self.file_cache = {}
     
     def upload_file(self, file_path):
         """
@@ -49,7 +128,7 @@ class OpenWebUIProcessor:
             str: File ID or URL for reference in API calls
         """
         # Check if this file has already been uploaded in this session
-        if file_path in self.file_cache:
+        if (file_path in self.file_cache):
             return self.file_cache[file_path]
             
         try:
@@ -327,15 +406,15 @@ class OpenWebUIProcessor:
             input_tokens = usage.get("prompt_tokens", 0)
             output_tokens = usage.get("completion_tokens", 0)
             total_tokens = usage.get("total_tokens", 0)
+            total_duration = usage.get("total_duration", 0)
+            
+            # Convert duration from nanoseconds to seconds (1 second = 1,000,000,000 nanoseconds)
+            total_duration_seconds = total_duration / 1_000_000_000 if total_duration else 0.0
             
             # Calculate cost (convert from price per million to price per token)
             input_cost = (input_tokens * self.input_price_per_million) / 1000000
             output_cost = (output_tokens * self.output_price_per_million) / 1000000
             total_cost = input_cost + output_cost
-            
-            # Log calculated costs
-            logger.debug(f"Token counts - Input: {input_tokens}, Output: {output_tokens}, Total: {total_tokens}")
-            logger.debug(f"Calculated costs - Input: {input_cost}, Output: {output_cost}, Total: {total_cost}")
             
             return {
                 "input_tokens": input_tokens,
@@ -343,7 +422,8 @@ class OpenWebUIProcessor:
                 "total_tokens": total_tokens,
                 "input_cost": input_cost,
                 "output_cost": output_cost,
-                "total_cost": total_cost
+                "total_cost": total_cost,
+                "total_duration": total_duration_seconds  # Now in seconds
             }
         except Exception as e:
             logger.error(f"Error calculating token cost: {str(e)}")
@@ -353,7 +433,8 @@ class OpenWebUIProcessor:
                 "total_tokens": 0,
                 "input_cost": 0.0,
                 "output_cost": 0.0,
-                "total_cost": 0.0
+                "total_cost": 0.0,
+                "total_duration": 0.0
             }
 
     def _make_api_request(self, endpoint, payload, headers=None):
@@ -382,12 +463,19 @@ class OpenWebUIProcessor:
             if response.status_code != 200:
                 logger.error(f"API error: {response.status_code}, {response.text}")
                 return {}
+            
+            # Parse the response
+            result = response.json()
+            
+            # Add duration to the response
+            if "usage" not in result:
+                result["usage"] = {}
                 
-            return response.json()
+            return result
         except Exception as e:
             logger.error(f"API request error: {str(e)}")
             return {}
-
+    
     def _prepare_file_content(self, file_path, prompt, use_text_only=False):
         """
         Prepare file content for API request based on file type

@@ -44,14 +44,17 @@ except ImportError:
 from PIL import Image
 
 class TextExtractor:
-    def __init__(self, languages=None):
+    def __init__(self, languages=None, user=None):
         """
         Initialize text extractor with specified languages
         
         Args:
             languages: List of language codes for OCR (e.g., ['eng', 'ell'])
-                       If None, will fetch from Doc2Sys Settings
+                       If None, will fetch from user's Doc2Sys User Settings
+            user: User for whom to load settings. If None, uses current user.
         """
+        self.user = user or frappe.session.user
+        
         # Get languages from settings if not provided
         if languages is None:
             self.languages = self._get_languages_from_settings()
@@ -63,25 +66,36 @@ class TextExtractor:
             self.languages = ['eng']
             
     def _get_languages_from_settings(self):
-        """Get configured OCR languages from settings"""
+        """Get configured OCR languages from user-specific settings"""
         languages = ['eng']  # Default to English
         
         try:
-            # Get the settings document
-            settings = frappe.get_doc("Doc2Sys Settings")
+            # Find settings for the current user
+            user_settings_list = frappe.get_all(
+                'Doc2Sys User Settings',
+                filters={'user': self.user},
+                fields=['name']
+            )
+            
+            if not user_settings_list:
+                frappe.log_error(f"No Doc2Sys User Settings found for user {self.user}, using default language", "Doc2Sys")
+                return languages
+                
+            # Get the user settings document
+            user_settings = frappe.get_doc('Doc2Sys User Settings', user_settings_list[0].name)
             
             # Check if OCR is enabled
-            if settings.ocr_enabled:
+            if user_settings.ocr_enabled:
                 # Get enabled languages from the child table
-                enabled_langs = [lang.language_code for lang in settings.ocr_languages if lang.enabled]
+                enabled_langs = [lang.language_code for lang in user_settings.ocr_languages if lang.enabled]
                 
                 # Use enabled languages if available, otherwise default to English
                 if enabled_langs:
                     languages = enabled_langs
                     
-            frappe.log_error(f"Using OCR languages: {', '.join(languages)}", "Doc2Sys")
+            frappe.log_error(f"Using OCR languages for user {self.user}: {', '.join(languages)}", "Doc2Sys")
         except Exception as e:
-            frappe.log_error(f"Error fetching OCR language settings: {str(e)}", "Doc2Sys")
+            frappe.log_error(f"Error fetching OCR language settings for user {self.user}: {str(e)}", "Doc2Sys")
             
         return languages
     

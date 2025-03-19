@@ -1,32 +1,16 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2025-03-12 00:00:00.000000",
+ "creation": "2025-03-12 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "general_settings_section",
   "temp_dir",
-  "ocr_enabled",
   "column_break_4",
-  "output_format",
   "max_file_size_mb",
   "file_types_section",
-  "supported_file_types",
-  "folder_monitoring_section",
-  "monitoring_enabled",
-  "monitor_folder",
-  "monitor_interval",
-  "ocr_section",
-  "ocr_enabled",
-  "ocr_languages",
-  "llm_section",
-  "llm_provider",
-  "openwebui_endpoint",
-  "openwebui_model",
-  "openwebui_apikey",
-  "input_token_price",
-  "output_token_price"
+  "supported_file_types"
  ],
  "fields": [
   {
@@ -36,35 +20,21 @@
   },
   {
    "default": "/tmp/doc2sys",
+   "description": "Directory where temporary files will be stored during processing",
    "fieldname": "temp_dir",
    "fieldtype": "Data",
-   "label": "Temporary Directory",
-   "description": "Directory where temporary files will be stored during processing"
-  },
-  {
-   "default": "1",
-   "fieldname": "ocr_enabled",
-   "fieldtype": "Check",
-   "label": "Enable OCR",
-   "description": "Enable Optical Character Recognition for images and scanned documents"
+   "label": "Temporary Directory"
   },
   {
    "fieldname": "column_break_4",
    "fieldtype": "Column Break"
   },
   {
-   "default": "json",
-   "fieldname": "output_format",
-   "fieldtype": "Select",
-   "label": "Output Format",
-   "options": "json\nxml\ncsv"
-  },
-  {
    "default": "10",
+   "description": "Maximum allowed file size in megabytes",
    "fieldname": "max_file_size_mb",
    "fieldtype": "Int",
-   "label": "Maximum File Size (MB)",
-   "description": "Maximum allowed file size in megabytes"
+   "label": "Maximum File Size (MB)"
   },
   {
    "fieldname": "file_types_section",
@@ -76,99 +46,12 @@
    "fieldtype": "Table",
    "label": "Supported File Types",
    "options": "Doc2Sys File Type"
-  },
-  {
-   "fieldname": "folder_monitoring_section",
-   "fieldtype": "Section Break",
-   "label": "Folder Monitoring"
-  },
-  {
-   "fieldname": "monitoring_enabled",
-   "fieldtype": "Check",
-   "label": "Enable Folder Monitoring",
-   "default": "0",
-   "description": "Enable automatic processing of files from the monitored folder"
-  },
-  {
-   "fieldname": "monitor_folder",
-   "fieldtype": "Data",
-   "label": "Folder to Monitor",
-   "depends_on": "eval:doc.monitoring_enabled==1",
-   "description": "Directory where system will look for files to process"
-  },
-  {
-   "fieldname": "monitor_interval",
-   "fieldtype": "Int",
-   "label": "Monitor Interval (minutes)",
-   "depends_on": "eval:doc.monitoring_enabled==1",
-   "default": "15",
-   "description": "How often to check the monitored folder for new files"
-  },
-  {
-   "fieldname": "ocr_section",
-   "fieldtype": "Section Break",
-   "label": "OCR Settings"
-  },
-  {
-   "default": "1",
-   "fieldname": "ocr_enabled",
-   "fieldtype": "Check",
-   "label": "Enable OCR",
-   "description": "Enable Optical Character Recognition for images and scanned documents"
-  },
-  {
-   "fieldname": "ocr_languages",
-   "fieldtype": "Table",
-   "label": "OCR Languages",
-   "options": "Doc2Sys OCR Language",
-   "description": "Languages to use for OCR (leave empty for English only)"
-  },
-  {
-   "fieldname": "llm_section",
-   "fieldtype": "Section Break",
-   "label": "LLM Integration"
-  },
-  {
-   "fieldname": "llm_provider",
-   "fieldtype": "Select",
-   "label": "LLM Provider",
-   "options": "Open WebUI",
-   "default": "Open WebUI"
-  },
-  {
-   "fieldname": "openwebui_endpoint",
-   "fieldtype": "Data",
-   "label": "Open WebUI Endpoint",
-   "default": "http://localhost:3000/api/chat/completions"
-  },
-  {
-   "fieldname": "openwebui_model",
-   "fieldtype": "Data",
-   "label": "Open WebUI Model",
-   "default": "llama3"
-  },
-  {
-   "fieldname": "openwebui_apikey",
-   "fieldtype": "Password",
-   "label": "Open WebUI API Key"
-  },
-  {
-   "fieldname": "input_token_price",
-   "fieldtype": "Currency",
-   "label": "Input Token Price (€/million)",
-   "default": 0
-  },
-  {
-   "fieldname": "output_token_price",
-   "fieldtype": "Currency",
-   "label": "Output Token Price (€/million)",
-   "default": 0
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-03-12 00:00:01.000000",
+ "modified": "2025-03-18 17:40:15.949840",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Settings",

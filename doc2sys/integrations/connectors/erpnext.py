@@ -13,9 +13,22 @@ class ERPNextIntegration(BaseIntegration):
     def authenticate(self) -> bool:
         """Authenticate with ERPNext using API key and secret"""
         try:
+            # Get credentials from settings
             api_key = self.settings.get("api_key")
-            api_secret = frappe.utils.password.get_decrypted_password("Doc2Sys Integration Settings", self.settings.name, "api_secret") or ""
             base_url = self.settings.get("base_url")
+            
+            # Get the name of the integration record
+            doc_name = self.settings.get("name")
+            
+            # Get decrypted password using just the row name (without parent prefix)
+            api_secret = ""
+            if doc_name:
+                try:
+                    api_secret = frappe.utils.password.get_decrypted_password(
+                        "Doc2Sys User Integration", doc_name, "api_secret"
+                    ) or ""
+                except Exception as e:
+                    self.log_activity("error", f"Failed to get password: {str(e)}")
             
             if not (api_key and api_secret and base_url):
                 return False
@@ -62,9 +75,25 @@ class ERPNextIntegration(BaseIntegration):
                 
             # Get API credentials
             api_key = self.settings.get("api_key")
-            api_secret = frappe.utils.password.get_decrypted_password("Doc2Sys Integration Settings", self.settings.name, "api_secret") or ""
+            doc_name = self.settings.get("name")
+            
+            # Get decrypted password using just the row name (without parent prefix)
+            api_secret = ""
+            if doc_name:
+                try:
+                    api_secret = frappe.utils.password.get_decrypted_password(
+                        "Doc2Sys User Integration", doc_name, "api_secret"
+                    ) or ""
+                except Exception as e:
+                    self.log_activity("error", f"Failed to get password: {str(e)}")
+                    return {"success": False, "message": f"Failed to retrieve API secret: {str(e)}"}
+            
             base_url = self.settings.get("base_url")
             
+            if not (api_key and api_secret and base_url):
+                self.log_activity("error", "Missing required credentials")
+                return {"success": False, "message": "Missing required credentials"}
+                
             auth_headers = {
                 "Authorization": f"token {api_key}:{api_secret}",
                 "Content-Type": "application/json"
