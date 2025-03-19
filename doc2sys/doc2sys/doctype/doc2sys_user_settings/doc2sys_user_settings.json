@@ -14,7 +14,14 @@
   "monitor_interval",
   "ocr_settings_section",
   "ocr_enabled",
+  "ocr_engine",
+  "tesseract_section",
   "ocr_languages",
+  "llm_ocr_section",
+  "llm_ocr_provider",
+  "llm_ocr_endpoint",
+  "llm_ocr_apikey",
+  "llm_ocr_model",
   "llm_integration_section",
   "llm_provider",
   "openwebui_endpoint",
@@ -64,7 +71,8 @@
    "fieldname": "ocr_languages",
    "fieldtype": "Table",
    "label": "OCR Languages",
-   "options": "Doc2Sys OCR Language"
+   "options": "Doc2Sys OCR Language",
+   "depends_on": "eval:doc.ocr_engine=='tesseract'"
   },
   {
    "default": "Open WebUI",
@@ -94,13 +102,13 @@
    "default": "0",
    "fieldname": "input_token_price",
    "fieldtype": "Currency",
-   "label": "Input Token Price (\u20ac / million)"
+   "label": "Input Token Price (€ / million)"
   },
   {
    "default": "0",
    "fieldname": "output_token_price",
    "fieldtype": "Currency",
-   "label": "Output Token Price (\u20ac / million)"
+   "label": "Output Token Price (€ / million)"
   },
   {
    "fieldname": "folder_monitoring_section",
@@ -144,6 +152,51 @@
    "fieldtype": "Table",
    "label": "Integrations",
    "options": "Doc2Sys User Integration"
+  },
+  {
+   "default": "tesseract",
+   "depends_on": "eval:doc.ocr_enabled==1",
+   "fieldname": "ocr_engine",
+   "fieldtype": "Select",
+   "label": "OCR Engine",
+   "options": "tesseract\nllm_api",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tesseract_section",
+   "fieldtype": "Section Break",
+   "label": "Tesseract OCR Settings",
+   "depends_on": "eval:doc.ocr_engine=='tesseract' && doc.ocr_enabled==1"
+  },
+  {
+   "fieldname": "llm_ocr_section",
+   "fieldtype": "Section Break",
+   "label": "LLM API OCR Settings",
+   "depends_on": "eval:doc.ocr_engine=='llm_api' && doc.ocr_enabled==1"
+  },
+  {
+   "default": "Open WebUI",
+   "fieldname": "llm_ocr_provider",
+   "fieldtype": "Select",
+   "label": "LLM OCR Provider",
+   "options": "Open WebUI"
+  },
+  {
+   "fieldname": "llm_ocr_endpoint",
+   "fieldtype": "Data",
+   "label": "LLM OCR API Endpoint",
+   "depends_on": "eval:doc.llm_ocr_provider=='Open WebUI'"
+  },
+  {
+   "fieldname": "llm_ocr_apikey",
+   "fieldtype": "Password",
+   "label": "LLM OCR API Key"
+  },
+  {
+   "fieldname": "llm_ocr_model",
+   "fieldtype": "Data",
+   "label": "LLM OCR Model",
+   "depends_on": "eval:['Open WebUI'].includes(doc.llm_ocr_provider)"
   }
  ],
  "index_web_pages_for_search": 1,
