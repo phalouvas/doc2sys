@@ -195,3 +195,88 @@ def process_user_folder(user_settings):
             "success": False,
             "message": f"Error: {str(e)}"
         }
+
+@frappe.whitelist()
+def test_integration_connection(user_settings, selected):
+    """Test the connection for selected user integrations"""
+    try:
+        # Parse the selected parameter
+        if isinstance(selected, str):
+            import json
+            selected = json.loads(selected)
+            
+        if not selected or not selected.get('user_integrations'):
+            return {"status": "error", "message": "No integration selected"}
+            
+        # Get all selected integration names
+        integration_names = selected['user_integrations']
+        settings_doc = frappe.get_doc("Doc2Sys User Settings", user_settings)
+        
+        # Import the registry
+        from doc2sys.integrations.registry import IntegrationRegistry
+        
+        # Track results for all tested integrations
+        results = []
+        
+        # Test each selected integration
+        for integration_name in integration_names:
+            # Find the integration by name
+            integration = None
+            for idx, integ in enumerate(settings_doc.user_integrations):
+                if integ.name == integration_name:
+                    integration = integ
+                    break
+                    
+            if not integration:
+                results.append({
+                    "integration": integration_name,
+                    "integration_type": "Unknown",
+                    "status": "error", 
+                    "message": "Integration not found"
+                })
+                continue
+                
+            try:
+                # Create integration instance
+                integration_instance = IntegrationRegistry.create_instance(
+                    integration.integration_type, 
+                    settings=integration.as_dict()
+                )
+                
+                # Test connection
+                result = integration_instance.test_connection()
+                
+                # Add result with integration info
+                results.append({
+                    "integration": integration_name,
+                    "integration_type": integration.integration_type,
+                    "status": "success" if result.get("success") else "error",
+                    "message": result.get("message", "No message returned")
+                })
+                
+            except Exception as e:
+                # Handle individual integration errors
+                frappe.log_error(
+                    f"Connection test failed for {integration_name}: {str(e)}", 
+                    "Integration Error"
+                )
+                results.append({
+                    "integration": integration_name,
+                    "integration_type": getattr(integration, "integration_type", "Unknown"),
+                    "status": "error",
+                    "message": str(e)
+                })
+        
+        # Determine overall status
+        overall_status = "success" if all(r["status"] == "success" for r in results) else "error"
+        
+        # Return consolidated results
+        return {
+            "status": overall_status,
+            "results": results,
+            "message": f"Tested {len(results)} integration(s)"
+        }
+            
+    except Exception as e:
+        frappe.log_error(f"Connection test failed: {str(e)}", "Integration Error")
+        return {"status": "error", "message": str(e)}

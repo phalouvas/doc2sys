@@ -22,7 +22,9 @@
   "openwebui_apikey",
   "column_break_ghrw",
   "input_token_price",
-  "output_token_price"
+  "output_token_price",
+  "integrations_section",
+  "user_integrations"
  ],
  "fields": [
   {
@@ -131,11 +133,22 @@
    "hidden": 1,
    "label": "Naming Series",
    "options": "D2S-US-.YYYY.-"
+  },
+  {
+   "fieldname": "integrations_section",
+   "fieldtype": "Section Break",
+   "label": "External Integrations"
+  },
+  {
+   "fieldname": "user_integrations",
+   "fieldtype": "Table",
+   "label": "Integrations",
+   "options": "Doc2Sys User Integration"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-18 18:23:00.967600",
+ "modified": "2025-03-19 10:00:00",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",

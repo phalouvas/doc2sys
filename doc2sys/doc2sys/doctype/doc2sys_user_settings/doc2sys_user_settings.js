@@ -224,6 +224,68 @@ frappe.ui.form.on('Doc2Sys User Settings', {
                 }
             );
         }, __('OCR Settings'));
+        
+        // Add button to test integration connection
+        frm.add_custom_button(__('Test Selected Integrations'), function() {
+            const selected = frm.get_selected();
+            if(!selected.user_integrations || selected.user_integrations.length === 0) {
+                frappe.throw(__("Please select at least one integration row first"));
+                return;
+            }
+            
+            frappe.show_alert({
+                message: __(`Testing ${selected.user_integrations.length} connection(s)...`),
+                indicator: 'blue'
+            });
+            
+            frappe.call({
+                method: 'doc2sys.doc2sys.doctype.doc2sys_user_settings.doc2sys_user_settings.test_integration_connection',
+                args: {
+                    user_settings: frm.doc.name,
+                    selected: selected
+                },
+                freeze: true,
+                freeze_message: __('Testing integrations...'),
+                callback: function(r) {
+                    if (r.message) {
+                        // Build detailed message for dialog
+                        let message = '';
+                        const results = r.message.results || [];
+                        
+                        if (results.length > 0) {
+                            message = '<div class="table-responsive"><table class="table table-bordered">';
+                            message += '<tr><th>Integration</th><th>Type</th><th>Status</th><th>Message</th></tr>';
+                            
+                            results.forEach(result => {
+                                const statusColor = result.status === 'success' ? 'green' : 'red';
+                                message += `<tr>
+                                    <td>${result.integration || ''}</td>
+                                    <td>${result.integration_type || ''}</td>
+                                    <td><span class="indicator ${statusColor}">${result.status}</span></td>
+                                    <td>${result.message || ''}</td>
+                                </tr>`;
+                            });
+                            
+                            message += '</table></div>';
+                        } else {
+                            message = __('No results returned');
+                        }
+                        
+                        frappe.msgprint({
+                            title: __('Integration Test Results'),
+                            indicator: r.message.status === 'success' ? 'green' : 'red',
+                            message: message
+                        });
+                    } else {
+                        frappe.msgprint({
+                            title: __('Test Failed'),
+                            indicator: 'red',
+                            message: __('No response from server')
+                        });
+                    }
+                }
+            });
+        }, __('Integrations'));
     },
     
     ocr_enabled: function(frm) {
@@ -242,5 +304,19 @@ frappe.ui.form.on('Doc2Sys OCR Language', {
                 indicator: 'blue'
             }, 5);
         }
+    }
+});
+
+frappe.ui.form.on('Doc2Sys User Integration', {
+    integration_type: function(frm, cdt, cdn) {
+        // Reset field values when integration type changes
+        let row = locals[cdt][cdn];
+        
+        frappe.model.set_value(cdt, cdn, 'api_key', '');
+        frappe.model.set_value(cdt, cdn, 'api_secret', '');
+        frappe.model.set_value(cdt, cdn, 'access_token', '');
+        frappe.model.set_value(cdt, cdn, 'refresh_token', '');
+        frappe.model.set_value(cdt, cdn, 'base_url', '');
+        frappe.model.set_value(cdt, cdn, 'realm_id', '');
     }
 });

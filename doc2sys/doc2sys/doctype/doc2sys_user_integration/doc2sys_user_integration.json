@@ -1,11 +1,11 @@
 {
  "actions": [],
- "autoname": "naming_series:",
- "creation": "2023-03-15 12:00:00",
+ "autoname": "hash",
+ "creation": "2025-03-19 10:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "naming_series",
+  "integration_name",
   "integration_type",
   "enabled",
   "auto_sync",
@@ -30,6 +30,7 @@
    "default": "1",
    "fieldname": "enabled",
    "fieldtype": "Check",
+   "in_list_view": 1,
    "label": "Enabled"
   },
   {
@@ -80,34 +81,24 @@
    "label": "Auto Sync"
   },
   {
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "hidden": 1,
-   "label": "Naming Series",
-   "options": "D2S-IS-.YYYY.-"
+   "fieldname": "integration_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Integration Name",
+   "no_copy": 1,
+   "reqd": 1
   }
  ],
+ "istable": 1,
  "links": [],
- "modified": "2025-03-18 17:24:58.986129",
+ "modified": "2025-03-19 09:37:12.940338",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
- "name": "Doc2Sys Integration Settings",
- "naming_rule": "By \"Naming Series\" field",
+ "name": "Doc2Sys User Integration",
+ "naming_rule": "Random",
  "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
+ "permissions": [],
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+ "states": []
 }

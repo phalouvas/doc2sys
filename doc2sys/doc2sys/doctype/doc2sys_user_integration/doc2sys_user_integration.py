@@ -2,9 +2,8 @@ import frappe
 from frappe.model.document import Document
 from doc2sys.integrations.registry import IntegrationRegistry
 
-class Doc2SysIntegrationSettings(Document):
+class Doc2SysUserIntegration(Document):
     
-    @frappe.whitelist()
     def test_connection(self):
         """Test the connection to the integration"""
         try:
@@ -26,7 +25,6 @@ class Doc2SysIntegrationSettings(Document):
             frappe.log_error(f"Connection test failed: {str(e)}", "Integration Error")
             return {"status": "error", "message": str(e)}
     
-    @frappe.whitelist()
     def get_mapping_fields(self):
         """Get available mapping fields for this integration"""
         try:
