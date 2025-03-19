@@ -235,6 +235,11 @@ def test_integration_connection(user_settings, selected):
                     "message": "Integration not found"
                 })
                 continue
+            
+            # Get display name for the integration
+            display_name = getattr(integration, "integration_name", None) or integration.integration_type
+            if getattr(integration, "base_url", None):
+                display_name += f" ({integration.base_url})"
                 
             try:
                 # Create integration instance
@@ -248,7 +253,7 @@ def test_integration_connection(user_settings, selected):
                 
                 # Add result with integration info
                 results.append({
-                    "integration": integration_name,
+                    "integration": display_name,
                     "integration_type": integration.integration_type,
                     "status": "success" if result.get("success") else "error",
                     "message": result.get("message", "No message returned")
@@ -257,11 +262,11 @@ def test_integration_connection(user_settings, selected):
             except Exception as e:
                 # Handle individual integration errors
                 frappe.log_error(
-                    f"Connection test failed for {integration_name}: {str(e)}", 
+                    f"Connection test failed for {display_name}: {str(e)}", 
                     "Integration Error"
                 )
                 results.append({
-                    "integration": integration_name,
+                    "integration": display_name,
                     "integration_type": getattr(integration, "integration_type", "Unknown"),
                     "status": "error",
                     "message": str(e)
