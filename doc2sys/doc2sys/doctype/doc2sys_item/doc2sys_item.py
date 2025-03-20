@@ -353,6 +353,61 @@ class Doc2SysItem(Document):
             frappe.msgprint(f"An error occurred while extracting text: {str(e)}")
             return False
 
+    @frappe.whitelist()
+    def get_integration_status(self):
+        """Get status of integrations for this document"""
+        if not self.name:
+            return []
+            
+        # Query integration logs for this document using the direct link field
+        logs = frappe.get_all(
+            "Doc2Sys Integration Log",
+            filters={"document": self.name},  # Use the document field directly
+            fields=["integration_type", "status", "message", "creation", "integration_reference", "name"],
+            order_by="creation desc"
+        )
+        
+        # Get user's configured integrations
+        user_settings = frappe.get_all(
+            "Doc2Sys User Settings",
+            filters={"user": self.user},
+            fields=["name"]
+        )
+        
+        all_integrations = []
+        if user_settings:
+            # Get all integrations configured for this user
+            settings_doc = frappe.get_doc("Doc2Sys User Settings", user_settings[0].name)
+            all_integrations = [i.integration_type for i in settings_doc.user_integrations if i.enabled]
+        
+        # Group by integration_type and get the latest status
+        integration_status = {}
+        for log in logs:
+            integration_type = log.integration_type
+            if integration_type not in integration_status:
+                integration_status[integration_type] = {
+                    "integration_type": integration_type,
+                    "status": log.status,
+                    "message": log.message,
+                    "timestamp": log.creation,
+                    "integration_reference": log.integration_reference,
+                    "log_name": log.name
+                }
+        
+        # Add configured integrations that don't have logs yet
+        for integration_type in all_integrations:
+            if integration_type not in integration_status:
+                integration_status[integration_type] = {
+                    "integration_type": integration_type,
+                    "status": "pending",
+                    "message": "Not yet processed",
+                    "timestamp": None,
+                    "integration_reference": None,
+                    "log_name": None
+                }
+        
+        return list(integration_status.values())
+
 @frappe.whitelist()
 def create_item_from_file(file_doc_name):
     """Create a Doc2Sys Item from an existing File document"""

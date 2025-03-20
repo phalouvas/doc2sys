@@ -1,6 +1,7 @@
 import frappe
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
+from doc2sys.integrations.utils import create_integration_log  # Add this import
 
 class BaseIntegration(ABC):
     """Abstract base class for all integrations in doc2sys.
@@ -36,18 +37,23 @@ class BaseIntegration(ABC):
     
     def log_activity(self, status, message, data=None):
         """Log integration activity"""
-        from doc2sys.integrations.utils import create_integration_log
+        integration_type = getattr(self, "integration_type", self.__class__.__name__)
         
-        # Extract user and integration reference from settings
-        user = self.settings.get("user") or frappe.session.user
-        integration_reference = self.settings.get("name")
+        # Get document reference from instance attribute if available
+        document = getattr(self, "current_document", None)
         
-        # Create log with user information
+        # Add document reference to data if available
+        if document and data is None:
+            data = {"doc_name": document}
+        elif document and isinstance(data, dict) and "doc_name" not in data:
+            data["doc_name"] = document
+            
         create_integration_log(
-            self.__class__.__name__.replace("Integration", ""),
-            status,
-            message,
+            integration_type=integration_type,
+            status=status,
+            message=message,
             data=data,
-            user=user,
-            integration_reference=integration_reference
+            user=self.settings.get("user"),
+            integration_reference=self.settings.get("name"),
+            document=document  # Use the document reference
         )

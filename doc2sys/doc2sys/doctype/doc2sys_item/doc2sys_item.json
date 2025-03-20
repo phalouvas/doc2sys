@@ -28,7 +28,10 @@
   "extracted_data_tab",
   "extracted_text",
   "column_break_ibav",
-  "extracted_data"
+  "extracted_data",
+  "dashboard_tab",
+  "integration_status_section",
+  "integration_status_html"
  ],
  "fields": [
   {
@@ -174,11 +177,32 @@
   {
    "fieldname": "column_break_ibav",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "integration_status_html",
+   "fieldtype": "HTML",
+   "label": "Integration Status"
+  },
+  {
+   "fieldname": "dashboard_tab",
+   "fieldtype": "Tab Break",
+   "label": "Dashboard",
+   "show_dashboard": 1
+  },
+  {
+   "fieldname": "integration_status_section",
+   "fieldtype": "Section Break",
+   "label": "Integration Status"
   }
  ],
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2025-03-19 06:34:59.750771",
+ "links": [
+  {
+   "link_doctype": "Doc2Sys Integration Log",
+   "link_fieldname": "document"
+  }
+ ],
+ "modified": "2025-03-19 18:31:33.376201",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",

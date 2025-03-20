@@ -1,6 +1,7 @@
 import frappe
 from frappe.model.document import Document
 import json
+from doc2sys.integrations.utils import create_integration_log  # Add this import
 
 class Doc2SysIntegrationLog(Document):
     def before_insert(self):
@@ -82,6 +83,17 @@ class Doc2SysIntegrationLog(Document):
                 settings=integration_settings
             )
             
+            # When logging new attempts, include document reference
+            create_integration_log(
+                integration_type=self.integration_type,
+                status="info",
+                message="Retrying integration...",
+                data=data,
+                user=user,
+                integration_reference=integration_reference,
+                document=self.document  # Include document reference in retry logs
+            )
+            
             result = integration_instance.sync_document(doc.as_dict())
             
             if result.get("success"):
@@ -92,3 +104,13 @@ class Doc2SysIntegrationLog(Document):
         except Exception as e:
             frappe.log_error(f"Retry failed: {str(e)}", "Integration Retry Error")
             return {"status": "error", "message": str(e)}
+
+@frappe.whitelist()
+def retry_integration(log_name):
+    """Retry an integration from its log entry"""
+    try:
+        log = frappe.get_doc("Doc2Sys Integration Log", log_name)
+        return log.retry_integration()
+    except Exception as e:
+        frappe.log_error(f"Retry failed: {str(e)}", "Integration Retry Error")
+        return {"status": "error", "message": str(e)}

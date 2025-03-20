@@ -58,6 +58,9 @@ class ERPNextIntegration(BaseIntegration):
     def sync_document(self, doc2sys_item: Dict[str, Any]) -> Dict[str, Any]:
         """Sync a doc2sys_item to the external ERPNext system"""
         try:
+            # Add this line at the beginning of the method
+            self.current_document = doc2sys_item.get("name")
+            
             # Extract and parse mapped data from the extracted_data field
             extracted_data = doc2sys_item.get("extracted_data", "{}")
             
@@ -145,7 +148,6 @@ class ERPNextIntegration(BaseIntegration):
                         if results and len(results) > 0:
                             document_exists = True
                             document_name = results[0].get("name")
-                            self.log_activity("info", f"{doctype_name} already exists with {search_id_field}={search_value}")
                     
                     # Create document if it doesn't exist
                     if not document_exists:
@@ -161,8 +163,6 @@ class ERPNextIntegration(BaseIntegration):
                         if create_response.status_code in (200, 201):
                             result = create_response.json()
                             document_name = result.get("message", {}).get("name")
-                            self.log_activity("success", f"Created {doctype_name} successfully", 
-                                             {"doc_name": document_name})
                         else:
                             error_message = f"Failed to create {doctype_name}: {create_response.text}"
                             self.log_activity("error", error_message)
