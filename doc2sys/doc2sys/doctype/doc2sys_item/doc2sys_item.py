@@ -52,7 +52,7 @@ class Doc2SysItem(Document):
                 # frappe.db.commit()  
                 
                 # Call the integration function directly instead of enqueueing it
-                trigger_integrations_on_update(self)
+                trigger_integrations_on_update(self, True)
             else:
                 frappe.msgprint("Failed to process document")
                 
@@ -250,9 +250,6 @@ class Doc2SysItem(Document):
             return False
             
         try:
-            # Reset token counts and costs
-            self._reset_token_usage()
-            
             # Get the full file path from the attached file
             file_path = self._get_file_path()
             if not file_path:
@@ -500,7 +497,7 @@ class Doc2SysItem(Document):
             
             # If successful, trigger integrations
             if success:
-                trigger_integrations_on_update(self)
+                trigger_integrations_on_update(self, True)
                 
                 frappe.msgprint("Document processed and integrations triggered")
                 return True
@@ -530,10 +527,7 @@ class Doc2SysItem(Document):
             frappe.msgprint("No document is attached to process")
             return False
             
-        try:
-            # Reset token counts and costs
-            self._reset_token_usage()
-            
+        try:            
             # Get the full file path from the attached file
             file_path = self._get_file_path()
             if not file_path:
@@ -566,7 +560,7 @@ class Doc2SysItem(Document):
             
             # Step 6: Trigger integrations if needed
             if 'trigger_integrations' in steps:
-                trigger_integrations_on_update(self)
+                trigger_integrations_on_update(self, True)
                 
             return True
                 
