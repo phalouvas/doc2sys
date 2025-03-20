@@ -354,6 +354,107 @@ class Doc2SysItem(Document):
             return False
 
     @frappe.whitelist()
+    def classify_document_only(self):
+        """Classify the attached document without extracting data"""
+        if not self.single_file:
+            frappe.msgprint("No document is attached to classify")
+            return False
+        
+        try:
+            frappe.msgprint("Classifying document...")
+            
+            # Get the full file path from the attached file
+            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
+            if not file_doc:
+                frappe.msgprint("Could not find the attached file in the system")
+                return False
+                
+            file_path = file_doc.get_full_path()
+            
+            # Reset token counts and costs for classification
+            self._reset_token_usage()
+            
+            # Extract text if not already extracted
+            if not self.extracted_text:
+                extracted_text = self.get_document_text(file_path)
+                self.extracted_text = extracted_text
+            else:
+                extracted_text = self.extracted_text
+            
+            # Get processor and upload file only if needed
+            processor = self._get_processor_and_upload(file_path, extracted_text)
+            if not processor:
+                frappe.msgprint("Failed to initialize document processor")
+                return False
+            
+            # Classify document with extracted text
+            classification = self._classify_document(processor, file_path, extracted_text)
+            if not classification:
+                frappe.msgprint("Classification failed")
+                return False
+            
+            # Save the document
+            self.save()
+            frappe.msgprint(f"Document classified as: {self.document_type} (confidence: {self.classification_confidence})")
+            return True
+        
+        except Exception as e:
+            frappe.log_error(f"Classification error: {str(e)}")
+            frappe.msgprint(f"An error occurred during classification: {str(e)}")
+            return False
+
+    @frappe.whitelist()
+    def extract_data_only(self):
+        """Extract data from the attached document based on its classification"""
+        if not self.single_file:
+            frappe.msgprint("No document is attached to extract data from")
+            return False
+        
+        if not self.document_type or self.document_type == "unknown":
+            frappe.msgprint("Document must be classified before extracting data")
+            return False
+        
+        try:
+            frappe.msgprint("Extracting data from document...")
+            
+            # Get the full file path from the attached file
+            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
+            if not file_doc:
+                frappe.msgprint("Could not find the attached file in the system")
+                return False
+                
+            file_path = file_doc.get_full_path()
+            
+            # Reset token counts and costs for data extraction
+            self._reset_token_usage()
+            
+            # Use existing extracted text or extract it
+            if not self.extracted_text:
+                extracted_text = self.get_document_text(file_path)
+                self.extracted_text = extracted_text
+            else:
+                extracted_text = self.extracted_text
+            
+            # Get processor and upload file only if needed
+            processor = self._get_processor_and_upload(file_path, extracted_text)
+            if not processor:
+                frappe.msgprint("Failed to initialize document processor")
+                return False
+            
+            # Extract data using the classified document type
+            self._extract_document_data(processor, file_path, extracted_text)
+            
+            # Save the document
+            self.save()
+            frappe.msgprint("Data extraction completed")
+            return True
+        
+        except Exception as e:
+            frappe.log_error(f"Data extraction error: {str(e)}")
+            frappe.msgprint(f"An error occurred during data extraction: {str(e)}")
+            return False
+
+    @frappe.whitelist()
     def get_integration_status(self):
         """Get status of integrations for this document"""
         if not self.name:

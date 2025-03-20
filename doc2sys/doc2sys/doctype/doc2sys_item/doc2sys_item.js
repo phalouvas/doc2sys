@@ -33,6 +33,62 @@ frappe.ui.form.on('Doc2Sys Item', {
                 });
             }, __('Actions'));
             
+            // Add Classify Document button
+            frm.add_custom_button(__('Classify Document'), function() {
+                // Show full screen processing overlay
+                frappe.dom.freeze(__('Classifying document...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'classify_document_only',
+                    callback: function(r) {
+                        // Unfreeze UI when processing is complete
+                        frappe.dom.unfreeze();
+                        
+                        if(r.message) {
+                            frappe.show_alert({
+                                message: __('Document classification completed'),
+                                indicator: 'green'
+                            }, 3);
+                            frm.refresh();
+                        }
+                    },
+                    error: function() {
+                        // Make sure to unfreeze UI even if there's an error
+                        frappe.dom.unfreeze();
+                    }
+                });
+            }, __('Actions'));
+            
+            // Add Extract Data button
+            frm.add_custom_button(__('Extract Data'), function() {
+                // Show full screen processing overlay
+                frappe.dom.freeze(__('Extracting data from document...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'extract_data_only',
+                    callback: function(r) {
+                        // Unfreeze UI when processing is complete
+                        frappe.dom.unfreeze();
+                        
+                        if(r.message) {
+                            frappe.show_alert({
+                                message: __('Data extraction completed'),
+                                indicator: 'green'
+                            }, 3);
+                            frm.refresh();
+                        }
+                    },
+                    error: function() {
+                        // Make sure to unfreeze UI even if there's an error
+                        frappe.dom.unfreeze();
+                    }
+                });
+            }, __('Actions'));
+            
+            // Remove the Reprocess Document button (commented out below)
+            /*
             frm.add_custom_button(__('Reprocess Document'), function() {
                 // Show full screen processing overlay
                 frappe.dom.freeze(__('Reprocessing document...'));
@@ -58,6 +114,7 @@ frappe.ui.form.on('Doc2Sys Item', {
                     }
                 });
             }, __('Actions'));
+            */
         }
 
         // Update integration status on page load
