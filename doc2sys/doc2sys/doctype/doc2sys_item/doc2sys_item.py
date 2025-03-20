@@ -569,6 +569,24 @@ class Doc2SysItem(Document):
             frappe.msgprint(f"An error occurred during processing: {str(e)}")
             return False
 
+    def on_trash(self):
+        """Delete all related integration logs when the document is deleted"""
+        try:
+            # Find all integration logs linked to this document
+            integration_logs = frappe.get_all(
+                "Doc2Sys Integration Log", 
+                filters={"document": self.name},
+                pluck="name"
+            )
+            
+            # Delete each log
+            for log_name in integration_logs:
+                frappe.delete_doc("Doc2Sys Integration Log", log_name, ignore_permissions=True)
+                
+            frappe.logger().info(f"Deleted {len(integration_logs)} integration logs for document {self.name}")
+        except Exception as e:
+            frappe.log_error(f"Failed to delete integration logs for document {self.name}: {str(e)}")
+
 @frappe.whitelist()
 def create_item_from_file(file_doc_name):
     """Create a Doc2Sys Item from an existing File document"""
