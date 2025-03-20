@@ -210,20 +210,36 @@ class OpenWebUIProcessor:
             
             # Improved prompt with clear formatting
             prompt = f"""
-            Your task is to classify the attached document. Analyze it and determine what type of document it is.
-            
-            Available document types (use EXACT match from this list):
+            # Document Classification Task
+
+            ## Instructions
+            Your task is to classify the attached document into one of the predefined categories. Follow these steps:
+
+            1. Analyze the document's content, structure, formatting, and key identifiers
+            2. Look for distinctive headers, labels, and standard phrases that indicate document type
+            3. Match to the most appropriate document type from the list below
+            4. Provide your classification with a confidence score and detailed reasoning
+
+            ## Available Document Types
+            Choose EXACTLY ONE document type from this list (must match exactly, including capitalization):
             {', '.join(formatted_types)}
-            
-            IMPORTANT: You must select document types EXACTLY as written above, including spaces and capitalization.
-            If the document doesn't match any of the available types, classify it as "unknown".
-            
-            Respond in JSON format only:
+
+            ## Special Cases
+            If the document doesn't clearly match any of the available types, classify it as "unknown".
+
+            ## Response Format
+            Respond in JSON format with these fields:
             {{
-                "document_type": "the determined document type - MUST be an exact match from the list above",
-                "confidence": 0.0-1.0 (your confidence level),
-                "reasoning": "brief explanation of why"
+                "document_type": "exact match from the list above",
+                "confidence": 0.0-1.0,
+                "reasoning": "detailed explanation referencing specific evidence from the document"
             }}
+
+            ## Confidence Score Guidelines
+            - 0.9-1.0: Very confident (clear markers present)
+            - 0.7-0.9: Moderately confident (most markers present)
+            - 0.5-0.7: Somewhat confident (some markers present)
+            - 0.0-0.5: Low confidence (few or no clear markers)
             """
             
             api_payload = None
@@ -259,10 +275,7 @@ class OpenWebUIProcessor:
                 # Try to parse the JSON response
                 cleaned_content = self._clean_json_response(content)
                 classification = json.loads(cleaned_content)
-                
-                # Add target doctype based on document type
-                doc_type = classification.get("document_type", "unknown")
-                
+                                
                 # Add token usage and cost data
                 classification["token_usage"] = token_cost
                 
@@ -298,13 +311,45 @@ class OpenWebUIProcessor:
                 "extract_data_prompt"
             )
             
-            # Prepare the default prompt text
+            # Prepare the default prompt text with improved structure
             default_prompt = f"""
-            Identify the JSON structure of an ERPNext {document_type} doctype. 
-            Extract the relevant data and present the extracted data in JSON format.
-            Only include fields that are present in the document.
+            # Document Data Extraction Task
+
+            ## Instructions
+            Your task is to extract structured data from a {document_type} document. Follow these steps:
+
+            1. Carefully analyze the entire document content
+            2. Identify key fields and their corresponding values
+            3. Extract data according to standard {document_type} format
+            4. Include only fields that appear in the document (don't invent data)
+            5. Format field names using snake_case (e.g., "invoice_number" not "Invoice Number")
+
+            ## Key Fields to Look For
+            Look for common fields typically found in a {document_type}, such as:
+            - Reference numbers, dates, and identifiers
+            - Organization names, addresses, and contact information
+            - Line items, quantities, prices, and totals
+            - Terms, conditions, and special instructions
+
+            ## Special Cases
+            - For ambiguous values, choose the most likely interpretation based on context
+            - For dates, use ISO format (YYYY-MM-DD) whenever possible
+            - For currency values, include only numbers without symbols
+            - For missing or unclear fields, omit them rather than guessing
+
+            ## Response Format
+            Respond in clean JSON format with appropriate nesting for related data:
+            {{
+              "field_name": "extracted value",
+              "numeric_field": 123.45,
+              "date_field": "2025-03-20",
+              "items": [
+                {{ "item_field": "value", "quantity": 1 }},
+                {{ "item_field": "value", "quantity": 2 }}
+              ]
+            }}
             """
-            
+
             # Use custom prompt if available, otherwise use default
             prompt = custom_prompt if custom_prompt else default_prompt
             
@@ -539,7 +584,7 @@ class OpenWebUIProcessor:
 
     def _prepare_text_content(self, text, prompt):
         """
-        Prepare text content for API request
+        Prepare text content for API request with separate messages for prompt and content
         
         Args:
             text (str): Text content to process
@@ -559,7 +604,8 @@ class OpenWebUIProcessor:
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": "You are an AI language model. Always respond in JSON."},
-                {"role": "user", "content": f"{prompt}\n\n{text_for_api}"}
+                {"role": "user", "content": prompt},
+                {"role": "user", "content": text_for_api}
             ]
         }
         
