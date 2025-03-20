@@ -539,7 +539,7 @@ class OpenWebUIProcessor:
 
     def _prepare_text_content(self, text, prompt):
         """
-        Prepare text content for API request
+        Prepare text content for API request with separate messages for prompt and content
         
         Args:
             text (str): Text content to process
@@ -559,7 +559,8 @@ class OpenWebUIProcessor:
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": "You are an AI language model. Always respond in JSON."},
-                {"role": "user", "content": f"{prompt}\n\n{text_for_api}"}
+                {"role": "user", "content": prompt},
+                {"role": "user", "content": text_for_api}
             ]
         }
         
