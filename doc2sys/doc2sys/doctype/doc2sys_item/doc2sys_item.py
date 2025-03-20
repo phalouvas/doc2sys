@@ -8,7 +8,8 @@ from doc2sys.engine.exceptions import ProcessingError
 from frappe import _
 from doc2sys.engine.llm_processor import LLMProcessor
 from doc2sys.engine.text_extractor import TextExtractor
-import json
+from doc2sys.integrations.events import trigger_integrations_on_update
+import json  # Add this import at the top with the others
 
 class Doc2SysItem(Document):
     def validate(self):
@@ -33,12 +34,9 @@ class Doc2SysItem(Document):
             
         try:
             # Get the full file path from the attached file
-            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
-            if not file_doc:
-                frappe.msgprint("Could not find the attached file in the system")
+            file_path = self._get_file_path()
+            if not file_path:
                 return
-                
-            file_path = file_doc.get_full_path()
             
             # Process the file directly with LLM
             success = self._process_file_with_llm(file_path)
@@ -49,16 +47,12 @@ class Doc2SysItem(Document):
                 for field in ["input_tokens", "output_tokens", "total_tokens", 
                              "input_cost", "output_cost", "total_cost", "extracted_text"]:
                     self.db_set(field, self.get(field))
-                    
-                frappe.db.commit()  # Commit the changes to database
                 
-                # Trigger integrations after processing (if auto_process_file is enabled)
-                frappe.enqueue(
-                    "doc2sys.integrations.events.trigger_integrations_on_update",
-                    doc=self,
-                    queue="long",
-                    timeout=300
-                )
+                # Consider removing this direct commit or make it conditional
+                # frappe.db.commit()  
+                
+                # Call the integration function directly instead of enqueueing it
+                trigger_integrations_on_update(self)
             else:
                 frappe.msgprint("Failed to process document")
                 
@@ -94,7 +88,13 @@ class Doc2SysItem(Document):
                 self._extract_document_data(processor, file_path, extracted_text)
             
             return True
-           
+        except ProcessingError as e:
+            frappe.log_error(f"LLM processing error: {str(e)}")
+            return False
+        except IOError as e:
+            frappe.log_error(f"File access error: {str(e)}")
+            return False
+        
         except Exception as e:
             frappe.log_error(f"Document processing error: {str(e)}")
             return False
@@ -168,18 +168,15 @@ class Doc2SysItem(Document):
         """Reprocess the attached document"""
         if not self.single_file:
             frappe.msgprint("No document is attached to reprocess")
-            return
+            return False  # Return False here
         
         try:
             frappe.msgprint("Reprocessing document...")
             
-            # Get the full file path from the attached file (needed for cache lookup)
-            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
-            if not file_doc:
-                frappe.msgprint("Could not find the attached file in the system")
-                return
-                
-            file_path = file_doc.get_full_path()
+            # Get the full file path from the attached file
+            file_path = self._get_file_path()
+            if not file_path:
+                return False  # Return False if file path is not found
             
             # Process the file directly with LLM
             success = self._process_file_with_llm(file_path)
@@ -188,14 +185,15 @@ class Doc2SysItem(Document):
             if success:
                 self.save()
                 frappe.msgprint("Document reprocessed successfully")
+                return True  # Return True only if successful
             else:
                 frappe.msgprint("Failed to reprocess document")
+                return False  # Return False if processing fails
                 
         except Exception as e:
             frappe.log_error(f"Reprocessing error: {str(e)}")
             frappe.msgprint(f"An error occurred while reprocessing: {str(e)}")
-
-        return True
+            return False  # Return False on exception
 
     def update_token_usage(self, token_usage):
         """
@@ -247,51 +245,44 @@ class Doc2SysItem(Document):
 
     def process_document(self):
         """Process document with LLM classification and extraction"""
-        
-        # Extract text from the document - pass user for user-specific settings
-        extracted_text = self.get_document_text()
-        
-        # Store the extracted text
-        self.extracted_text = extracted_text
-        
-        # Get processor with optimized file upload - pass user for user-specific settings
-        processor = self._get_processor_and_upload(self.single_file, extracted_text)
-        if not processor:
-            frappe.msgprint("Failed to initialize document processor")
-            return
-        
-        # Classify document prioritizing extracted text
-        classification_result = processor.classify_document(
-            file_path=self.single_file, 
-            text=extracted_text
-        )
-        
-        # Store document type
-        self.document_type = classification_result.get("document_type")
-        self.classification_confidence = classification_result.get("confidence", 0.0)
-        
-        # Update token usage from classification
-        token_usage = classification_result.get("token_usage", {})
-        self.update_token_usage(token_usage)
-        
-        # If document type is known, extract data
-        if self.document_type and self.document_type != "unknown":
-            extraction_result = processor.extract_data(
-                file_path=self.single_file,
-                text=extracted_text,
-                document_type=self.document_type
-            )
+        if not self.single_file:
+            frappe.msgprint("No document is attached to process")
+            return False
             
-            # Update token usage from extraction
-            token_usage = extraction_result.pop("_token_usage", {})  # Remove metadata
-            self.update_token_usage(token_usage)
+        try:
+            # Reset token counts and costs
+            self._reset_token_usage()
             
-            # Store extraction results
-            self.extracted_data = json.dumps(extraction_result)
+            # Get the full file path from the attached file
+            file_path = self._get_file_path()
+            if not file_path:
+                return False
+                
+            # Process the file with all LLM operations using the existing method
+            success = self._process_file_with_llm(file_path)
+            
+            # Save the document if not submitted and processing was successful
+            if success and self.docstatus == 0:
+                self.save()
+                
+            return success
+                
+        except Exception as e:
+            frappe.log_error(f"Document processing error: {str(e)}")
+            frappe.msgprint(f"An error occurred during processing: {str(e)}")
+            return False
+
+    def _get_file_path(self):
+        """Helper method to get file path from single_file URL"""
+        if not self.single_file:
+            return None
+            
+        file_doc = frappe.get_doc("File", {"file_url": self.single_file})
+        if not file_doc:
+            frappe.msgprint("Could not find the attached file in the system")
+            return None
         
-        # Save the document
-        if self.docstatus == 0:  # Only if not submitted
-            self.save()
+        return file_doc.get_full_path()
 
     def _reset_token_usage(self):
         """Reset all token usage and cost fields to zero"""
@@ -306,10 +297,8 @@ class Doc2SysItem(Document):
     def get_document_text(self, file_path=None):
         """Get text content from the document if available"""
         if not file_path and self.single_file:
-            # If file_path not provided but single_file exists, get the path
-            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
-            if file_doc:
-                file_path = file_doc.get_full_path()
+            # Get the path using helper method
+            file_path = self._get_file_path()
         
         if not file_path:
             return ""
@@ -334,14 +323,10 @@ class Doc2SysItem(Document):
             return False
         
         try:
-            # Get the full file path from the attached file
-            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
-            if not file_doc:
-                frappe.msgprint("Could not find the attached file in the system")
+            file_path = self._get_file_path()
+            if not file_path:
                 return False
                 
-            file_path = file_doc.get_full_path()
-            
             # Extract text from the file - pass user for user-specific settings
             extracted_text = self.get_document_text(file_path)
             
@@ -368,14 +353,10 @@ class Doc2SysItem(Document):
         try:
             frappe.msgprint("Classifying document...")
             
-            # Get the full file path from the attached file
-            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
-            if not file_doc:
-                frappe.msgprint("Could not find the attached file in the system")
+            file_path = self._get_file_path()
+            if not file_path:
                 return False
                 
-            file_path = file_doc.get_full_path()
-            
             # Extract text if not already extracted
             if not self.extracted_text:
                 extracted_text = self.get_document_text(file_path)
@@ -419,14 +400,10 @@ class Doc2SysItem(Document):
         try:
             frappe.msgprint("Extracting data from document...")
             
-            # Get the full file path from the attached file
-            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
-            if not file_doc:
-                frappe.msgprint("Could not find the attached file in the system")
+            file_path = self._get_file_path()
+            if not file_path:
                 return False
                 
-            file_path = file_doc.get_full_path()
-            
             # Use existing extracted text or extract it
             if not self.extracted_text:
                 extracted_text = self.get_document_text(file_path)
@@ -518,37 +495,83 @@ class Doc2SysItem(Document):
         try:
             frappe.msgprint("Processing document with all steps...")
             
-            # Get the full file path from the attached file
-            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
-            if not file_doc:
-                frappe.msgprint("Could not find the attached file in the system")
-                return False
-                
-            file_path = file_doc.get_full_path()
+            # Use the consolidated process_document method
+            success = self.process_document()
             
-            # Process the file with all LLM operations
-            success = self._process_file_with_llm(file_path)
-            
-            # Save the document to persist changes
+            # If successful, trigger integrations
             if success:
-                self.save()
-                
-                # Trigger integrations after processing
-                frappe.enqueue(
-                    "doc2sys.integrations.events.trigger_integrations_on_update",
-                    doc=self,
-                    queue="long",
-                    timeout=300
-                )
+                trigger_integrations_on_update(self)
                 
                 frappe.msgprint("Document processed and integrations triggered")
                 return True
             else:
-                frappe.msgprint("Failed to process document")
                 return False
                 
         except Exception as e:
             frappe.log_error(f"Process all error: {str(e)}")
+            frappe.msgprint(f"An error occurred during processing: {str(e)}")
+            return False
+
+    def _process_document_with_steps(self, steps=None):
+        """
+        Process document with specified steps
+        
+        Args:
+            steps: List of steps to perform ('extract_text', 'classify', 'extract_data', 'trigger_integrations')
+                  If None, all steps are performed
+        
+        Returns:
+            bool: True if processing was successful
+        """
+        if not steps:
+            steps = ['extract_text', 'classify', 'extract_data', 'trigger_integrations']
+            
+        if not self.single_file:
+            frappe.msgprint("No document is attached to process")
+            return False
+            
+        try:
+            # Reset token counts and costs
+            self._reset_token_usage()
+            
+            # Get the full file path from the attached file
+            file_path = self._get_file_path()
+            if not file_path:
+                return False
+            
+            # Step 1: Extract text if needed
+            if 'extract_text' in steps:
+                extracted_text = self.get_document_text(file_path)
+                self.extracted_text = extracted_text
+            else:
+                extracted_text = self.extracted_text
+            
+            # Step 2: Get processor and upload file if needed
+            processor = self._get_processor_and_upload(file_path, extracted_text)
+            if not processor:
+                return False
+                
+            # Step 3: Classify document if needed
+            if 'classify' in steps:
+                classification = self._classify_document(processor, file_path, extracted_text)
+                if not classification:
+                    return False
+                    
+            # Step 4: Extract data if needed
+            if 'extract_data' in steps and self.document_type and self.document_type != "unknown":
+                self._extract_document_data(processor, file_path, extracted_text)
+            
+            # Step 5: Save the document if successful
+            self.save()
+            
+            # Step 6: Trigger integrations if needed
+            if 'trigger_integrations' in steps:
+                trigger_integrations_on_update(self)
+                
+            return True
+                
+        except Exception as e:
+            frappe.log_error(f"Document processing error: {str(e)}")
             frappe.msgprint(f"An error occurred during processing: {str(e)}")
             return False
 
