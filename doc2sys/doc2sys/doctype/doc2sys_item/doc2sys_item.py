@@ -602,3 +602,54 @@ def create_item_from_file(file_doc_name):
     doc.insert()
     
     return doc.name
+
+# Add this function after the create_item_from_file function
+
+@frappe.whitelist()
+def upload_and_create_item():
+    """
+    Upload a file and create a Doc2Sys Item in one step.
+    
+    This endpoint accepts multipart/form-data with a file field.
+    Returns the newly created Doc2Sys Item document name.
+    """
+    try:
+        # Get the uploaded file from request
+        if not frappe.request.files or 'file' not in frappe.request.files:
+            frappe.throw(_("No file attached"))
+            
+        # First, upload the file using Frappe's handler
+        from frappe.handler import upload_file
+        
+        # Keep the original request form data
+        ret = upload_file()
+        
+        if not ret:
+            frappe.throw(_("Failed to upload file"))
+            
+        # Create Doc2Sys Item with this file
+        doc = frappe.new_doc("Doc2Sys Item")
+        doc.single_file = ret.get("file_url")
+        doc.user = frappe.session.user
+        
+        # Optional parameters for Doc2Sys Item
+        if frappe.form_dict.get('auto_process_file'):
+            doc.auto_process_file = frappe.form_dict.get('auto_process_file')
+        
+        # Insert the document
+        doc.insert()
+        
+        # Return the document info
+        return {
+            "success": True,
+            "message": "Document created successfully",
+            "doc2sys_item": doc.name,
+            "file_url": doc.single_file
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Failed to create Doc2Sys Item from file upload: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }
