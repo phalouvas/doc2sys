@@ -4,7 +4,7 @@
 frappe.ui.form.on('Doc2Sys Item', {
     refresh: function(frm) {
         // Add custom buttons or functionality here
-        // Add Reprocess button if a document is attached
+        // Add buttons if a document is attached
         if(frm.doc.single_file) {
             // Add Extract Text Only button
             frm.add_custom_button(__('Extract Text Only'), function() {
@@ -87,22 +87,26 @@ frappe.ui.form.on('Doc2Sys Item', {
                 });
             }, __('Actions'));
             
-            // Remove the Reprocess Document button (commented out below)
-            /*
-            frm.add_custom_button(__('Reprocess Document'), function() {
+            // Add a separator in the Actions dropdown
+            frm.add_custom_button('', function(){
+                // No-op function 
+            }, __('Actions')).addClass('dropdown-divider-btn disabled');
+            
+            // Add Process All Steps button at the end of Actions dropdown
+            frm.add_custom_button(__('Process All Steps'), function() {
                 // Show full screen processing overlay
-                frappe.dom.freeze(__('Reprocessing document...'));
+                frappe.dom.freeze(__('Processing document with all steps...'));
                 
                 frm.call({
                     doc: frm.doc,
-                    method: 'reprocess_document',
+                    method: 'process_all',
                     callback: function(r) {
                         // Unfreeze UI when processing is complete
                         frappe.dom.unfreeze();
                         
                         if(r.message) {
                             frappe.show_alert({
-                                message: __('Document reprocessing completed'),
+                                message: __('Document processing completed'),
                                 indicator: 'green'
                             }, 3);
                             frm.refresh();
@@ -114,7 +118,17 @@ frappe.ui.form.on('Doc2Sys Item', {
                     }
                 });
             }, __('Actions'));
-            */
+            
+            // Add custom styling for the divider
+            setTimeout(() => {
+                $('.dropdown-divider-btn').css({
+                    'pointer-events': 'none',
+                    'color': '#ccc',
+                    'border-bottom': '1px solid #eee',
+                    'margin-bottom': '5px',
+                    'padding-bottom': '5px'
+                });
+            }, 100);
         }
 
         // Update integration status on page load
