@@ -20,7 +20,9 @@ class Doc2SysItem(Document):
         if self.has_value_changed("single_file"):
             # Clear the existing file ID if file changed
             self.llm_file_id = ""
-            self.process_attached_file()
+            # Only process file if auto_process_file is checked
+            if self.auto_process_file:
+                self.process_attached_file()
     
     def process_attached_file(self):
         """Process the attached file"""

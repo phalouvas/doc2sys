@@ -8,7 +8,7 @@
  "field_order": [
   "naming_series",
   "user",
-  "auto_create_documents",
+  "auto_process_file",
   "document_section",
   "single_file",
   "document_type",
@@ -51,6 +51,12 @@
    "reqd": 1
   },
   {
+   "default": "1", 
+   "fieldname": "auto_process_file",
+   "fieldtype": "Check",
+   "label": "Auto-Process Files on Upload"
+  },
+  {
    "fieldname": "document_section",
    "fieldtype": "Section Break",
    "label": "Document"
@@ -89,12 +95,6 @@
    "fieldtype": "Long Text",
    "label": "Extracted Text",
    "read_only": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "auto_create_documents",
-   "fieldtype": "Check",
-   "label": "Auto-Create Documents"
   },
   {
    "fieldname": "erpnext_document_type",
