@@ -22,6 +22,8 @@ class Doc2SysItem(Document):
             self.llm_file_id = ""
             # Only process file if auto_process_file is checked
             if self.auto_process_file:
+                # Reset token counts and costs for data extraction
+                self._reset_token_usage()
                 self.process_attached_file()
     
     def process_attached_file(self):
@@ -49,6 +51,14 @@ class Doc2SysItem(Document):
                     self.db_set(field, self.get(field))
                     
                 frappe.db.commit()  # Commit the changes to database
+                
+                # Trigger integrations after processing (if auto_process_file is enabled)
+                frappe.enqueue(
+                    "doc2sys.integrations.events.trigger_integrations_on_update",
+                    doc=self,
+                    queue="long",
+                    timeout=300
+                )
             else:
                 frappe.msgprint("Failed to process document")
                 
@@ -65,27 +75,22 @@ class Doc2SysItem(Document):
     def _process_file_with_llm(self, file_path):
         """Process file with LLM after extracting text"""
         try:
-            # Reset token counts and costs
-            self._reset_token_usage()
-            
-            # Extract text from file first - pass user for user-specific settings
+            # Step 1: Extract text
             extracted_text = self.get_document_text(file_path)
-            
-            # Store the extracted text in the document
             self.extracted_text = extracted_text
             
-            # Get processor and upload file only if needed - pass user for user-specific settings
+            # Step 2: Get processor and upload file if needed
             processor = self._get_processor_and_upload(file_path, extracted_text)
             if not processor:
                 return False
             
-            # Classify document with extracted text (prioritizing text over file)
+            # Step 3: Classify document
             classification = self._classify_document(processor, file_path, extracted_text)
             if not classification:
                 return False
                 
-            # Extract data if possible
-            if self.document_type != "unknown":
+            # Step 4: Extract data if possible
+            if self.document_type and self.document_type != "unknown":
                 self._extract_document_data(processor, file_path, extracted_text)
             
             return True
@@ -242,8 +247,6 @@ class Doc2SysItem(Document):
 
     def process_document(self):
         """Process document with LLM classification and extraction"""
-        # Reset token counts and costs for fresh calculation
-        self._reset_token_usage()
         
         # Extract text from the document - pass user for user-specific settings
         extracted_text = self.get_document_text()
@@ -373,9 +376,6 @@ class Doc2SysItem(Document):
                 
             file_path = file_doc.get_full_path()
             
-            # Reset token counts and costs for classification
-            self._reset_token_usage()
-            
             # Extract text if not already extracted
             if not self.extracted_text:
                 extracted_text = self.get_document_text(file_path)
@@ -426,9 +426,6 @@ class Doc2SysItem(Document):
                 return False
                 
             file_path = file_doc.get_full_path()
-            
-            # Reset token counts and costs for data extraction
-            self._reset_token_usage()
             
             # Use existing extracted text or extract it
             if not self.extracted_text:
@@ -510,6 +507,50 @@ class Doc2SysItem(Document):
                 }
         
         return list(integration_status.values())
+
+    @frappe.whitelist()
+    def process_all(self):
+        """Process the document with all steps: extract text, classify, extract data, and trigger integrations"""
+        if not self.single_file:
+            frappe.msgprint("No document is attached to process")
+            return False
+        
+        try:
+            frappe.msgprint("Processing document with all steps...")
+            
+            # Get the full file path from the attached file
+            file_doc = frappe.get_doc("File", {"file_url": self.single_file})
+            if not file_doc:
+                frappe.msgprint("Could not find the attached file in the system")
+                return False
+                
+            file_path = file_doc.get_full_path()
+            
+            # Process the file with all LLM operations
+            success = self._process_file_with_llm(file_path)
+            
+            # Save the document to persist changes
+            if success:
+                self.save()
+                
+                # Trigger integrations after processing
+                frappe.enqueue(
+                    "doc2sys.integrations.events.trigger_integrations_on_update",
+                    doc=self,
+                    queue="long",
+                    timeout=300
+                )
+                
+                frappe.msgprint("Document processed and integrations triggered")
+                return True
+            else:
+                frappe.msgprint("Failed to process document")
+                return False
+                
+        except Exception as e:
+            frappe.log_error(f"Process all error: {str(e)}")
+            frappe.msgprint(f"An error occurred during processing: {str(e)}")
+            return False
 
 @frappe.whitelist()
 def create_item_from_file(file_doc_name):
