@@ -6,60 +6,66 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-    "integration_type",
-    "status",
-    "message",
-    "document",
-    "data",
-    "user",
-    "integration_reference"
-  ],
+  "integration_type",
+  "status",
+  "message",
+  "document",
+  "data",
+  "user",
+  "integration_reference"
+ ],
  "fields": [
-    {
-      "fieldname": "integration_type",
-      "fieldtype": "Data",
-      "label": "Integration Type",
-      "reqd": 1
-    },
-    {
-      "fieldname": "status",
-      "fieldtype": "Select",
-      "options": "success\nerror\nwarning\ninfo",
-      "label": "Status",
-      "reqd": 1
-    },
-    {
-      "fieldname": "message",
-      "fieldtype": "Text",
-      "label": "Message"
-    },
-    {
-      "fieldname": "document",
-      "fieldtype": "Link",
-      "options": "Doc2Sys Item",
-      "label": "Document"
-    },
-    {
-      "fieldname": "data",
-      "fieldtype": "Code",
-      "options": "JSON",
-      "label": "Data"
-    },
-    {
-      "fieldname": "user",
-      "fieldtype": "Link",
-      "options": "User",
-      "label": "User"
-    },
-    {
-      "fieldname": "integration_reference",
-      "fieldtype": "Data",
-      "label": "Integration Reference"
-    }
-  ],
+  {
+   "fieldname": "integration_type",
+   "fieldtype": "Data",
+   "label": "Integration Type",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "success\nerror\nwarning\ninfo",
+   "reqd": 1
+  },
+  {
+   "fieldname": "message",
+   "fieldtype": "Text",
+   "label": "Message"
+  },
+  {
+   "fieldname": "document",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Document",
+   "options": "Doc2Sys Item"
+  },
+  {
+   "fieldname": "data",
+   "fieldtype": "Code",
+   "label": "Data",
+   "options": "JSON"
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User",
+   "options": "User"
+  },
+  {
+   "fieldname": "integration_reference",
+   "fieldtype": "Data",
+   "label": "Integration Reference"
+  }
+ ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-19 11:00:00",
+ "modified": "2025-03-20 06:02:49.239270",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Integration Log",
