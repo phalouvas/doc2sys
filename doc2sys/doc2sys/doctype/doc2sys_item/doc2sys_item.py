@@ -617,11 +617,20 @@ def upload_and_create_item():
         # Get the uploaded file from request
         if not frappe.request.files or 'file' not in frappe.request.files:
             frappe.throw(_("No file attached"))
-            
+        
+        # Save original form values before they get consumed by upload_file
+        is_private = frappe.form_dict.get('is_private')
+        auto_process_file = frappe.form_dict.get('auto_process_file')
+        
+        # Ensure proper type conversion for is_private
+        if is_private is not None:
+            if is_private in ("1", "true", "True", "yes", "Yes"):
+                frappe.form_dict["is_private"] = 1
+            else:
+                frappe.form_dict["is_private"] = 0
+        
         # First, upload the file using Frappe's handler
         from frappe.handler import upload_file
-        
-        # Keep the original request form data
         ret = upload_file()
         
         if not ret:
@@ -632,9 +641,13 @@ def upload_and_create_item():
         doc.single_file = ret.get("file_url")
         doc.user = frappe.session.user
         
-        # Optional parameters for Doc2Sys Item
-        if frappe.form_dict.get('auto_process_file'):
-            doc.auto_process_file = frappe.form_dict.get('auto_process_file')
+        # Set auto_process_file with proper type conversion
+        if auto_process_file:
+            # Convert string values like "0", "1" to actual booleans
+            if auto_process_file in ("1", "true", "True", "yes", "Yes"):
+                doc.auto_process_file = 1
+            else:
+                doc.auto_process_file = 0
         
         # Insert the document
         doc.insert()
