@@ -373,6 +373,56 @@ frappe.ui.form.on('Doc2Sys User Settings', {
                 });
             }, __('OCR Settings'));
         }
+
+        // Add button to delete old files
+        if (frm.doc.delete_old_files && frm.doc.days_to_keep_files > 0) {
+            frm.add_custom_button(__('Delete Old Files'), function() {
+                frappe.confirm(
+                    __(`This will permanently delete files from Doc2Sys Items older than ${frm.doc.days_to_keep_files} days. Continue?`),
+                    function() {
+                        frappe.call({
+                            method: 'doc2sys.doc2sys.doctype.doc2sys_user_settings.doc2sys_user_settings.delete_old_doc2sys_files',
+                            args: {
+                                user_settings: frm.doc.name
+                            },
+                            freeze: true,
+                            freeze_message: __('Deleting old files...'),
+                            callback: function(r) {
+                                if (r.message && r.message.success) {
+                                    const details = r.message.details || {};
+                                    const message = `
+                                        <div>
+                                            <p>${r.message.message}</p>
+                                            ${details.items_processed ? `
+                                            <div class="table-responsive">
+                                                <table class="table table-bordered">
+                                                    <tr><th>Items Processed</th><td>${details.items_processed}</td></tr>
+                                                    <tr><th>Files Deleted</th><td>${details.files_deleted}</td></tr>
+                                                    <tr><th>Files With Errors</th><td>${details.files_not_found}</td></tr>
+                                                </table>
+                                            </div>
+                                            ` : ''}
+                                        </div>
+                                    `;
+                                    
+                                    frappe.msgprint({
+                                        title: __('File Cleanup Complete'),
+                                        message: message,
+                                        indicator: 'green'
+                                    });
+                                } else {
+                                    frappe.msgprint({
+                                        title: __('File Cleanup Failed'),
+                                        message: r.message ? r.message.message : __('Unknown error'),
+                                        indicator: 'red'
+                                    });
+                                }
+                            }
+                        });
+                    }
+                );
+            }, __('Tools'));
+        }
     },
     
     ocr_enabled: function(frm) {
