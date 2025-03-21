@@ -199,10 +199,13 @@ def process_folder(folder_path, user_settings):
             doc2sys_item.user = user
             doc2sys_item.title = file_name
             doc2sys_item.file_path = file_path
+            doc2sys_item.auto_process_file = 0
             
             # Save document (which triggers file processing through validate method)
             doc2sys_item.insert()
             frappe.db.commit()
+            doc2sys_item.reload()
+            doc2sys_item.process_attached_file()
 
             # Delete the original file from the monitored folder
             os.remove(file_path)

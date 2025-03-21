@@ -163,38 +163,6 @@ class Doc2SysItem(Document):
         # Store extracted data
         self.extracted_data = frappe.as_json(extracted_data)
 
-    @frappe.whitelist()
-    def reprocess_document(self):
-        """Reprocess the attached document"""
-        if not self.single_file:
-            frappe.msgprint("No document is attached to reprocess")
-            return False  # Return False here
-        
-        try:
-            frappe.msgprint("Reprocessing document...")
-            
-            # Get the full file path from the attached file
-            file_path = self._get_file_path()
-            if not file_path:
-                return False  # Return False if file path is not found
-            
-            # Process the file directly with LLM
-            success = self._process_file_with_llm(file_path)
-            
-            # Save the document
-            if success:
-                self.save()
-                frappe.msgprint("Document reprocessed successfully")
-                return True  # Return True only if successful
-            else:
-                frappe.msgprint("Failed to reprocess document")
-                return False  # Return False if processing fails
-                
-        except Exception as e:
-            frappe.log_error(f"Reprocessing error: {str(e)}")
-            frappe.msgprint(f"An error occurred while reprocessing: {str(e)}")
-            return False  # Return False on exception
-
     def update_token_usage(self, token_usage):
         """
         Update token usage and cost fields
