@@ -12,7 +12,29 @@ class Doc2SysUserSettings(Document):
         if self.ocr_enabled and not any(lang.enabled for lang in self.ocr_languages):
             frappe.throw(_("At least one OCR language must be enabled if OCR is activated."))
         
+        # Ensure user folder exists if monitoring is enabled
+        if self.monitoring_enabled:
+            self.ensure_user_folder_exists()
+            
         self.update_scheduler()
+
+    def ensure_user_folder_exists(self):
+        """Create folder for the user in Doc2Sys directory if it doesn't exist"""
+        # Check if Doc2Sys folder exists, create if not
+        doc2sys_folder = "Home/Doc2Sys"
+        if not frappe.db.exists("File", {"is_folder": 1, "file_name": "Doc2Sys", "folder": "Home"}):
+            # Use the frappe API to create the folder
+            from frappe.core.api.file import create_new_folder
+            create_new_folder("Doc2Sys", "Home")
+            frappe.logger().info("Created Doc2Sys folder for file monitoring")
+        
+        # Check if user-specific folder exists, create if not
+        user_folder_name = f"Doc2Sys/{self.user}"
+        if not frappe.db.exists("File", {"is_folder": 1, "file_name": self.user, "folder": "Home/Doc2Sys"}):
+            # Create user folder
+            from frappe.core.api.file import create_new_folder
+            create_new_folder(self.user, "Home/Doc2Sys")
+            frappe.logger().info(f"Created user folder {user_folder_name} for file monitoring")
 
     def get_enabled_languages(self):
         """Return a list of enabled OCR languages"""

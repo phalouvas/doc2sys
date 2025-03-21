@@ -174,30 +174,38 @@ def process_folder(folder_path, user_settings):
                 results["files"].append(file_result)
                 continue
             
-            # Upload file to Frappe file system and create Doc2SysItem
-            file_url = upload_file_to_frappe(file_path, file_name, user)
+            # Use a similar approach to upload_and_create_item
+            with open(file_path, 'rb') as f:
+                file_content = f.read()
+                
+            # Create a temporary file object similar to what would come from a request
+            from frappe.utils.file_manager import save_file
             
-            if not file_url:
-                error_msg = "Failed to upload file"
-                frappe.log_error(f"{error_msg}: {file_path}", "Doc2Sys Folder Monitor")
-                file_result["error"] = error_msg
-                results["errors"] += 1
-                results["files"].append(file_result)
-                continue
+            # Use save_file which is what upload_file uses internally
+            file_doc = save_file(
+                fname=file_name,
+                content=file_content,
+                dt="Doc2Sys Item",  # The doctype to attach to
+                dn="New Doc2Sys Item",  # Temporary name
+                folder=f"Home/Doc2Sys/{user}",  # Store in user-specific folder
+                is_private=1,
+                df=None
+            )
             
-            # Create Doc2SysItem instance with the file URL
-            doc2sys_item = frappe.get_doc({
-                "doctype": "Doc2Sys Item",
-                "title": file_name,
-                "single_file": file_url,
-                "file_path": file_path,
-                "owner": user,
-                "created_by": user
-            })
+            # Create Doc2Sys Item in a more standard way
+            doc2sys_item = frappe.new_doc("Doc2Sys Item")
+            doc2sys_item.single_file = file_doc.file_url
+            doc2sys_item.owner = user
+            doc2sys_item.user = user
+            doc2sys_item.title = file_name
+            doc2sys_item.file_path = file_path
+            doc2sys_item.auto_process_file = 0
             
             # Save document (which triggers file processing through validate method)
             doc2sys_item.insert()
             frappe.db.commit()
+            doc2sys_item.reload()
+            doc2sys_item.process_attached_file()
 
             # Delete the original file from the monitored folder
             os.remove(file_path)
