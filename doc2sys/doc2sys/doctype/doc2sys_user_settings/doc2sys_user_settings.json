@@ -8,20 +8,23 @@
  "field_order": [
   "user",
   "naming_series",
+  "folder_monitoring_tab",
   "folder_monitoring_section",
   "monitoring_enabled",
   "folder_to_monitor",
   "monitor_interval",
+  "ocr_settings_tab",
   "ocr_settings_section",
   "ocr_enabled",
   "ocr_engine",
-  "tesseract_section",
-  "ocr_languages",
   "llm_ocr_section",
   "llm_ocr_provider",
   "llm_ocr_endpoint",
   "llm_ocr_apikey",
   "llm_ocr_model",
+  "tesseract_section",
+  "ocr_languages",
+  "llm_integration_tab",
   "llm_integration_section",
   "llm_provider",
   "openwebui_endpoint",
@@ -30,6 +33,7 @@
   "column_break_ghrw",
   "input_token_price",
   "output_token_price",
+  "external_integrations_tab",
   "integrations_section",
   "user_integrations"
  ],
@@ -68,11 +72,11 @@
    "label": "Enable Folder Monitoring"
   },
   {
+   "depends_on": "eval:doc.ocr_engine=='tesseract'",
    "fieldname": "ocr_languages",
    "fieldtype": "Table",
    "label": "OCR Languages",
-   "options": "Doc2Sys OCR Language",
-   "depends_on": "eval:doc.ocr_engine=='tesseract'"
+   "options": "Doc2Sys OCR Language"
   },
   {
    "default": "Open WebUI",
@@ -102,13 +106,13 @@
    "default": "0",
    "fieldname": "input_token_price",
    "fieldtype": "Currency",
-   "label": "Input Token Price (€ / million)"
+   "label": "Input Token Price (\u20ac / million)"
   },
   {
    "default": "0",
    "fieldname": "output_token_price",
    "fieldtype": "Currency",
-   "label": "Output Token Price (€ / million)"
+   "label": "Output Token Price (\u20ac / million)"
   },
   {
    "fieldname": "folder_monitoring_section",
@@ -163,16 +167,16 @@
    "reqd": 1
   },
   {
+   "depends_on": "eval:doc.ocr_engine=='tesseract' && doc.ocr_enabled==1",
    "fieldname": "tesseract_section",
    "fieldtype": "Section Break",
-   "label": "Tesseract OCR Settings",
-   "depends_on": "eval:doc.ocr_engine=='tesseract' && doc.ocr_enabled==1"
+   "label": "Tesseract OCR Settings"
   },
   {
+   "depends_on": "eval:doc.ocr_engine=='llm_api' && doc.ocr_enabled==1",
    "fieldname": "llm_ocr_section",
    "fieldtype": "Section Break",
-   "label": "LLM API OCR Settings",
-   "depends_on": "eval:doc.ocr_engine=='llm_api' && doc.ocr_enabled==1"
+   "label": "LLM API OCR Settings"
   },
   {
    "default": "Open WebUI",
@@ -182,10 +186,10 @@
    "options": "Open WebUI"
   },
   {
+   "depends_on": "eval:doc.llm_ocr_provider=='Open WebUI'",
    "fieldname": "llm_ocr_endpoint",
    "fieldtype": "Data",
-   "label": "LLM OCR API Endpoint",
-   "depends_on": "eval:doc.llm_ocr_provider=='Open WebUI'"
+   "label": "LLM OCR API Endpoint"
   },
   {
    "fieldname": "llm_ocr_apikey",
@@ -193,15 +197,35 @@
    "label": "LLM OCR API Key"
   },
   {
+   "depends_on": "eval:['Open WebUI'].includes(doc.llm_ocr_provider)",
    "fieldname": "llm_ocr_model",
    "fieldtype": "Data",
-   "label": "LLM OCR Model",
-   "depends_on": "eval:['Open WebUI'].includes(doc.llm_ocr_provider)"
+   "label": "LLM OCR Model"
+  },
+  {
+   "fieldname": "folder_monitoring_tab",
+   "fieldtype": "Tab Break",
+   "label": "Folder Monitoring"
+  },
+  {
+   "fieldname": "ocr_settings_tab",
+   "fieldtype": "Tab Break",
+   "label": "OCR Settings"
+  },
+  {
+   "fieldname": "llm_integration_tab",
+   "fieldtype": "Tab Break",
+   "label": "LLM Integration"
+  },
+  {
+   "fieldname": "external_integrations_tab",
+   "fieldtype": "Tab Break",
+   "label": "External Integrations"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-19 10:00:00",
+ "modified": "2025-03-21 10:54:21.979412",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",
