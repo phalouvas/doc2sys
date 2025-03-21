@@ -1,6 +1,7 @@
 import frappe
 from frappe import _ 
 from frappe.model.document import Document
+import datetime
 
 class Doc2SysUserSettings(Document):
     def validate(self):
@@ -488,3 +489,97 @@ def test_integration_connection(user_settings, selected):
     except Exception as e:
         frappe.log_error(f"Connection test failed: {str(e)}", "Integration Error")
         return {"status": "error", "message": str(e)}
+
+@frappe.whitelist()
+def delete_old_doc2sys_files(user_settings):
+    """Delete old files from Doc2Sys Item documents based on user settings."""
+    settings = frappe.get_doc("Doc2Sys User Settings", user_settings)
+    
+    if not settings.delete_old_files or settings.days_to_keep_files <= 0:
+        return {
+            "success": False,
+            "message": "File deletion is not enabled or days to keep is not properly configured"
+        }
+    
+    try:
+        cutoff_date = datetime.datetime.now() - datetime.timedelta(days=settings.days_to_keep_files)
+        
+        # Find Doc2Sys Items older than the cutoff date that belong to this user
+        old_items = frappe.get_all(
+            "Doc2Sys Item",
+            filters={
+                "user": settings.user,
+                "creation": ["<", cutoff_date]
+            },
+            fields=["name", "single_file"]
+        )
+        
+        if not old_items:
+            return {
+                "success": True,
+                "message": f"No documents older than {settings.days_to_keep_files} days found"
+            }
+        
+        # Import the attachment removal function
+        from frappe.desk.form.utils import remove_attach
+        
+        deleted_count = 0
+        files_not_found = 0
+        items_processed = 0
+        
+        for item in old_items:
+            items_processed += 1
+            
+            # Skip if no file attached
+            if not item.single_file:
+                continue
+            
+            try:
+                # Get the file ID based on attachment relationship
+                file_doc = frappe.get_all(
+                    "File", 
+                    filters={
+                        "attached_to_doctype": "Doc2Sys Item",
+                        "attached_to_name": item.name
+                    },
+                    fields=["name"]
+                )
+
+                if not file_doc or len(file_doc) == 0:
+                    files_not_found += 1
+                    continue
+                
+                frappe.form_dict["dn"] = item.name
+                frappe.form_dict["dt"] = "Doc2Sys Item"
+                frappe.form_dict["fid"] = file_doc[0].name
+                
+                # Remove the attachment using the file ID
+                remove_attach()
+                
+                # Update the document to clear the file field
+                doc = frappe.get_doc("Doc2Sys Item", item.name)
+                doc.single_file = ""
+                doc.save()
+                
+                deleted_count += 1
+                
+            except Exception as e:
+                frappe.log_error(f"Error deleting file from {item.name}: {str(e)}", "Doc2Sys File Cleanup")
+                files_not_found += 1
+        
+        return {
+            "success": True,
+            "message": f"Processed {items_processed} documents, deleted {deleted_count} files, {files_not_found} files not found or had errors",
+            "details": {
+                "items_processed": items_processed,
+                "files_deleted": deleted_count,
+                "files_not_found": files_not_found
+            }
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Error during Doc2Sys file cleanup: {str(e)}", "Doc2Sys File Cleanup")
+        return {
+            "success": False,
+            "message": f"Error during file cleanup: {str(e)}"
+        }

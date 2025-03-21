@@ -156,7 +156,10 @@ scheduler_events = {
         "*/15 * * * *": [
             "doc2sys.doc2sys.tasks.folder_monitor.monitor_folders"
         ]
-    }
+    },
+    "daily": [
+        "doc2sys.doc2sys.doctype.doc2sys_user_settings.doc2sys_user_settings.delete_old_doc2sys_files"
+    ]
 }
 
 # Testing

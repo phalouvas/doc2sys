@@ -8,6 +8,8 @@
  "field_order": [
   "user",
   "naming_series",
+  "delete_old_files",
+  "days_to_keep_files",
   "folder_monitoring_tab",
   "folder_monitoring_section",
   "monitoring_enabled",
@@ -221,11 +223,26 @@
    "fieldname": "external_integrations_tab",
    "fieldtype": "Tab Break",
    "label": "External Integrations"
+  },
+  {
+   "default": "0",
+   "fieldname": "delete_old_files",
+   "fieldtype": "Check",
+   "label": "Delete Old Files",
+   "options": "0"
+  },
+  {
+   "default": "7",
+   "depends_on": "eval:doc.delete_old_files==1",
+   "fieldname": "days_to_keep_files",
+   "fieldtype": "Int",
+   "label": "Days to Keep Files",
+   "non_negative": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-21 10:54:21.979412",
+ "modified": "2025-03-21 15:13:46.931064",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",
