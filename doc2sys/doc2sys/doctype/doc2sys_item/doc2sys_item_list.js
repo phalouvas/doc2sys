@@ -1,6 +1,7 @@
 frappe.listview_settings['Doc2Sys Item'] = {
     onload: function(listview) {
-        listview.page.add_menu_item(__('Upload Multiple Files'), function() {
+        // Replace add_menu_item with add_inner_button to place it in the header
+        listview.page.add_inner_button(__('Upload Multiple Files'), function() {
             // Get the current user
             const current_user = frappe.session.user;
             // Construct the folder path
