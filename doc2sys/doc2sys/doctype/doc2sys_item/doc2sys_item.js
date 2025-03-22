@@ -3,8 +3,8 @@
 
 frappe.ui.form.on('Doc2Sys Item', {
     refresh: function(frm) {
-        // Only show the button if this is a new document that hasn't been saved
-        if (frm.is_new()) {
+        // Show the Upload File button only when document is NOT new and single_file is empty
+        if (!frm.is_new() && (!frm.doc.single_file || frm.doc.single_file === "")) {
             // Get the username from the user field
             let username = frm.doc.user;
             
@@ -37,7 +37,7 @@ frappe.ui.form.on('Doc2Sys Item', {
                         });
                     }
                 });
-            }).addClass("btn-primary");;
+            }).addClass("btn-primary");
         }
 
         // Get the username from the user field
