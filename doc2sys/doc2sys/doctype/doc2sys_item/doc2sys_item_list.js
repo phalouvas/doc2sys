@@ -1,11 +1,15 @@
 frappe.listview_settings['Doc2Sys Item'] = {
     onload: function(listview) {
         listview.page.add_menu_item(__('Upload Multiple Files'), function() {
+            // Get the current user
+            const current_user = frappe.session.user;
+            // Construct the folder path
+            const folder_path = `Home/Doc2Sys/${current_user}`;
             // Use Frappe's built-in file uploader
             new frappe.ui.FileUploader({
                 as_dataurl: false,
                 allow_multiple: true,
-                folder: "Home",
+                folder: folder_path,
                 on_success: function(file_doc) {
                     // Create doc2sys_items after successful upload
                     create_doc2sys_items_from_files(file_doc, listview);
