@@ -9,7 +9,7 @@ from .exceptions import ProcessingError, LLMProcessingError  # Import the LLMPro
 
 # Move hardcoded values to constants
 MAX_TEXT_LENGTH = 10000
-DEFAULT_TEMPERATURE = 0
+DEFAULT_TEMPERATURE = 0.2
 
 class LLMProcessor:
     """Process documents using various LLM providers"""
@@ -213,7 +213,7 @@ class OpenWebUIProcessor:
             # Document Classification Task
 
             ## Instructions
-            Your task is to classify the attached document into one of the predefined categories. Follow these steps:
+            Your task is to classify the text in next message into one of the predefined categories. Follow these steps:
 
             1. Analyze the document's content, structure, formatting, and key identifiers
             2. Look for distinctive headers, labels, and standard phrases that indicate document type
@@ -275,9 +275,17 @@ class OpenWebUIProcessor:
                 # Try to parse the JSON response
                 cleaned_content = self._clean_json_response(content)
                 classification = json.loads(cleaned_content)
-                                
-                # Add token usage and cost data
-                classification["token_usage"] = token_cost
+                
+                # Add token usage and cost data, handling both dict and array responses
+                if isinstance(classification, list):
+                    # Wrap array data in a container dictionary
+                    classification = {
+                        "classifications": classification,
+                        "token_usage": token_cost
+                    }
+                else:
+                    # Regular dictionary case
+                    classification["token_usage"] = token_cost
                 
                 return classification
             except json.JSONDecodeError:
@@ -387,8 +395,16 @@ class OpenWebUIProcessor:
                 cleaned_content = self._clean_json_response(content)
                 extracted_data = json.loads(cleaned_content)
                 
-                # Add token usage as metadata
-                extracted_data["_token_usage"] = token_cost
+                # Add token usage as metadata, handling both dict and array responses
+                if isinstance(extracted_data, list):
+                    # Wrap array data in a container dictionary
+                    extracted_data = {
+                        "items": extracted_data,
+                        "_token_usage": token_cost
+                    }
+                else:
+                    # Regular dictionary case
+                    extracted_data["_token_usage"] = token_cost
                 
                 return extracted_data
             except json.JSONDecodeError:
@@ -401,14 +417,6 @@ class OpenWebUIProcessor:
 
     def _clean_json_response(self, content):
         """Enhanced JSON cleaning with better edge case handling"""
-        # Start by finding the first '{' and last '}' for more robust extraction
-        start_idx = content.find('{')
-        end_idx = content.rfind('}')
-        
-        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-            return content[start_idx:end_idx+1]
-        
-        # Fallback to current cleaning logic
         cleaned_content = content.strip()
         if cleaned_content.startswith("```json"):
             cleaned_content = cleaned_content[7:]
@@ -503,7 +511,7 @@ class OpenWebUIProcessor:
                 request_headers["Authorization"] = f"Bearer {self.api_key}"
                 
             # Make request with timeout
-            response = requests.post(endpoint, headers=request_headers, json=payload, timeout=300)
+            response = requests.post(endpoint, headers=request_headers, json=payload, timeout=600)
             
             if response.status_code != 200:
                 logger.error(f"API error: {response.status_code}, {response.text}")
@@ -601,11 +609,9 @@ class OpenWebUIProcessor:
         api_payload = {
             "model": self.model,
             "temperature": DEFAULT_TEMPERATURE,
-            "response_format": {"type": "json_object"},
             "messages": [
-                {"role": "system", "content": "You are an AI language model. Always respond in JSON."},
-                {"role": "user", "content": prompt},
-                {"role": "user", "content": text_for_api}
+                {"role": "system", "content": "Always returns data in JSON format."},
+                {"role": "user", "content": prompt + text_for_api}
             ]
         }
         

@@ -10,6 +10,7 @@ from doc2sys.engine.llm_processor import LLMProcessor
 from doc2sys.engine.text_extractor import TextExtractor
 from doc2sys.integrations.events import trigger_integrations_on_update
 from frappe.handler import upload_file
+import json
 
 class Doc2SysItem(Document):
     def validate(self):
@@ -161,7 +162,7 @@ class Doc2SysItem(Document):
             self.update_token_usage(token_usage)
         
         # Store extracted data
-        self.extracted_data = frappe.as_json(extracted_data)
+        self.extracted_data = frappe.as_json(extracted_data, 1, None, False)
 
     def update_token_usage(self, token_usage):
         """
