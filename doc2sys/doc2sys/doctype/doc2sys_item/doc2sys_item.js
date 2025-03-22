@@ -3,6 +3,12 @@
 
 frappe.ui.form.on('Doc2Sys Item', {
     refresh: function(frm) {
+        // Get the username from the user field
+        let username = frm.doc.user;
+        
+        // Create folder path using the username
+        let folder = `Home/Doc2Sys/${username}`;
+        
         // Add custom buttons or functionality here
         // Add buttons if a document is attached
         if(frm.doc.single_file) {
@@ -157,6 +163,34 @@ frappe.ui.form.on('Doc2Sys Item', {
                 });
             }, __('Integrations'));
         }
+
+        // Add a direct button (not in dropdown)
+        frm.add_custom_button(__('Upload File'), function() {
+            new frappe.ui.FileUploader({
+                doctype: frm.doctype,
+                docname: frm.docname,
+                folder: folder,
+                on_success: function(file_doc) {
+                    // Update the single_file field with the uploaded file URL
+                    frm.set_value('single_file', file_doc.file_url);
+                    frm.save();
+                    
+                    // If auto-process is enabled, trigger processing
+                    if (frm.doc.auto_process_file) {
+                        frappe.show_alert({
+                            message: __('Processing file...'),
+                            indicator: 'blue'
+                        });
+                        // Call your processing method here if needed
+                    }
+                    
+                    frappe.show_alert({
+                        message: __('File {0} uploaded successfully', [file_doc.file_name]),
+                        indicator: 'green'
+                    });
+                }
+            });
+        }).addClass("btn-primary");
     },
     
     single_file: function(frm) {

@@ -51,7 +51,7 @@
    "reqd": 1
   },
   {
-   "default": "1", 
+   "default": "1",
    "fieldname": "auto_process_file",
    "fieldtype": "Check",
    "label": "Auto-Process Files on Upload"
@@ -65,7 +65,9 @@
    "fieldname": "single_file",
    "fieldtype": "Attach",
    "in_list_view": 1,
-   "label": "Single File"
+   "label": "Single File",
+   "read_only": 1,
+   "reqd": 1
   },
   {
    "fieldname": "document_type",
@@ -202,7 +204,7 @@
    "link_fieldname": "document"
   }
  ],
- "modified": "2025-03-19 18:31:33.376201",
+ "modified": "2025-03-22 08:25:53.535009",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",
