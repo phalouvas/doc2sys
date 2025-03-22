@@ -9,7 +9,7 @@ from frappe import _
 from doc2sys.engine.llm_processor import LLMProcessor
 from doc2sys.engine.text_extractor import TextExtractor
 from doc2sys.integrations.events import trigger_integrations_on_update
-import json  # Add this import at the top with the others
+from frappe.handler import upload_file
 
 class Doc2SysItem(Document):
     def validate(self):
@@ -598,7 +598,6 @@ def upload_and_create_item():
                 frappe.form_dict["is_private"] = 0
         
         # First, upload the file using Frappe's handler
-        from frappe.handler import upload_file
         ret = upload_file()
         
         if not ret:
