@@ -123,14 +123,3 @@ class QuickBooksIntegration(BaseIntegration):
             self.log_activity("error", f"Sync error: {str(e)}")
             return {"success": False, "message": str(e)}
     
-    def get_mapping_fields(self) -> List[Dict[str, Any]]:
-        """Return a list of fields available for mapping in QuickBooks"""
-        return [
-            {"field": "DocNumber", "label": "Document Number", "type": "Data"},
-            {"field": "CustomerRef.value", "label": "Customer ID", "type": "Data"},
-            {"field": "TxnDate", "label": "Transaction Date", "type": "Date"},
-            {"field": "DueDate", "label": "Due Date", "type": "Date"},
-            {"field": "TotalAmt", "label": "Total Amount", "type": "Currency"},
-            {"field": "Line[].Description", "label": "Line Description", "type": "Data"},
-            {"field": "Line[].Amount", "label": "Line Amount", "type": "Currency"},
-        ]
