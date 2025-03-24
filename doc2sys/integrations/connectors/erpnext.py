@@ -115,23 +115,33 @@ class ERPNextIntegration(BaseIntegration):
             }
             
             # Sort items by doctype priority to ensure dependencies are created first
-            sorted_items = sorted(items, key=lambda x: doctype_priority.get(x.get("doctype", ""), 999))
+            # Check for nested "doc" structure when getting doctype for sorting
+            sorted_items = sorted(items, key=lambda x: doctype_priority.get(
+                x.get("doc", {}).get("doctype", "") if "doc" in x else x.get("doctype", ""), 
+                999
+            ))
             
             # Process each item in priority order
             for item in sorted_items:
-                doctype = item.get("doctype")
+                # Check if the item has a nested doc structure
+                if "doc" in item:
+                    doc_data = item["doc"]
+                else:
+                    doc_data = item
+                
+                doctype = doc_data.get("doctype")
                 
                 if not doctype:
                     self.log_activity("error", f"Missing doctype in item")
                     return {"success": False, "message": "Missing doctype in item"}
 
-                item = self.fix_payload(item)
+                doc_data = self.fix_payload(doc_data)
                 
                 # Try to create the document directly without checking if it exists
                 try:
                     create_response = requests.post(
                         f"{base_url}/api/method/frappe.client.insert",
-                        json={"doc": item},
+                        json={"doc": doc_data},
                         headers=auth_headers
                     )
                     
@@ -152,9 +162,9 @@ class ERPNextIntegration(BaseIntegration):
                             # For documents that already exist, try to get their identifier
                             identifier = ""
                             if doctype == "Item":
-                                identifier = item.get("item_code", "")
+                                identifier = doc_data.get("item_code", "")
                             elif doctype == "Supplier":
-                                identifier = item.get("supplier_name", "")
+                                identifier = doc_data.get("supplier_name", "")
                             
                             self.log_activity("info", f"{doctype} {identifier} already exists, skipping")
                         else:

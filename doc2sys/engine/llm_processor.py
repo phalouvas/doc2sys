@@ -9,7 +9,7 @@ from .exceptions import ProcessingError, LLMProcessingError  # Import the LLMPro
 
 # Move hardcoded values to constants
 MAX_TEXT_LENGTH = 10000
-DEFAULT_TEMPERATURE = 0.2
+DEFAULT_TEMPERATURE = 0
 
 class LLMProcessor:
     """Process documents using various LLM providers"""
