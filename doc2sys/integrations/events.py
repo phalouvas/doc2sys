@@ -2,12 +2,15 @@ import frappe
 from doc2sys.integrations.registry import IntegrationRegistry
 from doc2sys.integrations.utils import create_integration_log  # Add this import
 
-def trigger_integrations_on_insert(doc, method=None):
+def trigger_integrations_on_insert(doc, method=None, is_manual=False):
     """Trigger integrations when a new Doc2Sys Item is created"""
-    _process_integrations(doc)
+    if isinstance(doc, str):
+        doc = frappe.get_doc(frappe.parse_json(doc))
+        is_manual = True
+    _process_integrations(doc, is_manual)
 
 @frappe.whitelist()
-def trigger_integrations_on_update(doc, is_manual=False, method=None):
+def trigger_integrations_on_update(doc, method=None, is_manual=False):
     """Trigger integrations when a Doc2Sys Item is updated"""
     if isinstance(doc, str):
         doc = frappe.get_doc(frappe.parse_json(doc))

@@ -25,16 +25,3 @@ class Doc2SysUserIntegration(Document):
             frappe.log_error(f"Connection test failed: {str(e)}", "Integration Error")
             return {"status": "error", "message": str(e)}
     
-    def get_mapping_fields(self):
-        """Get available mapping fields for this integration"""
-        try:
-            integration = IntegrationRegistry.create_instance(
-                self.integration_type,
-                settings=self.as_dict()
-            )
-            
-            return integration.get_mapping_fields()
-            
-        except Exception as e:
-            frappe.log_error(f"Failed to get mapping fields: {str(e)}", "Integration Error")
-            return []

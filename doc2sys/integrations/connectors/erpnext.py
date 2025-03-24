@@ -71,11 +71,6 @@ class ERPNextIntegration(BaseIntegration):
                 self.log_activity("error", "Invalid JSON in extracted_data")
                 return {"success": False, "message": "Invalid JSON in extracted_data"}
             
-            # Verify integration type
-            if mapped_data.get("integration_type") != "ERPNextIntegration":
-                self.log_activity("error", "Invalid integration type. Expected ERPNextIntegration.")
-                return {"success": False, "message": "Invalid integration type"}
-                
             # Get API credentials
             api_key = self.settings.get("api_key")
             doc_name = self.settings.get("name")
@@ -102,77 +97,82 @@ class ERPNextIntegration(BaseIntegration):
                 "Content-Type": "application/json"
             }
             
-            creation_order = mapped_data.get("creation_order", [])
-            doctypes = mapped_data.get("doctypes", {})
-            search_ids = mapped_data.get("search_id", {})
+            # Get the items array from the mapped data
+            items = mapped_data.get("items", [])
+            
+            if not items:
+                self.log_activity("error", "No items found in the mapped data")
+                return {"success": False, "message": "No items found in the mapped data"}
             
             created_documents = {}
             
-            # Process doctypes in the specified order
-            for doctype_name in creation_order:
-                doctype_data = doctypes.get(doctype_name)
-                search_id_field = search_ids.get(doctype_name)
+            # Define doctype priorities - lower number = higher priority
+            doctype_priority = {
+                "Supplier": 1,
+                "Item": 2,
+                "Purchase Invoice": 3,
+                # Add other doctypes as needed
+            }
+            
+            # Sort items by doctype priority to ensure dependencies are created first
+            # Check for nested "doc" structure when getting doctype for sorting
+            sorted_items = sorted(items, key=lambda x: doctype_priority.get(
+                x.get("doc", {}).get("doctype", "") if "doc" in x else x.get("doctype", ""), 
+                999
+            ))
+            
+            # Process each item in priority order
+            for item in sorted_items:
+                # Check if the item has a nested doc structure
+                if "doc" in item:
+                    doc_data = item["doc"]
+                else:
+                    doc_data = item
                 
-                if not doctype_data or not search_id_field:
-                    self.log_activity("error", f"Missing data or search field for {doctype_name}")
-                    continue
-                    
-                # Handle both single objects and lists of objects
-                if not isinstance(doctype_data, list):
-                    doctype_data = [doctype_data]
-                    
-                doctype_results = []
+                doctype = doc_data.get("doctype")
                 
-                for item in doctype_data:
-                    search_value = item.get(search_id_field)
-                    if not search_value:
-                        self.log_activity("error", f"Search value missing for {doctype_name}")
-                        continue
-                        
-                    # Check if document exists
-                    exists_response = requests.get(
-                        f"{base_url}/api/method/frappe.client.get_list",
-                        params={
-                            "doctype": doctype_name,
-                            "filters": json.dumps([[doctype_name, search_id_field, "=", search_value]]),
-                            "fields": json.dumps(["name"])  # Ensure fields is a valid JSON string
-                        },
+                if not doctype:
+                    self.log_activity("error", f"Missing doctype in item")
+                    return {"success": False, "message": "Missing doctype in item"}
+
+                doc_data = self.fix_payload(doc_data)
+                
+                # Try to create the document directly without checking if it exists
+                try:
+                    create_response = requests.post(
+                        f"{base_url}/api/method/frappe.client.insert",
+                        json={"doc": doc_data},
                         headers=auth_headers
                     )
                     
-                    document_exists = False
-                    document_name = None
-                    
-                    if exists_response.status_code == 200:
-                        results = exists_response.json().get("message", [])
-                        if results and len(results) > 0:
-                            document_exists = True
-                            document_name = results[0].get("name")
-                    
-                    # Create document if it doesn't exist
-                    if not document_exists:
-                        # Add doctype to the item
-                        item["doctype"] = doctype_name
+                    if create_response.status_code in (200, 201):
+                        result = create_response.json()
+                        document_name = result.get("message", {}).get("name")
                         
-                        create_response = requests.post(
-                            f"{base_url}/api/method/frappe.client.insert",
-                            json={"doc": item},
-                            headers=auth_headers
-                        )
+                        if doctype not in created_documents:
+                            created_documents[doctype] = []
                         
-                        if create_response.status_code in (200, 201):
-                            result = create_response.json()
-                            document_name = result.get("message", {}).get("name")
+                        created_documents[doctype].append(document_name)
+                        self.log_activity("info", f"Created {doctype}: {document_name}")
+                    else:
+                        # Check if the error is because the document already exists
+                        error_text = create_response.text
+                        
+                        if any(phrase in error_text.lower() for phrase in ["already exists", "duplicate", "duplicateentryerror"]):
+                            # For documents that already exist, try to get their identifier
+                            identifier = ""
+                            if doctype == "Item":
+                                identifier = doc_data.get("item_code", "")
+                            elif doctype == "Supplier":
+                                identifier = doc_data.get("supplier_name", "")
+                            
+                            self.log_activity("info", f"{doctype} {identifier} already exists, skipping")
                         else:
-                            error_message = f"Failed to create {doctype_name}: {create_response.text}"
+                            error_message = f"Failed to create {doctype}: {error_text}"
                             self.log_activity("error", error_message)
-                            return {"success": False, "message": error_message}
-                    
-                    if document_name:
-                        doctype_results.append(document_name)
-                
-                if doctype_results:
-                    created_documents[doctype_name] = doctype_results
+                            # Continue with other documents instead of failing completely
+                except Exception as e:
+                    self.log_activity("error", f"Error creating {doctype}: {str(e)}")
             
             return {"success": True, "data": created_documents}
             
@@ -180,12 +180,19 @@ class ERPNextIntegration(BaseIntegration):
             self.log_activity("error", f"Sync error: {str(e)}")
             return {"success": False, "message": str(e)}
     
-    def get_mapping_fields(self) -> List[Dict[str, Any]]:
-        """Return a list of fields available for mapping in ERPNext"""
-        return [
-            {"field": "title", "label": "Title", "type": "Data"},
-            {"field": "description", "label": "Description", "type": "Text"},
-            {"field": "document_type", "label": "Document Type", "type": "Data"},
-            {"field": "extracted_data", "label": "Extracted Data", "type": "JSON"},
-            {"field": "status", "label": "Status", "type": "Select"},
-        ]
+    def fix_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Fix the payload before syncing"""
+        # Add any necessary transformations to the payload here
+        if payload.get("doctype") == "Supplier":
+            # Ensure city field exists for Supplier doctype
+            if "city" not in payload:
+                payload["city"] = "&nbsp;"
+
+        if payload.get("doctype") == "Item":
+            # Ensure item_group field exists for Item doctype
+            if "item_group" not in payload:
+                payload["item_group"] = "All Item Groups"
+            if "is_stock_item" not in payload:
+                payload["is_stock_item"] = 0
+    
+        return payload

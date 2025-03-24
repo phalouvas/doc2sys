@@ -30,11 +30,6 @@ class BaseIntegration(ABC):
         """Sync a processed doc2sys_item to the external system"""
         pass
         
-    @abstractmethod
-    def get_mapping_fields(self) -> List[Dict[str, Any]]:
-        """Return a list of fields available for mapping in the external system"""
-        pass
-    
     def log_activity(self, status, message, data=None):
         """Log integration activity"""
         integration_type = getattr(self, "integration_type", self.__class__.__name__)

@@ -140,12 +140,12 @@ after_install = "doc2sys.setup.install.after_install"
 # Hook on document methods and events
 
 # Doc Events
-doc_events = {
-    "Doc2Sys Item": {
-        "after_insert": "doc2sys.integrations.events.trigger_integrations_on_insert",
-        "on_update": "doc2sys.integrations.events.trigger_integrations_on_update",
-    }
-}
+# doc_events = {
+#    "Doc2Sys Item": {
+#        "after_insert": "doc2sys.integrations.events.trigger_integrations_on_insert",
+#        "on_update": "doc2sys.integrations.events.trigger_integrations_on_update",
+#    }
+#}
 
 # Scheduled Tasks
 # ---------------

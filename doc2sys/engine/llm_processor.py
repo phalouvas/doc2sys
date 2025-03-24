@@ -213,7 +213,7 @@ class OpenWebUIProcessor:
             # Document Classification Task
 
             ## Instructions
-            Your task is to classify the attached document into one of the predefined categories. Follow these steps:
+            Your task is to classify the text in next message into one of the predefined categories. Follow these steps:
 
             1. Analyze the document's content, structure, formatting, and key identifiers
             2. Look for distinctive headers, labels, and standard phrases that indicate document type
@@ -275,9 +275,17 @@ class OpenWebUIProcessor:
                 # Try to parse the JSON response
                 cleaned_content = self._clean_json_response(content)
                 classification = json.loads(cleaned_content)
-                                
-                # Add token usage and cost data
-                classification["token_usage"] = token_cost
+                
+                # Add token usage and cost data, handling both dict and array responses
+                if isinstance(classification, list):
+                    # Wrap array data in a container dictionary
+                    classification = {
+                        "classifications": classification,
+                        "token_usage": token_cost
+                    }
+                else:
+                    # Regular dictionary case
+                    classification["token_usage"] = token_cost
                 
                 return classification
             except json.JSONDecodeError:
@@ -312,42 +320,76 @@ class OpenWebUIProcessor:
             )
             
             # Prepare the default prompt text with improved structure
-            default_prompt = f"""
-            # Document Data Extraction Task
-
-            ## Instructions
-            Your task is to extract structured data from a {document_type} document. Follow these steps:
-
-            1. Carefully analyze the entire document content
-            2. Identify key fields and their corresponding values
-            3. Extract data according to standard {document_type} format
-            4. Include only fields that appear in the document (don't invent data)
-            5. Format field names using snake_case (e.g., "invoice_number" not "Invoice Number")
-
-            ## Key Fields to Look For
-            Look for common fields typically found in a {document_type}, such as:
-            - Reference numbers, dates, and identifiers
-            - Organization names, addresses, and contact information
-            - Line items, quantities, prices, and totals
-            - Terms, conditions, and special instructions
-
-            ## Special Cases
-            - For ambiguous values, choose the most likely interpretation based on context
-            - For dates, use ISO format (YYYY-MM-DD) whenever possible
-            - For currency values, include only numbers without symbols
-            - For missing or unclear fields, omit them rather than guessing
-
-            ## Response Format
-            Respond in clean JSON format with appropriate nesting for related data:
-            {{
-              "field_name": "extracted value",
-              "numeric_field": 123.45,
-              "date_field": "2025-03-20",
-              "items": [
-                {{ "item_field": "value", "quantity": 1 }},
-                {{ "item_field": "value", "quantity": 2 }}
-              ]
-            }}
+            default_prompt = """
+            Analyze the text. Follow these steps **strictly**:
+            1. **Translate non-English text to English** (to identify fields), but retain the **original text** for JSON output.
+            2. **Extract & Validate**:
+            - **Supplier**:
+                - From the **translated text**, identify the supplier section.
+                - Extract **original supplier name**, **address**, and **country** from the **original text** (e.g., "Proveedor: [Nombre]" → use "[Nombre]").
+            - **Invoice**:
+                - Dates: Convert to `YYYY-MM-DD` (language-agnostic).
+                - Invoice number: Extract from the **original text** (e.g., "Factura N°: 123" → "123").
+            - **Items**:
+                - From the **translated text**, identify item descriptions.
+                - Extract **original item names** from the **original text** (e.g., "Producto: Widget" → use "Widget" if original is in English, else use original term like "Artículo").
+            - **Totals**:
+                - Calculate `net_total = sum(qty * rate)`.
+                - Validate `net_total + tax = grand_total` (using numeric values, not text).
+            3. **Generate ERPNext JSON**:
+            - Use **original non-English text** for:
+                - `supplier_name`
+                - `item_code` (item descriptions)
+                - `address` (if included)
+            - Use **translated text only for validation** (not output).
+            - Structure:
+                ```json
+                [
+                {
+                    "doc": {
+                    "doctype": "Supplier",
+                    "supplier_name": "[Original_Supplier_Name]",
+                    "country": "[Country]"
+                    }
+                },
+                {
+                    "doc": {
+                    "doctype": "Item",
+                    "item_code": "[Original_Item_Name]",
+                    "item_group": "All Item Groups",
+                    "is_stock_item": 0
+                    }
+                },
+                {
+                    "doc": {
+                    "doctype": "Purchase Invoice",
+                    "supplier": "[Original_Supplier_Name]",
+                    "bill_no": "[Extracted_Invoice_Number]",
+                    "bill_date": "YYYY-MM-DD",
+                    "posting_date": "YYYY-MM-DD",
+                    "due_date": "YYYY-MM-DD",
+                    "items": [
+                        {
+                        "item_code": "[Original_Item_Name]",
+                        "qty": [Integer],
+                        "rate": [Float],
+                        "item_group": "All Item Groups"
+                        }
+                    ],
+                    "taxes": [
+                        {
+                        "account_head": "VAT - KPL",
+                        "charge_type": "Actual",
+                        "tax_amount": [Tax]
+                        }
+                    ],
+                    "company": "KAINOTOMO PH LTD"
+                    }
+                }
+                ]
+                ```
+            4. **Use original non-English text in the response**
+            5. **Respond ONLY with the JSON array or "Error: [Reason]"**.
             """
 
             # Use custom prompt if available, otherwise use default
@@ -387,8 +429,16 @@ class OpenWebUIProcessor:
                 cleaned_content = self._clean_json_response(content)
                 extracted_data = json.loads(cleaned_content)
                 
-                # Add token usage as metadata
-                extracted_data["_token_usage"] = token_cost
+                # Add token usage as metadata, handling both dict and array responses
+                if isinstance(extracted_data, list):
+                    # Wrap array data in a container dictionary
+                    extracted_data = {
+                        "items": extracted_data,
+                        "_token_usage": token_cost
+                    }
+                else:
+                    # Regular dictionary case
+                    extracted_data["_token_usage"] = token_cost
                 
                 return extracted_data
             except json.JSONDecodeError:
@@ -401,14 +451,6 @@ class OpenWebUIProcessor:
 
     def _clean_json_response(self, content):
         """Enhanced JSON cleaning with better edge case handling"""
-        # Start by finding the first '{' and last '}' for more robust extraction
-        start_idx = content.find('{')
-        end_idx = content.rfind('}')
-        
-        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-            return content[start_idx:end_idx+1]
-        
-        # Fallback to current cleaning logic
         cleaned_content = content.strip()
         if cleaned_content.startswith("```json"):
             cleaned_content = cleaned_content[7:]
@@ -451,10 +493,6 @@ class OpenWebUIProcessor:
             input_tokens = usage.get("prompt_tokens", 0)
             output_tokens = usage.get("completion_tokens", 0)
             total_tokens = usage.get("total_tokens", 0)
-            total_duration = usage.get("total_duration", 0)
-            
-            # Convert duration from nanoseconds to seconds (1 second = 1,000,000,000 nanoseconds)
-            total_duration_seconds = total_duration / 1_000_000_000 if total_duration else 0.0
             
             # Calculate cost (convert from price per million to price per token)
             input_cost = (input_tokens * self.input_price_per_million) / 1000000
@@ -467,8 +505,7 @@ class OpenWebUIProcessor:
                 "total_tokens": total_tokens,
                 "input_cost": input_cost,
                 "output_cost": output_cost,
-                "total_cost": total_cost,
-                "total_duration": total_duration_seconds  # Now in seconds
+                "total_cost": total_cost
             }
         except Exception as e:
             logger.error(f"Error calculating token cost: {str(e)}")
@@ -478,8 +515,7 @@ class OpenWebUIProcessor:
                 "total_tokens": 0,
                 "input_cost": 0.0,
                 "output_cost": 0.0,
-                "total_cost": 0.0,
-                "total_duration": 0.0
+                "total_cost": 0.0
             }
 
     def _make_api_request(self, endpoint, payload, headers=None):
@@ -503,7 +539,7 @@ class OpenWebUIProcessor:
                 request_headers["Authorization"] = f"Bearer {self.api_key}"
                 
             # Make request with timeout
-            response = requests.post(endpoint, headers=request_headers, json=payload, timeout=300)
+            response = requests.post(endpoint, headers=request_headers, json=payload, timeout=600)
             
             if response.status_code != 200:
                 logger.error(f"API error: {response.status_code}, {response.text}")
@@ -601,11 +637,9 @@ class OpenWebUIProcessor:
         api_payload = {
             "model": self.model,
             "temperature": DEFAULT_TEMPERATURE,
-            "response_format": {"type": "json_object"},
             "messages": [
-                {"role": "system", "content": "You are an AI language model. Always respond in JSON."},
-                {"role": "user", "content": prompt},
-                {"role": "user", "content": text_for_api}
+                {"role": "system", "content": "Always returns data in JSON format."},
+                {"role": "user", "content": prompt + text_for_api}
             ]
         }
         
