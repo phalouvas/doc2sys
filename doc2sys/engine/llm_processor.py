@@ -321,49 +321,75 @@ class OpenWebUIProcessor:
             
             # Prepare the default prompt text with improved structure
             default_prompt = """
-            Analyze the text. Follow these steps **strictly**:  
-            1. **Translate non-English text to English** (for analysis), but retain **original text** for JSON output.  
-            2. **Extract & Validate**:  
-               - **Supplier**:  
-                 - Extract original name/country using translated labels (e.g., "Supplier/Proveedor").  
-               - **Invoice**:  
-                 - **Number**: Extract from labels like "Factura N°", "Rechnung Nr." (original text).  
-                 - **Date**: Extract and convert to `YYYY-MM-DD` for both `posting_date` and `bill_date`.  
-               - **Items**:  
-                 - Extract original names, quantities (integer), rates (float).  
-               - **Totals**:  
-                 - Validate `net_total + tax = grand_total` (reject mismatches).  
-            3. **Generate ERPNext JSON**:  
-               ```json  
-               [  
-                 {  
-                   "doc": {  
-                     "doctype": "Purchase Invoice",  
-                     "supplier": "[Original_Supplier_Name]",  
-                     "bill_no": "[Extracted_Invoice_Number]",  
-                     "posting_date": "YYYY-MM-DD",  
-                     "bill_date": "YYYY-MM-DD",
-                     "due_date": "YYYY-MM-DD",  
-                     "items": [  
-                       {  
-                         "item_code": "[Original_Item_Name]",  
-                         "qty": [Integer],  
-                         "rate": [Float],  
-                         "item_group": "All Item Groups"  
-                       }  
-                     ],  
-                     "taxes": [  
-                       {  
-                         "account_head": "VAT - KPL",  
-                         "charge_type": "Actual",  
-                         "tax_amount": [Tax]  
-                       }  
-                     ],  
-                     "company": "KAINOTOMO PH LTD"  
-                   }  
-                 }  
-               ]
-               """
+            Analyze the text. Follow these steps **strictly**:
+            1. **Translate non-English text to English** (to identify fields), but retain the **original text** for JSON output.
+            2. **Extract & Validate**:
+            - **Supplier**:
+                - From the **translated text**, identify the supplier section.
+                - Extract **original supplier name**, **address**, and **country** from the **original text** (e.g., "Proveedor: [Nombre]" → use "[Nombre]").
+            - **Invoice**:
+                - Dates: Convert to `YYYY-MM-DD` (language-agnostic).
+                - Invoice number: Extract from the **original text** (e.g., "Factura N°: 123" → "123").
+            - **Items**:
+                - From the **translated text**, identify item descriptions.
+                - Extract **original item names** from the **original text** (e.g., "Producto: Widget" → use "Widget" if original is in English, else use original term like "Artículo").
+            - **Totals**:
+                - Calculate `net_total = sum(qty * rate)`.
+                - Validate `net_total + tax = grand_total` (using numeric values, not text).
+            3. **Generate ERPNext JSON**:
+            - Use **original non-English text** for:
+                - `supplier_name`
+                - `item_code` (item descriptions)
+                - `address` (if included)
+            - Use **translated text only for validation** (not output).
+            - Structure:
+                ```json
+                [
+                {
+                    "doc": {
+                    "doctype": "Supplier",
+                    "supplier_name": "[Original_Supplier_Name]",
+                    "country": "[Country]"
+                    }
+                },
+                {
+                    "doc": {
+                    "doctype": "Item",
+                    "item_code": "[Original_Item_Name]",
+                    "item_group": "All Item Groups",
+                    "is_stock_item": 0
+                    }
+                },
+                {
+                    "doc": {
+                    "doctype": "Purchase Invoice",
+                    "supplier": "[Original_Supplier_Name]",
+                    "bill_no": "[Extracted_Invoice_Number]",
+                    "bill_date": "YYYY-MM-DD",
+                    "posting_date": "YYYY-MM-DD",
+                    "due_date": "YYYY-MM-DD",
+                    "items": [
+                        {
+                        "item_code": "[Original_Item_Name]",
+                        "qty": [Integer],
+                        "rate": [Float],
+                        "item_group": "All Item Groups"
+                        }
+                    ],
+                    "taxes": [
+                        {
+                        "account_head": "VAT - KPL",
+                        "charge_type": "Actual",
+                        "tax_amount": [Tax]
+                        }
+                    ],
+                    "company": "KAINOTOMO PH LTD"
+                    }
+                }
+                ]
+                ```
+            4. **Use original non-English text in the response**
+            5. **Respond ONLY with the JSON array or "Error: [Reason]"**.
             """
 
             # Use custom prompt if available, otherwise use default
