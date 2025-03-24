@@ -320,42 +320,73 @@ class OpenWebUIProcessor:
             )
             
             # Prepare the default prompt text with improved structure
-            default_prompt = f"""
-            # Document Data Extraction Task
-
-            ## Instructions
-            Your task is to extract structured data from a {document_type} document. Follow these steps:
-
-            1. Carefully analyze the entire document content
-            2. Identify key fields and their corresponding values
-            3. Extract data according to standard {document_type} format
-            4. Include only fields that appear in the document (don't invent data)
-            5. Format field names using snake_case (e.g., "invoice_number" not "Invoice Number")
-
-            ## Key Fields to Look For
-            Look for common fields typically found in a {document_type}, such as:
-            - Reference numbers, dates, and identifiers
-            - Organization names, addresses, and contact information
-            - Line items, quantities, prices, and totals
-            - Terms, conditions, and special instructions
-
-            ## Special Cases
-            - For ambiguous values, choose the most likely interpretation based on context
-            - For dates, use ISO format (YYYY-MM-DD) whenever possible
-            - For currency values, include only numbers without symbols
-            - For missing or unclear fields, omit them rather than guessing
-
-            ## Response Format
-            Respond in clean JSON format with appropriate nesting for related data:
-            {{
-              "field_name": "extracted value",
-              "numeric_field": 123.45,
-              "date_field": "2025-03-20",
-              "items": [
-                {{ "item_field": "value", "quantity": 1 }},
-                {{ "item_field": "value", "quantity": 2 }}
-              ]
-            }}
+            default_prompt = """
+            Analyze the text. Follow these steps **strictly**:
+            1. **Translate non-English text to English** (to identify fields), but retain the **original text** for JSON output.
+            2. **Extract & Validate**:
+               - **Supplier**:
+                 - From the **translated text**, identify the supplier section.
+                 - Extract **original supplier name**, **address**, and **country** from the **original text** (e.g., "Proveedor: [Nombre]" → use "[Nombre]").
+               - **Invoice**:
+                 - Dates: Convert to `YYYY-MM-DD` (language-agnostic).
+                 - Invoice number: Extract from the **original text** (e.g., "Factura N°: 123" → "123").
+               - **Items**:
+                 - From the **translated text**, identify item descriptions.
+                 - Extract **original item names** from the **original text** (e.g., "Producto: Widget" → use "Widget" if original is in English, else use original term like "Artículo").
+               - **Totals**:
+                 - Calculate `net_total = sum(qty * rate)`.
+                 - Validate `net_total + tax = grand_total` (using numeric values, not text).
+            3. **Generate ERPNext JSON**:
+               - Use **original non-English text** for:
+                 - `supplier_name`
+                 - `item_code` (item descriptions)
+                 - `address` (if included)
+               - Use **translated text only for validation** (not output).
+               - Structure:
+                 ```json
+                 [
+                   {
+                     "doc": {
+                       "doctype": "Supplier",
+                       "supplier_name": "[Original_Supplier_Name]",
+                       "country": "[Country]"
+                     }
+                   },
+                   {
+                     "doc": {
+                       "doctype": "Item",
+                       "item_code": "[Original_Item_Name]",
+                       "item_group": "All Item Groups",
+                       "is_stock_item": 0
+                     }
+                   },
+                   {
+                     "doc": {
+                       "doctype": "Purchase Invoice",
+                       "supplier": "[Original_Supplier_Name]",
+                       "posting_date": "YYYY-MM-DD",
+                       "due_date": "YYYY-MM-DD",
+                       "items": [
+                         {
+                           "item_code": "[Original_Item_Name]",
+                           "qty": [Integer],
+                           "rate": [Float],
+                           "item_group": "All Item Groups"
+                         }
+                       ],
+                       "taxes": [
+                         {
+                           "account_head": "VAT - KPL",
+                           "charge_type": "Actual",
+                           "tax_amount": [Tax]
+                         }
+                       ],
+                       "company": "KAINOTOMO PH LTD"
+                     }
+                   }
+                 ]
+                 ```
+            4. **Respond ONLY with the JSON array or "Error: [Reason]"**.
             """
 
             # Use custom prompt if available, otherwise use default
