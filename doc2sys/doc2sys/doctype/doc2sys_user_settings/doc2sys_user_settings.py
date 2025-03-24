@@ -621,8 +621,7 @@ def test_azure_connection(user_settings):
             credential=credential
         )
         
-        # Test the connection by getting available models
-        models = client.list_document_models()
+        models = client.list_document_model_infos()
         
         # Check if we can retrieve models
         model_list = list(models)

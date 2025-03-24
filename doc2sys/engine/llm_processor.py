@@ -11,7 +11,6 @@ from .exceptions import ProcessingError, LLMProcessingError
 # Import Azure SDK
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
-from azure.ai.documentintelligence import DocumentAnalysisClient
 from azure.core.exceptions import HttpResponseError
 
 # Move hardcoded values to constants
@@ -530,7 +529,7 @@ class AzureDocumentIntelligenceProcessor:
                     ],
                     "company": "KAINOTOMO PH LTD"
                 }
-            ])
+            })
             
             return {"items": result}
             
@@ -642,7 +641,7 @@ class AzureDocumentIntelligenceProcessor:
                     ],
                     "company": "KAINOTOMO PH LTD"
                 }
-            ])
+            })
             
             return {"items": result}
             
