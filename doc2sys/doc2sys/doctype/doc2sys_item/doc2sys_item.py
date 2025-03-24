@@ -819,6 +819,7 @@ class Doc2SysItem(Document):
             self.output_cost = 0.0
             self.total_cost = 0.0
             self.total_duration = 0.0
+            self.formatted_duration = None
             
             # Save the document to persist changes
             self.save()

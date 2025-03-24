@@ -348,8 +348,7 @@ class OpenWebUIProcessor:
                 {
                     "doc": {
                     "doctype": "Supplier",
-                    "supplier_name": "[Original_Supplier_Name]",
-                    "country": "[Country]"
+                    "supplier_name": "[Original_Supplier_Name]"
                     }
                 },
                 {
