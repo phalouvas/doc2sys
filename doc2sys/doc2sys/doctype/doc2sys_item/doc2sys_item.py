@@ -54,7 +54,7 @@ class Doc2SysItem(Document):
                 if success:
                     # Use db_set to directly update fields without triggering validation
                     for field in ["input_tokens", "output_tokens", "total_tokens", 
-                                "input_cost", "output_cost", "total_cost", "extracted_text"]:
+                                 "input_cost", "output_cost", "total_cost", "extracted_text", "total_duration"]:
                         self.db_set(field, self.get(field))
                     
                     # Call the integration function directly instead of enqueueing it
@@ -296,8 +296,20 @@ class Doc2SysItem(Document):
                 self.total_duration = 0.0
                 
             # Add to existing duration - ensure float conversion
-            self.total_duration = float(self.total_duration) + float(duration_seconds)
+            new_duration = float(self.total_duration) + float(duration_seconds)
             
+            # Update in memory
+            self.total_duration = new_duration
+            
+            # Also update directly in database to ensure persistence
+            # Use flags.ignore_validate to prevent recursive validation
+            if self.name and not getattr(self, '_in_db_update', False):
+                self._in_db_update = True
+                try:
+                    self.db_set('total_duration', new_duration, update_modified=False)
+                finally:
+                    self._in_db_update = False
+                
         except (TypeError, ValueError) as e:
             frappe.log_error(f"Error updating duration - type/value error: {str(e)}")
         except Exception as e:
