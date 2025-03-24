@@ -493,10 +493,6 @@ class OpenWebUIProcessor:
             input_tokens = usage.get("prompt_tokens", 0)
             output_tokens = usage.get("completion_tokens", 0)
             total_tokens = usage.get("total_tokens", 0)
-            total_duration = usage.get("total_duration", 0)
-            
-            # Convert duration from nanoseconds to seconds (1 second = 1,000,000,000 nanoseconds)
-            total_duration_seconds = total_duration / 1_000_000_000 if total_duration else 0.0
             
             # Calculate cost (convert from price per million to price per token)
             input_cost = (input_tokens * self.input_price_per_million) / 1000000
@@ -509,8 +505,7 @@ class OpenWebUIProcessor:
                 "total_tokens": total_tokens,
                 "input_cost": input_cost,
                 "output_cost": output_cost,
-                "total_cost": total_cost,
-                "total_duration": total_duration_seconds  # Now in seconds
+                "total_cost": total_cost
             }
         except Exception as e:
             logger.error(f"Error calculating token cost: {str(e)}")
@@ -520,8 +515,7 @@ class OpenWebUIProcessor:
                 "total_tokens": 0,
                 "input_cost": 0.0,
                 "output_cost": 0.0,
-                "total_cost": 0.0,
-                "total_duration": 0.0
+                "total_cost": 0.0
             }
 
     def _make_api_request(self, endpoint, payload, headers=None):

@@ -25,7 +25,6 @@ class Doc2SysItem(Document):
             # Only process file if auto_process_file is checked
             if self.auto_process_file:
                 # Reset token counts and costs for data extraction
-                self._reset_token_usage()
                 self.process_attached_file()
     
     def process_attached_file(self):
@@ -188,8 +187,6 @@ class Doc2SysItem(Document):
                 self.output_cost = 0.0
             if not self.total_cost:
                 self.total_cost = 0.0
-            if not self.total_duration:
-                self.total_duration = 0.0
                 
             # Add to existing counts
             self.input_tokens += token_usage.get("input_tokens", 0) or 0
@@ -200,12 +197,10 @@ class Doc2SysItem(Document):
             input_cost = float(token_usage.get("input_cost", 0.0) or 0.0)
             output_cost = float(token_usage.get("output_cost", 0.0) or 0.0)
             total_cost = float(token_usage.get("total_cost", 0.0) or 0.0)
-            total_duration = float(token_usage.get("total_duration", 0.0) or 0.0)
             
             self.input_cost = float(self.input_cost) + input_cost
             self.output_cost = float(self.output_cost) + output_cost
             self.total_cost = float(self.total_cost) + total_cost
-            self.total_duration = float(self.total_duration) + total_duration
             
         except (TypeError, ValueError) as e:
             frappe.log_error(f"Error updating token usage - type/value error: {str(e)}")
@@ -249,17 +244,7 @@ class Doc2SysItem(Document):
             return None
         
         return file_doc.get_full_path()
-
-    def _reset_token_usage(self):
-        """Reset all token usage and cost fields to zero"""
-        self.input_tokens = 0
-        self.output_tokens = 0
-        self.total_tokens = 0
-        self.input_cost = 0.0
-        self.output_cost = 0.0
-        self.total_cost = 0.0
-        self.total_duration = 0.0
-
+    
     def get_document_text(self, file_path=None):
         """Get text content from the document if available"""
         if not file_path and self.single_file:
