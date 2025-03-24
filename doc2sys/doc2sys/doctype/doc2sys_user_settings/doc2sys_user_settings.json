@@ -32,6 +32,9 @@
   "openwebui_endpoint",
   "openwebui_model",
   "openwebui_apikey",
+  "azure_endpoint",
+  "azure_key",
+  "azure_model",
   "column_break_ghrw",
   "input_token_price",
   "output_token_price",
@@ -85,24 +88,45 @@
    "fieldname": "llm_provider",
    "fieldtype": "Select",
    "label": "LLM Provider",
-   "options": "Open WebUI"
+   "options": "Open WebUI\nAzure AI Document Intelligence"
   },
   {
-   "default": "http://localhost:3000/api/chat/completions",
+   "depends_on": "eval:doc.llm_provider=='Open WebUI'",
    "fieldname": "openwebui_endpoint",
    "fieldtype": "Data",
    "label": "Open WebUI Endpoint"
   },
   {
-   "default": "llama3",
+   "depends_on": "eval:doc.llm_provider=='Open WebUI'",
    "fieldname": "openwebui_model",
    "fieldtype": "Data",
    "label": "Open WebUI Model"
   },
   {
+   "depends_on": "eval:doc.llm_provider=='Open WebUI'",
    "fieldname": "openwebui_apikey",
    "fieldtype": "Password",
    "label": "Open WebUI API Key"
+  },
+  {
+   "depends_on": "eval:doc.llm_provider=='Azure AI Document Intelligence'",
+   "fieldname": "azure_endpoint",
+   "fieldtype": "Data",
+   "label": "Azure Endpoint URL"
+  },
+  {
+   "depends_on": "eval:doc.llm_provider=='Azure AI Document Intelligence'",
+   "fieldname": "azure_key",
+   "fieldtype": "Password",
+   "label": "Azure API Key"
+  },
+  {
+   "depends_on": "eval:doc.llm_provider=='Azure AI Document Intelligence'",
+   "fieldname": "azure_model",
+   "fieldtype": "Select",
+   "options": "prebuilt-layout\nprebuilt-document\nprebuilt-read\nprebuilt-invoice\nprebuilt-receipt\nprebuilt-tax.us.w2",
+   "default": "prebuilt-document",
+   "label": "Azure Model"
   },
   {
    "default": "0",

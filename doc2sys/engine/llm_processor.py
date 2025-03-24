@@ -45,10 +45,13 @@ class LLMProcessor:
             logger.warning(f"No Doc2Sys User Settings found for user {user}, using defaults")
             provider = frappe.db.get_single_value("Doc2Sys Settings", "llm_provider") or "Open WebUI"
         
-        if provider != "Open WebUI":
-            logger.warning(f"Only Open WebUI provider is supported, got: {provider}, using Open WebUI")
-            
-        return OpenWebUIProcessor(user=user)
+        # Return the appropriate processor based on the provider
+        if provider == "Azure AI Document Intelligence":
+            return AzureDocumentIntelligenceProcessor(user=user)
+        else:
+            if provider != "Open WebUI":
+                logger.warning(f"Provider {provider} not supported, using Open WebUI")
+            return OpenWebUIProcessor(user=user)
     
     def __init__(self, user=None):
         """
@@ -69,6 +72,736 @@ class LLMProcessor:
             if callable(getattr(processor, attr_name)) and not attr_name.startswith('__'):
                 setattr(self, attr_name, getattr(processor, attr_name))
 
+
+class AzureDocumentIntelligenceProcessor:
+    """Process documents using Azure AI Document Intelligence"""
+    
+    def __init__(self, user=None):
+        """
+        Initialize Azure Document Intelligence processor with user-specific settings
+        
+        Args:
+            user (str): Optional user for user-specific settings.
+                        If None, uses current user.
+        """
+        self.user = user or frappe.session.user
+        
+        # Try to get user-specific settings first
+        user_settings = None
+        user_settings_list = frappe.get_all(
+            'Doc2Sys User Settings',
+            filters={'user': self.user},
+            fields=['name']
+        )
+        
+        if user_settings_list:
+            user_settings = frappe.get_doc('Doc2Sys User Settings', user_settings_list[0].name)
+            
+            # Get settings from user preferences
+            self.endpoint = user_settings.azure_endpoint
+            self.model = user_settings.azure_model or "prebuilt-document"
+            
+            # Get API key securely from user settings
+            self.api_key = frappe.utils.password.get_decrypted_password(
+                "Doc2Sys User Settings", 
+                user_settings_list[0].name, 
+                "azure_key"
+            ) or ""
+            
+            # Cache token pricing (per million tokens)
+            self.input_price_per_million = float(user_settings.input_token_price or 0.0)
+            self.output_price_per_million = float(user_settings.output_token_price or 0.0)
+            
+            logger.info(f"Using Azure Document Intelligence for {self.user}")
+        else:
+            # Use 'raise' instead of 'throw' to raise the exception
+            raise LLMProcessingError(f"No Doc2Sys User Settings found for user {self.user}")
+        
+        # Initialize file cache
+        self.file_cache = {}
+    
+    def upload_file(self, file_path):
+        """
+        Upload a file to Azure Document Intelligence for processing
+        
+        Args:
+            file_path: Path to the file to be uploaded
+            
+        Returns:
+            str: File ID or URL for reference in API calls
+        """
+        # Check if this file has already been uploaded in this session
+        if (file_path in self.file_cache):
+            return self.file_cache[file_path]
+            
+        # Azure doesn't require pre-upload, we'll process directly in the analyze methods
+        # Just return the file path as the identifier
+        self.file_cache[file_path] = file_path
+        return file_path
+
+    def _get_content_type(self, file_extension):
+        """Helper method to determine content type from file extension"""
+        content_types = {
+            ".pdf": "application/pdf",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".txt": "text/plain",
+            ".csv": "text/csv",
+            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        }
+        return content_types.get(file_extension, "application/octet-stream")
+        
+    def classify_document(self, file_path=None, text=None):
+        """
+        Classify document using Azure Document Intelligence
+        
+        Args:
+            file_path: Path to the document file (preferred)
+            text: Document text content (fallback if file_path not provided)
+            
+        Returns:
+            dict: Classification result with document type and confidence
+        """
+        try:
+            # Get available document types for context
+            doc_types = frappe.get_all("Doc2Sys Document Type", 
+                                     fields=["document_type"],
+                                     filters={"enabled": 1})
+            
+            available_types = [dt.document_type for dt in doc_types]
+            
+            # Azure requires a file to process, so check if file path is provided
+            if not file_path:
+                logger.warning("Azure Document Intelligence requires a file to process")
+                return {"document_type": "unknown", "confidence": 0.0}
+            
+            # Set up headers with API key
+            headers = {
+                "Content-Type": "application/octet-stream",
+                "Ocp-Apim-Subscription-Key": self.api_key
+            }
+            
+            # Construct the API URL
+            model_id = self.model
+            api_url = f"{self.endpoint}/documentintelligence/documentModels/{model_id}:analyze?api-version=2023-07-31"
+            
+            # Read the file
+            with open(file_path, "rb") as file:
+                data = file.read()
+            
+            # Send the file to Azure for analysis
+            response = requests.post(api_url, headers=headers, data=data)
+            
+            if response.status_code == 202:  # Accepted, need to poll
+                operation_location = response.headers["Operation-Location"]
+                
+                # Poll for results
+                max_retries = 10
+                wait_seconds = 3
+                
+                for _ in range(max_retries):
+                    # Wait before checking status
+                    time.sleep(wait_seconds)
+                    
+                    # Check operation status
+                    status_response = requests.get(
+                        operation_location, 
+                        headers={"Ocp-Apim-Subscription-Key": self.api_key}
+                    )
+                    
+                    if status_response.status_code == 200:
+                        result = status_response.json()
+                        
+                        # Check if operation completed
+                        if result.get("status") == "succeeded":
+                            # Process the result to determine document type
+                            document_type, confidence = self._determine_document_type(result, available_types)
+                            
+                            return {
+                                "document_type": document_type,
+                                "confidence": confidence,
+                                "reasoning": f"Classified based on Azure Document Intelligence {model_id} model analysis"
+                            }
+                    
+                    # Increase wait time for next retry
+                    wait_seconds += 2
+                
+                # If we've exhausted retries
+                logger.error("Timeout waiting for Azure Document Intelligence results")
+                return {"document_type": "unknown", "confidence": 0.0}
+                
+            else:
+                logger.error(f"Azure Document Intelligence API error: {response.status_code}, {response.text}")
+                return {"document_type": "unknown", "confidence": 0.0}
+                
+        except Exception as e:
+            logger.error(f"Azure classification error: {str(e)}")
+            return {"document_type": "unknown", "confidence": 0.0}
+    
+    def _determine_document_type(self, azure_result, available_types):
+        """
+        Determine document type from Azure Document Intelligence results
+        
+        Args:
+            azure_result: Azure Document Intelligence API response
+            available_types: List of available document types
+            
+        Returns:
+            tuple: (document_type, confidence)
+        """
+        try:
+            # Extract document type based on Azure's analysis
+            document_analysis = azure_result.get("analyzeResult", {})
+            
+            # Different handling based on model type
+            if self.model == "prebuilt-document":
+                # For the document model, use the document type if available
+                doc_type = document_analysis.get("documentType", "unknown")
+                confidence = document_analysis.get("confidence", 0.5)
+                
+                # Try to match with our available types
+                for available_type in available_types:
+                    if doc_type.lower() in available_type.lower():
+                        return available_type, confidence
+                
+                # Default to unknown if no match found
+                return "unknown", confidence
+            
+            elif self.model in ["prebuilt-invoice", "prebuilt-receipt", "prebuilt-tax.us.w2"]:
+                # For specialized models, use the model type as document type
+                model_type_map = {
+                    "prebuilt-invoice": "Invoice",
+                    "prebuilt-receipt": "Receipt",
+                    "prebuilt-tax.us.w2": "Tax Document"
+                }
+                
+                # Map model type to our document types
+                model_type = model_type_map.get(self.model, "unknown")
+                
+                # Try to match with available types
+                for available_type in available_types:
+                    if model_type.lower() in available_type.lower():
+                        return available_type, 0.8  # Use high confidence when model specifically matches
+                
+                # If we have a specialized model but no matching type, use the model type directly
+                # if it's in our available types
+                if model_type in available_types:
+                    return model_type, 0.8
+                
+                return "unknown", 0.5
+            
+            else:
+                # For other models, try to determine from content
+                # Extract text content and look for keywords
+                all_text = ""
+                for page in document_analysis.get("pages", []):
+                    lines = page.get("lines", [])
+                    for line in lines:
+                        all_text += line.get("content", "") + " "
+                
+                # Score each document type based on keyword matches
+                best_match = "unknown"
+                best_score = 0.0
+                
+                for doc_type in available_types:
+                    # Simple scoring based on occurrence of document type name in text
+                    keywords = doc_type.lower().split()
+                    text_lower = all_text.lower()
+                    
+                    score = 0.0
+                    for keyword in keywords:
+                        if keyword in text_lower:
+                            score += 0.3
+                    
+                    if score > best_score:
+                        best_score = score
+                        best_match = doc_type
+                
+                return best_match, min(best_score, 0.9)  # Cap at 0.9 confidence
+                
+        except Exception as e:
+            logger.error(f"Error determining document type from Azure results: {str(e)}")
+            return "unknown", 0.0
+            
+    def extract_data(self, file_path=None, text=None, document_type=None):
+        """
+        Extract structured data from document using Azure Document Intelligence
+        
+        Args:
+            file_path: Path to the document file (preferred)
+            text: Document text content (fallback if file_path not provided)
+            document_type: Type of document
+            
+        Returns:
+            dict: Extracted data fields
+        """
+        try:
+            # Azure requires a file to process, so check if file path is provided
+            if not file_path:
+                logger.warning("Azure Document Intelligence requires a file to process")
+                return {}
+            
+            # Select appropriate model based on document type
+            model_id = self._select_azure_model_by_document_type(document_type)
+            
+            # Set up headers with API key
+            headers = {
+                "Content-Type": "application/octet-stream",
+                "Ocp-Apim-Subscription-Key": self.api_key
+            }
+            
+            # Construct the API URL
+            api_url = f"{self.endpoint}/documentintelligence/documentModels/{model_id}:analyze?api-version=2023-07-31"
+            
+            # Read the file
+            with open(file_path, "rb") as file:
+                data = file.read()
+            
+            # Send the file to Azure for analysis
+            response = requests.post(api_url, headers=headers, data=data)
+            
+            if response.status_code == 202:  # Accepted, need to poll
+                operation_location = response.headers["Operation-Location"]
+                
+                # Poll for results
+                max_retries = 10
+                wait_seconds = 3
+                
+                for _ in range(max_retries):
+                    # Wait before checking status
+                    time.sleep(wait_seconds)
+                    
+                    # Check operation status
+                    status_response = requests.get(
+                        operation_location, 
+                        headers={"Ocp-Apim-Subscription-Key": self.api_key}
+                    )
+                    
+                    if status_response.status_code == 200:
+                        result = status_response.json()
+                        
+                        # Check if operation completed
+                        if result.get("status") == "succeeded":
+                            # Process the result to extract structured data
+                            extracted_data = self._process_azure_extraction_results(result, document_type)
+                            
+                            # Add token usage/cost estimate
+                            token_cost = self._calculate_token_cost({"prompt_tokens": 0, "completion_tokens": 0})
+                            extracted_data["_token_usage"] = token_cost
+                            
+                            return extracted_data
+                    
+                    # Increase wait time for next retry
+                    wait_seconds += 2
+                
+                # If we've exhausted retries
+                logger.error("Timeout waiting for Azure Document Intelligence results")
+                return {}
+                
+            else:
+                logger.error(f"Azure Document Intelligence API error: {response.status_code}, {response.text}")
+                return {}
+                
+        except Exception as e:
+            logger.error(f"Azure data extraction error: {str(e)}")
+            return {}
+    
+    def _select_azure_model_by_document_type(self, document_type):
+        """
+        Select appropriate Azure model based on document type
+        
+        Args:
+            document_type: Type of document
+            
+        Returns:
+            str: Azure model ID
+        """
+        # Use user-specified model as default
+        model_id = self.model
+        
+        # If document type provided, try to match with specialized model
+        if document_type:
+            document_type_lower = document_type.lower()
+            
+            # Map common document types to Azure models
+            if "invoice" in document_type_lower:
+                model_id = "prebuilt-invoice"
+            elif "receipt" in document_type_lower:
+                model_id = "prebuilt-receipt"
+            elif "tax" in document_type_lower and "w2" in document_type_lower:
+                model_id = "prebuilt-tax.us.w2"
+        
+        return model_id
+    
+    def _process_azure_extraction_results(self, azure_result, document_type):
+        """
+        Process Azure Document Intelligence results into structured data
+        
+        Args:
+            azure_result: Azure Document Intelligence API response
+            document_type: Type of document
+            
+        Returns:
+            dict: Structured data extracted from document
+        """
+        try:
+            # Extract data from Azure's analysis
+            document_analysis = azure_result.get("analyzeResult", {})
+            
+            # Different handling based on model type and document type
+            if "prebuilt-invoice" in self.model or "invoice" in str(document_type).lower():
+                return self._process_invoice_results(document_analysis)
+            elif "prebuilt-receipt" in self.model or "receipt" in str(document_type).lower():
+                return self._process_receipt_results(document_analysis)
+            else:
+                # Generic document processing
+                return self._process_generic_document_results(document_analysis)
+                
+        except Exception as e:
+            logger.error(f"Error processing Azure extraction results: {str(e)}")
+            return {}
+    
+    def _process_invoice_results(self, document_analysis):
+        """Process invoice-specific results from Azure"""
+        try:
+            # Extract invoice fields from document analysis
+            doc_fields = document_analysis.get("documents", [{}])[0].get("fields", {})
+            
+            # Map Azure fields to our expected structure
+            supplier_name = self._get_field_value(doc_fields, "VendorName")
+            invoice_id = self._get_field_value(doc_fields, "InvoiceId")
+            invoice_date = self._get_field_value(doc_fields, "InvoiceDate")
+            due_date = self._get_field_value(doc_fields, "DueDate") or invoice_date
+            subtotal = self._get_field_value(doc_fields, "SubTotal")
+            tax = self._get_field_value(doc_fields, "TotalTax")
+            total = self._get_field_value(doc_fields, "InvoiceTotal")
+            
+            # Process line items if available
+            line_items = []
+            items = doc_fields.get("Items", {}).get("valueArray", [])
+            
+            for item in items:
+                item_fields = item.get("valueObject", {}).get("fields", {})
+                
+                description = self._get_field_value(item_fields, "Description")
+                quantity = self._get_field_value(item_fields, "Quantity") or 1
+                unit_price = self._get_field_value(item_fields, "UnitPrice") or 0
+                amount = self._get_field_value(item_fields, "Amount") or (float(quantity) * float(unit_price))
+                
+                line_items.append({
+                    "item_code": description,
+                    "qty": quantity,
+                    "rate": unit_price,
+                    "amount": amount,
+                    "item_group": "All Item Groups"
+                })
+            
+            # Format date strings to YYYY-MM-DD
+            invoice_date_formatted = self._format_date(invoice_date)
+            due_date_formatted = self._format_date(due_date)
+            
+            # Construct ERPNext compatible JSON
+            result = [
+                {
+                    "doc": {
+                        "doctype": "Supplier",
+                        "supplier_name": supplier_name
+                    }
+                }
+            ]
+            
+            # Add item entries for each line item
+            for item in line_items:
+                result.append({
+                    "doc": {
+                        "doctype": "Item",
+                        "item_code": item["item_code"],
+                        "item_group": "All Item Groups",
+                        "is_stock_item": 0
+                    }
+                })
+            
+            # Add purchase invoice with all details
+            result.append({
+                "doc": {
+                    "doctype": "Purchase Invoice",
+                    "supplier": supplier_name,
+                    "bill_no": invoice_id,
+                    "bill_date": invoice_date_formatted,
+                    "posting_date": invoice_date_formatted,
+                    "set_posting_time": 1,
+                    "due_date": due_date_formatted,
+                    "items": line_items,
+                    "taxes": [
+                        {
+                            "account_head": "VAT - KPL",
+                            "charge_type": "Actual",
+                            "description": "Tax",
+                            "tax_amount": tax
+                        }
+                    ],
+                    "company": "KAINOTOMO PH LTD"
+                }
+            ])
+            
+            return {"items": result}
+            
+        except Exception as e:
+            logger.error(f"Error processing invoice results: {str(e)}")
+            return {}
+    
+    def _process_receipt_results(self, document_analysis):
+        """Process receipt-specific results from Azure"""
+        try:
+            # Extract receipt fields from document analysis
+            doc_fields = document_analysis.get("documents", [{}])[0].get("fields", {})
+            
+            # Map Azure fields to our expected structure
+            merchant_name = self._get_field_value(doc_fields, "MerchantName")
+            receipt_date = self._get_field_value(doc_fields, "TransactionDate")
+            receipt_time = self._get_field_value(doc_fields, "TransactionTime")
+            receipt_total = self._get_field_value(doc_fields, "Total")
+            subtotal = self._get_field_value(doc_fields, "Subtotal") or receipt_total
+            tax = self._get_field_value(doc_fields, "TotalTax") or 0
+            
+            # Process line items if available
+            line_items = []
+            items = doc_fields.get("Items", {}).get("valueArray", [])
+            
+            for item in items:
+                item_fields = item.get("valueObject", {}).get("fields", {})
+                
+                description = self._get_field_value(item_fields, "Description")
+                quantity = self._get_field_value(item_fields, "Quantity") or 1
+                price = self._get_field_value(item_fields, "Price") or 0
+                total_price = self._get_field_value(item_fields, "TotalPrice") or (float(quantity) * float(price))
+                
+                line_items.append({
+                    "item_code": description,
+                    "qty": quantity,
+                    "rate": price,
+                    "amount": total_price,
+                    "item_group": "All Item Groups"
+                })
+            
+            # If no line items found, create one generic item
+            if not line_items:
+                line_items.append({
+                    "item_code": "Receipt Item",
+                    "qty": 1,
+                    "rate": subtotal,
+                    "amount": subtotal,
+                    "item_group": "All Item Groups"
+                })
+            
+            # Format date string to YYYY-MM-DD
+            receipt_date_formatted = self._format_date(receipt_date)
+            
+            # Construct ERPNext compatible JSON
+            result = [
+                {
+                    "doc": {
+                        "doctype": "Supplier",
+                        "supplier_name": merchant_name
+                    }
+                }
+            ]
+            
+            # Add item entries for each line item
+            for item in line_items:
+                result.append({
+                    "doc": {
+                        "doctype": "Item",
+                        "item_code": item["item_code"],
+                        "item_group": "All Item Groups",
+                        "is_stock_item": 0
+                    }
+                })
+            
+            # Add purchase invoice with all details
+            result.append({
+                "doc": {
+                    "doctype": "Purchase Invoice",
+                    "supplier": merchant_name,
+                    "bill_no": f"Receipt-{receipt_date_formatted}",
+                    "bill_date": receipt_date_formatted,
+                    "posting_date": receipt_date_formatted,
+                    "set_posting_time": 1,
+                    "due_date": receipt_date_formatted,
+                    "items": line_items,
+                    "taxes": [
+                        {
+                            "account_head": "VAT - KPL",
+                            "charge_type": "Actual",
+                            "description": "Tax",
+                            "tax_amount": tax
+                        }
+                    ],
+                    "company": "KAINOTOMO PH LTD"
+                }
+            ])
+            
+            return {"items": result}
+            
+        except Exception as e:
+            logger.error(f"Error processing receipt results: {str(e)}")
+            return {}
+    
+    def _process_generic_document_results(self, document_analysis):
+        """Process generic document results from Azure"""
+        try:
+            # For generic documents, extract key-value pairs from forms recognition
+            key_value_pairs = {}
+            
+            # Extract form fields if available
+            for doc in document_analysis.get("documents", []):
+                fields = doc.get("fields", {})
+                for field_name, field_data in fields.items():
+                    field_value = field_data.get("content", "")
+                    key_value_pairs[field_name] = field_value
+            
+            # Extract tables if available
+            tables = []
+            for table in document_analysis.get("tables", []):
+                table_data = []
+                for row in table.get("cells", []):
+                    row_index = row.get("rowIndex")
+                    col_index = row.get("columnIndex")
+                    content = row.get("content", "")
+                    
+                    # Ensure table_data has enough rows
+                    while len(table_data) <= row_index:
+                        table_data.append([])
+                    
+                    # Ensure row has enough columns
+                    while len(table_data[row_index]) <= col_index:
+                        table_data[row_index].append("")
+                    
+                    table_data[row_index][col_index] = content
+                
+                tables.append(table_data)
+            
+            # Construct result
+            result = {
+                "extracted_fields": key_value_pairs,
+                "extracted_tables": tables
+            }
+            
+            # Extract full text content
+            full_text = ""
+            for page in document_analysis.get("pages", []):
+                for line in page.get("lines", []):
+                    full_text += line.get("content", "") + "\n"
+            
+            result["full_text"] = full_text
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error processing generic document results: {str(e)}")
+            return {}
+    
+    def _get_field_value(self, fields, field_name):
+        """Helper to extract field value from Azure results"""
+        field = fields.get(field_name, {})
+        
+        if isinstance(field, dict):
+            # Handle different value types
+            if "valueNumber" in field:
+                return field.get("valueNumber", 0)
+            elif "valueString" in field:
+                return field.get("valueString", "")
+            elif "valueDate" in field:
+                return field.get("valueDate", "")
+            elif "content" in field:
+                return field.get("content", "")
+            else:
+                return ""
+        else:
+            return field
+    
+    def _format_date(self, date_str):
+        """Format date string to YYYY-MM-DD format"""
+        if not date_str:
+            return ""
+        
+        try:
+            # Check if the date is already in ISO format
+            if isinstance(date_str, str) and "-" in date_str and len(date_str) >= 10:
+                return date_str[:10]  # Return just the date part
+            
+            # Try parsing various date formats
+            from datetime import datetime
+            import locale
+            
+            # Try different formats
+            formats = [
+                "%Y-%m-%d",
+                "%d/%m/%Y",
+                "%m/%d/%Y",
+                "%d-%m-%Y",
+                "%m-%d-%Y",
+                "%d.%m.%Y",
+                "%m.%d.%Y",
+                "%B %d, %Y",
+                "%d %B %Y"
+            ]
+            
+            for fmt in formats:
+                try:
+                    return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+            
+            # If none of the formats worked
+            logger.warning(f"Could not parse date: {date_str}")
+            return date_str
+            
+        except Exception as e:
+            logger.error(f"Error formatting date {date_str}: {str(e)}")
+            return date_str
+
+    def _calculate_token_cost(self, usage):
+        """
+        Calculate cost based on token usage from API response
+        
+        Args:
+            usage: Token usage dict from API response
+            
+        Returns:
+            dict: Token usage and cost information
+        """
+        try:
+            # Extract token counts
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
+            total_tokens = usage.get("total_tokens", 0)
+            
+            # Calculate cost (convert from price per million to price per token)
+            input_cost = (input_tokens * self.input_price_per_million) / 1000000
+            output_cost = (output_tokens * self.output_price_per_million) / 1000000
+            total_cost = input_cost + output_cost
+            
+            return {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "total_tokens": total_tokens,
+                "input_cost": input_cost,
+                "output_cost": output_cost,
+                "total_cost": total_cost
+            }
+        except Exception as e:
+            logger.error(f"Error calculating token cost: {str(e)}")
+            return {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "input_cost": 0.0,
+                "output_cost": 0.0,
+                "total_cost": 0.0
+            }
 
 class OpenWebUIProcessor:
     """Process documents using Open WebUI"""

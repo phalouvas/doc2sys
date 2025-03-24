@@ -583,3 +583,72 @@ def delete_old_doc2sys_files(user_settings):
             "success": False,
             "message": f"Error during file cleanup: {str(e)}"
         }
+
+@frappe.whitelist()
+def test_azure_connection(user_settings):
+    """Test the Azure Document Intelligence connection"""
+    settings = frappe.get_doc("Doc2Sys User Settings", user_settings)
+    
+    if settings.llm_provider != "Azure AI Document Intelligence":
+        return {
+            "success": False,
+            "message": "The selected LLM provider is not Azure AI Document Intelligence"
+        }
+    
+    try:
+        # Get API key securely
+        api_key = frappe.utils.password.get_decrypted_password(
+            "Doc2Sys User Settings", 
+            user_settings, 
+            "azure_key"
+        )
+        
+        if not settings.azure_endpoint or not api_key:
+            return {
+                "success": False,
+                "message": "Azure endpoint URL or API key not configured"
+            }
+        
+        # Test connection to Azure Document Intelligence API
+        import requests
+        
+        # Construct API URL to get models (lightweight call)
+        api_url = f"{settings.azure_endpoint}/documentintelligence/models?api-version=2023-07-31"
+        
+        # Set up headers with API key
+        headers = {
+            "Ocp-Apim-Subscription-Key": api_key
+        }
+        
+        # Make the request
+        response = requests.get(api_url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            models_data = response.json()
+            model_count = len(models_data.get("models", []))
+            
+            # Check if the specified model exists
+            selected_model = settings.azure_model
+            model_exists = any(model.get("modelId") == selected_model for model in models_data.get("models", []))
+            
+            if model_exists:
+                return {
+                    "success": True,
+                    "message": f"Successfully connected to Azure Document Intelligence. Found {model_count} available models including the selected model '{selected_model}'."
+                }
+            else:
+                return {
+                    "success": True,
+                    "message": f"Connected to Azure Document Intelligence ({model_count} models available), but the selected model '{selected_model}' was not found. You may need to use a prebuilt model."
+                }
+        else:
+            return {
+                "success": False,
+                "message": f"Failed to connect to Azure Document Intelligence. API returned status {response.status_code}: {response.text}"
+            }
+    except Exception as e:
+        frappe.log_error(f"Error testing Azure connection: {str(e)}", "Azure Connection Test")
+        return {
+            "success": False,
+            "message": f"Connection error: {str(e)}"
+        }

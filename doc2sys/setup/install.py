@@ -20,6 +20,9 @@ def after_install():
         # OCR dependencies
         "pytesseract",             # Python wrapper for Tesseract OCR
         "pdf2image",               # For PDF to image conversion for OCR
+
+        # AU Azure Document Intelligence
+        "azure-ai-documentintelligence",
     ]
     
     frappe.log_error("Starting Doc2Sys dependency installation", "Doc2Sys Setup")

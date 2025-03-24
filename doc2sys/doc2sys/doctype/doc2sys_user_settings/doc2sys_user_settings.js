@@ -3,6 +3,29 @@
 
 frappe.ui.form.on('Doc2Sys User Settings', {
     refresh: function(frm) {
+        // Add Azure Document Intelligence test button
+        if (frm.doc.llm_provider === 'Azure AI Document Intelligence' && frm.doc.azure_endpoint && frm.doc.azure_key) {
+            frm.add_custom_button(__('Test Azure Connection'), function() {
+                frappe.call({
+                    method: 'doc2sys.doc2sys.doctype.doc2sys_user_settings.doc2sys_user_settings.test_azure_connection',
+                    args: {
+                        user_settings: frm.doc.name
+                    },
+                    freeze: true,
+                    freeze_message: __('Testing Azure AI Document Intelligence connection...'),
+                    callback: function(r) {
+                        if (r.message) {
+                            frappe.msgprint({
+                                title: __('Azure Connection Test'),
+                                message: r.message.message,
+                                indicator: r.message.success ? 'green' : 'red'
+                            });
+                        }
+                    }
+                });
+            }, __('LLM Integration'));
+        }
+
         // Add manual folder processing button
         if (frm.doc.monitoring_enabled) {
             frm.add_custom_button(__('Process Folder Now'), function() {
@@ -432,6 +455,11 @@ frappe.ui.form.on('Doc2Sys User Settings', {
 
     ocr_engine: function(frm) {
         // When OCR engine changes, refresh form to show/hide related sections
+        frm.refresh();
+    },
+
+    llm_provider: function(frm) {
+        // When LLM provider changes, refresh form to show/hide sections
         frm.refresh();
     }
 });
