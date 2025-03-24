@@ -115,26 +115,44 @@ class ERPNextIntegration(BaseIntegration):
             }
             
             # Sort items by doctype priority to ensure dependencies are created first
-            # Check for nested "doc" structure when getting doctype for sorting
+            # Items consistently have a nested "doc" structure in the new format
             sorted_items = sorted(items, key=lambda x: doctype_priority.get(
-                x.get("doc", {}).get("doctype", "") if "doc" in x else x.get("doctype", ""), 
-                999
+                x.get("doc", {}).get("doctype", ""), 999
             ))
             
             # Process each item in priority order
             for item in sorted_items:
-                # Check if the item has a nested doc structure
-                if "doc" in item:
-                    doc_data = item["doc"]
-                else:
-                    doc_data = item
+                # New format consistently has a nested doc structure
+                doc_data = item.get("doc", {})
                 
                 doctype = doc_data.get("doctype")
                 
                 if not doctype:
                     self.log_activity("error", f"Missing doctype in item")
-                    return {"success": False, "message": "Missing doctype in item"}
-
+                    continue  # Skip this item but continue with others
+                
+                # Special handling for Purchase Invoice with nested items and taxes
+                if doctype == "Purchase Invoice":
+                    # Make sure referenced items and suppliers exist in ERPNext
+                    # Check if we need to map to created document names
+                    if "supplier" in doc_data and "Supplier" in created_documents:
+                        for supplier_name in created_documents["Supplier"]:
+                            # If we have the supplier name from earlier creation, ensure it's used
+                            if supplier_name.lower() in doc_data.get("supplier", "").lower():
+                                doc_data["supplier"] = supplier_name
+                                break
+                    
+                    # Ensure all line items exist - they may have simplified structure in the JSON
+                    invoice_items = doc_data.get("items", [])
+                    for idx, invoice_item in enumerate(invoice_items):
+                        # Ensure all required fields exist for each invoice item
+                        if "rate" not in invoice_item:
+                            invoice_item["rate"] = 0
+                        if "qty" not in invoice_item:
+                            invoice_item["qty"] = 1
+                        # Add doctype to each item
+                        invoice_item["doctype"] = "Purchase Invoice Item"
+                
                 doc_data = self.fix_payload(doc_data)
                 
                 # Try to create the document directly without checking if it exists

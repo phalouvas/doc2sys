@@ -348,8 +348,7 @@ class OpenWebUIProcessor:
                 {
                     "doc": {
                     "doctype": "Supplier",
-                    "supplier_name": "[Original_Supplier_Name]",
-                    "country": "[Country]"
+                    "supplier_name": "[Original_Supplier_Name]"
                     }
                 },
                 {
@@ -367,6 +366,7 @@ class OpenWebUIProcessor:
                     "bill_no": "[Extracted_Invoice_Number]",
                     "bill_date": "YYYY-MM-DD",
                     "posting_date": "YYYY-MM-DD",
+                    "set_posting_time": 1,
                     "due_date": "YYYY-MM-DD",
                     "items": [
                         {
@@ -380,6 +380,7 @@ class OpenWebUIProcessor:
                         {
                         "account_head": "VAT - KPL",
                         "charge_type": "Actual",
+                        "description": "Tax",
                         "tax_amount": [Tax]
                         }
                     ],
