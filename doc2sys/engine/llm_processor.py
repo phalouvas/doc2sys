@@ -345,10 +345,7 @@ class AzureDocumentIntelligenceProcessor:
             
             # Process the document with the selected model
             with open(file_path, "rb") as file:
-                poller = self.client.begin_analyze_document(
-                    model_id=model_id,
-                    document=file
-                )
+                poller = self.client.begin_analyze_document(model_id="prebuilt-invoice", body=file)
             
             # Wait for the operation to complete
             result = poller.result()
