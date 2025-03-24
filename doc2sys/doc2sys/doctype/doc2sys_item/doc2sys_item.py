@@ -20,6 +20,10 @@ class Doc2SysItem(Document):
         if not self.user:
             self.user = frappe.session.user
             
+        # Ensure formatted_duration is populated
+        if self.total_duration and not self.formatted_duration:
+            self.formatted_duration = self.format_duration(self.total_duration)
+            
         if self.has_value_changed("single_file"):
             # Clear the existing file ID if file changed
             self.llm_file_id = ""
@@ -307,6 +311,8 @@ class Doc2SysItem(Document):
                 self._in_db_update = True
                 try:
                     self.db_set('total_duration', new_duration, update_modified=False)
+                    # Also update the human-readable duration
+                    self.db_set('formatted_duration', self.format_duration(new_duration), update_modified=False)
                 finally:
                     self._in_db_update = False
                 
@@ -314,6 +320,36 @@ class Doc2SysItem(Document):
             frappe.log_error(f"Error updating duration - type/value error: {str(e)}")
         except Exception as e:
             frappe.log_error(f"Error updating duration: {str(e)}")
+
+    def format_duration(self, seconds):
+        """
+        Format seconds into a human-readable string (e.g., '5m 30s' or '2h 15m 10s')
+        
+        Args:
+            seconds: Duration in seconds
+            
+        Returns:
+            str: Formatted duration string
+        """
+        if not seconds:
+            return "0s"
+            
+        # Convert to integer to avoid fractional parts
+        seconds = int(seconds)
+        
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        
+        result = []
+        
+        if hours > 0:
+            result.append(f"{hours}h")
+        if minutes > 0 or hours > 0:
+            result.append(f"{minutes}m")
+        if seconds > 0 or not result:  # Include seconds if non-zero or if total is 0
+            result.append(f"{seconds}s")
+        
+        return " ".join(result)
 
     def process_document(self):
         """Process document with LLM classification and extraction"""

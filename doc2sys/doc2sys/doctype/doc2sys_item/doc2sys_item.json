@@ -21,6 +21,7 @@
   "output_tokens",
   "total_tokens",
   "total_duration",
+  "formatted_duration",
   "column_break_bosq",
   "input_cost",
   "output_cost",
@@ -140,8 +141,15 @@
   {
    "fieldname": "total_duration",
    "fieldtype": "Float",
+   "hidden": 1,
    "label": "Processing Duration (s)",
    "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "formatted_duration",
+   "fieldtype": "Data",
+   "label": "Processing Time",
    "read_only": 1
   },
   {
@@ -204,7 +212,7 @@
    "link_fieldname": "document"
   }
  ],
- "modified": "2025-03-22 08:35:01.580087",
+ "modified": "2025-03-24 10:35:45.538818",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",
