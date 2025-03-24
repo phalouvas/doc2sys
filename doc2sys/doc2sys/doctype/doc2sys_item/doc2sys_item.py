@@ -221,6 +221,11 @@ class Doc2SysItem(Document):
                 token_usage = extracted_data.pop("_token_usage", {})
                 self.update_token_usage(token_usage)
             
+            # Store the Azure raw response if it exists in the extracted data
+            if "_azure_raw_response" in extracted_data:
+                self.azure_raw_response = extracted_data.pop("_azure_raw_response")
+                frappe.log_error("Saved Azure raw response in doc2sys_item", "Doc2Sys")
+            
             # Store extracted data
             self.extracted_data = frappe.as_json(extracted_data, 1, None, False)
         finally:

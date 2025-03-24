@@ -338,7 +338,7 @@ class AzureDocumentIntelligenceProcessor:
         except Exception as e:
             logger.error(f"Error determining document type from Azure results: {str(e)}")
             return "unknown", 0.0
-            
+
     def extract_data(self, file_path=None, text=None, document_type=None):
         """
         Extract structured data from document using Azure Document Intelligence
@@ -352,6 +352,35 @@ class AzureDocumentIntelligenceProcessor:
             dict: Extracted data fields
         """
         try:
+            # First check if we have cached results in doc2sys_item
+            if self.doc2sys_item:
+                try:
+                    # Check if doc2sys_item is a string or document object
+                    if isinstance(self.doc2sys_item, str):
+                        doc2sys_item_doc = frappe.get_doc("Doc2Sys Item", self.doc2sys_item)
+                    else:
+                        doc2sys_item_doc = self.doc2sys_item
+                    
+                    # Check if we have cached Azure raw response
+                    if hasattr(doc2sys_item_doc, 'azure_raw_response') and doc2sys_item_doc.azure_raw_response:
+                        logger.info(f"Using cached Azure response from doc2sys_item")
+                        
+                        # Deserialize the stored response
+                        deserialized_result = self._deserialize_azure_result(doc2sys_item_doc.azure_raw_response)
+                        
+                        # Process the cached result to extract structured data
+                        extracted_data = self._process_azure_extraction_results(deserialized_result, document_type)
+                        
+                        # Add token usage/cost estimate (zero as we're using cached data)
+                        token_cost = self._calculate_token_cost({"prompt_tokens": 0, "completion_tokens": 0})
+                        extracted_data["_token_usage"] = token_cost
+                        extracted_data["_azure_raw_response"] = doc2sys_item_doc.azure_raw_response
+                        extracted_data["_from_cache"] = True
+                        
+                        return extracted_data
+                except Exception as e:
+                    logger.warning(f"Failed to use cached Azure response: {str(e)}, proceeding with API call")
+            
             # Azure requires a file to process, so check if file path is provided
             if not file_path:
                 logger.warning("Azure Document Intelligence requires a file to process")
@@ -366,7 +395,7 @@ class AzureDocumentIntelligenceProcessor:
             
             # Process the document with the selected model
             with open(file_path, "rb") as file:
-                poller = self.client.begin_analyze_document(model_id="prebuilt-invoice", body=file)
+                poller = self.client.begin_analyze_document(model_id=model_id, document=file)
             
             # Wait for the operation to complete
             result = poller.result()
@@ -388,14 +417,30 @@ class AzureDocumentIntelligenceProcessor:
             # Add raw response data to the extracted data
             extracted_data["_azure_raw_response"] = serialized_result
             
+            # Save the raw response to doc2sys_item for future use if available
+            if self.doc2sys_item:
+                try:
+                    if isinstance(self.doc2sys_item, str):
+                        doc2sys_item_doc = frappe.get_doc("Doc2Sys Item", self.doc2sys_item)
+                    else:
+                        doc2sys_item_doc = self.doc2sys_item
+                    
+                    # Update the document with the raw response
+                    doc2sys_item_doc.azure_raw_response = serialized_result
+                    # Use db_set to directly update field without triggering validation
+                    doc2sys_item_doc.db_set('azure_raw_response', serialized_result, update_modified=False)
+                    logger.info(f"Cached Azure response in doc2sys_item")
+                except Exception as e:
+                    logger.warning(f"Failed to cache Azure response: {str(e)}")
+            
             return extracted_data
                 
         except HttpResponseError as error:
-            logger.error(f"Azure Document Intelligence API error: {str(error)}")
+            logger.error(f"Azure Document Intelligence API error: {str(e)}")
             return {}
         except Exception as e:
             logger.error(f"Azure data extraction error: {str(e)}")
-            return {}
+            return {}        
     
     def _select_azure_model_by_document_type(self, document_type):
         """
@@ -557,7 +602,7 @@ class AzureDocumentIntelligenceProcessor:
                     ],
                     "company": "KAINOTOMO PH LTD"
                 }
-            })
+            ])
             
             return {"items": result}
             
@@ -669,7 +714,7 @@ class AzureDocumentIntelligenceProcessor:
                     ],
                     "company": "KAINOTOMO PH LTD"
                 }
-            })
+            ])
             
             return {"items": result}
             
