@@ -54,7 +54,7 @@ class Doc2SysItem(Document):
                 if success:
                     # Use db_set to directly update fields without triggering validation
                     for field in ["input_tokens", "output_tokens", "total_tokens", 
-                                "input_cost", "output_cost", "total_cost", "extracted_text", "total_duration"]:
+                                "input_cost", "output_cost", "total_cost", "extracted_text"]:
                         self.db_set(field, self.get(field))
                     
                     # Call the integration function directly instead of enqueueing it
@@ -758,6 +758,29 @@ class Doc2SysItem(Document):
             frappe.logger().info(f"Deleted {len(integration_logs)} integration logs for document {self.name}")
         except Exception as e:
             frappe.log_error(f"Failed to delete integration logs for document {self.name}: {str(e)}")
+
+    @frappe.whitelist()
+    def reset_usage_metrics(self):
+        """Reset all token usage and duration metrics to zero"""
+        try:
+            # Reset token usage metrics
+            self.input_tokens = 0
+            self.output_tokens = 0
+            self.total_tokens = 0
+            self.input_cost = 0.0
+            self.output_cost = 0.0
+            self.total_cost = 0.0
+            self.total_duration = 0.0
+            
+            # Save the document to persist changes
+            self.save()
+            
+            frappe.msgprint(_("Usage metrics have been reset successfully"))
+            return True
+        except Exception as e:
+            frappe.log_error(f"Error resetting usage metrics: {str(e)}")
+            frappe.msgprint(_("An error occurred while resetting metrics"))
+            return False
 
 @frappe.whitelist()
 def create_item_from_file(file_doc_name):

@@ -162,6 +162,36 @@ frappe.ui.form.on('Doc2Sys Item', {
                 });
             }, __('Actions'));
             
+            // Add Reset Usage Metrics button
+            frm.add_custom_button(__('Reset Usage Metrics'), function() {
+                frappe.confirm(
+                    __('This will reset all token usage and duration metrics to zero. Continue?'),
+                    function() {
+                        // Action if user says Yes
+                        frappe.dom.freeze(__('Resetting metrics...'));
+                        
+                        frm.call({
+                            doc: frm.doc,
+                            method: 'reset_usage_metrics',
+                            callback: function(r) {
+                                frappe.dom.unfreeze();
+                                
+                                if(r.message) {
+                                    frappe.show_alert({
+                                        message: __('Usage metrics reset successfully'),
+                                        indicator: 'green'
+                                    }, 3);
+                                    frm.refresh();
+                                }
+                            },
+                            error: function() {
+                                frappe.dom.unfreeze();
+                            }
+                        });
+                    }
+                );
+            }, __('Actions'));
+            
             // Add custom styling for the divider
             setTimeout(() => {
                 $('.dropdown-divider-btn').css({
