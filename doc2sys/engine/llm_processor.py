@@ -21,18 +21,32 @@ class LLMProcessor:
     """Process documents using various LLM providers"""
     
     @staticmethod
-    def create(user=None):
+    def create(user=None, doc2sys_item=None):
         """
         Factory method to create the appropriate LLM processor
         
         Args:
             user (str): Optional user for user-specific settings. 
-                        If None, uses current user.
+                        If None and doc2sys_item is None, uses current user.
+            doc2sys_item: Optional Doc2Sys Item document or name.
+                        If provided, gets user from this document.
         
         Returns:
             Processor instance based on user's preferred provider
         """
-        # Determine which user to use for settings
+        # If doc2sys_item is provided, get the user from it
+        if doc2sys_item:
+            if isinstance(doc2sys_item, str):
+                try:
+                    doc2sys_item_doc = frappe.get_doc("Doc2Sys Item", doc2sys_item)
+                    user = doc2sys_item_doc.user
+                except Exception as e:
+                    logger.error(f"Failed to get Doc2Sys Item {doc2sys_item}: {str(e)}")
+            else:
+                # Assume it's already a document object
+                user = doc2sys_item.user
+        
+        # Fall back to provided user or session user if we couldn't get user from doc2sys_item
         user = user or frappe.session.user
         
         # Try to get user-specific settings
@@ -53,22 +67,27 @@ class LLMProcessor:
         
         # Return the appropriate processor based on the provider
         if provider == "Azure AI Document Intelligence":
-            return AzureDocumentIntelligenceProcessor(user=user)
+            return AzureDocumentIntelligenceProcessor(user=user, doc2sys_item=doc2sys_item)
         else:
             if provider != "Open WebUI":
                 logger.warning(f"Provider {provider} not supported, using Open WebUI")
-            return OpenWebUIProcessor(user=user)
-    
-    def __init__(self, user=None):
+            return OpenWebUIProcessor(user=user, doc2sys_item=doc2sys_item)
+
+    def __init__(self, user=None, doc2sys_item=None):
         """
         Initialize LLMProcessor directly - delegates to factory method
         
         Args:
             user (str): Optional user for user-specific settings.
-                        If None, uses current user.
+                        If None and doc2sys_item is None, uses current user.
+            doc2sys_item: Optional Doc2Sys Item document or name.
+                        If provided, gets user from this document.
         """
+        # Store doc2sys_item as instance attribute
+        self.doc2sys_item = doc2sys_item
+        
         # Delegate to the appropriate processor
-        processor = self.create(user=user)
+        processor = self.create(user=user, doc2sys_item=doc2sys_item)
         
         # Copy attributes from the created processor
         self.__dict__.update(processor.__dict__)
@@ -82,15 +101,17 @@ class LLMProcessor:
 class AzureDocumentIntelligenceProcessor:
     """Process documents using Azure AI Document Intelligence"""
     
-    def __init__(self, user=None):
+    def __init__(self, user=None, doc2sys_item=None):
         """
         Initialize Azure Document Intelligence processor with user-specific settings
         
         Args:
             user (str): Optional user for user-specific settings.
                         If None, uses current user.
+            doc2sys_item: Optional Doc2Sys Item document or name.
         """
         self.user = user or frappe.session.user
+        self.doc2sys_item = doc2sys_item
         
         # Try to get user-specific settings first
         user_settings = None
@@ -350,12 +371,22 @@ class AzureDocumentIntelligenceProcessor:
             # Wait for the operation to complete
             result = poller.result()
             
+            # Check if result is None and throw an error if it is
+            if not result:
+                raise LLMProcessingError("Azure Document Intelligence returned no result")
+            
+            # Convert Azure result to serializable JSON
+            serialized_result = self._serialize_azure_result(result)
+            
             # Process the result to extract structured data
             extracted_data = self._process_azure_extraction_results(result, document_type)
             
             # Add token usage/cost estimate
             token_cost = self._calculate_token_cost({"prompt_tokens": 0, "completion_tokens": 0})
             extracted_data["_token_usage"] = token_cost
+            
+            # Add raw response data to the extracted data
+            extracted_data["_azure_raw_response"] = serialized_result
             
             return extracted_data
                 
@@ -705,22 +736,28 @@ class AzureDocumentIntelligenceProcessor:
         
         field = fields[field_name]
         
-        # Return the appropriate value based on field type
-        if field.value is None:
+        # If field is None or empty
+        if not field:
             return None
         
-        # Handle different value types in the SDK
-        if hasattr(field.value, "content"):
-            return field.value.content
-        elif field.value_type == "string":
-            return field.value
-        elif field.value_type == "number":
-            return field.value
-        elif field.value_type == "date":
-            return field.value
-        else:
-            # For other types, just convert to string
-            return str(field.value)
+        # Fields in the SDK are dictionary-like objects with 'content' for the actual value
+        if isinstance(field, dict) and 'content' in field:
+            return field.get('content')
+        
+        # For array values (like Items)
+        if isinstance(field, dict) and 'valueArray' in field:
+            return field.get('valueArray')
+        
+        # For currency values
+        if isinstance(field, dict) and 'valueCurrency' in field:
+            return field.get('content')
+        
+        # For date values
+        if isinstance(field, dict) and 'valueDate' in field:
+            return field.get('content')
+        
+        # Fallback: try to get content or return the field itself
+        return field.get('content') if hasattr(field, 'get') else field
     
     def _format_date(self, date_str):
         """Format date string to YYYY-MM-DD format"""
@@ -807,18 +844,226 @@ class AzureDocumentIntelligenceProcessor:
                 "total_cost": 0.0
             }
 
+    def _serialize_azure_result(self, result):
+        """
+        Serialize Azure Document Intelligence result to a JSON-compatible format
+        
+        Args:
+            result: Azure Document Intelligence API response object
+            
+        Returns:
+            dict: Serialized representation of the Azure result
+        """
+        try:
+            serialized_data = {}
+            
+            # Add document type and model info
+            serialized_data["model_id"] = self.model
+            
+            # Extract content if available
+            if hasattr(result, 'content'):
+                serialized_data['content'] = result.content
+                
+            # Extract pages data
+            if hasattr(result, 'pages'):
+                serialized_data['pages'] = []
+                for page in result.pages:
+                    page_data = {
+                        'page_number': page.page_number,
+                        'width': page.width,
+                        'height': page.height,
+                        'unit': page.unit,
+                        'angle': page.angle
+                    }
+                    serialized_data['pages'].append(page_data)
+            
+            # Extract documents data
+            if hasattr(result, 'documents'):
+                serialized_data['documents'] = []
+                for doc in result.documents:
+                    doc_data = {
+                        'doc_type': getattr(doc, 'doc_type', 'unknown'),
+                        'confidence': getattr(doc, 'confidence', 0.0)
+                    }
+                    # Extract fields
+                    if hasattr(doc, 'fields'):
+                        doc_data['fields'] = {}
+                        for field_name, field in doc.fields.items():
+                            field_data = {
+                                'type': getattr(field, 'type', 'unknown'),
+                                'confidence': getattr(field, 'confidence', 0.0)
+                            }
+                            
+                            # Handle different field value types
+                            if hasattr(field, 'value_type'):
+                                field_data['value_type'] = field.value_type
+                                
+                                # Handle different value types appropriately
+                                if field.value_type == 'string':
+                                    field_data['value'] = str(field.value)
+                                elif field.value_type in ['number', 'integer', 'float']:
+                                    field_data['value'] = field.value
+                                elif field.value_type == 'date':
+                                    field_data['value'] = str(field.value)
+                                elif field.value_type == 'array':
+                                    # Handle array values
+                                    field_data['value'] = []
+                                    if hasattr(field.value, 'values'):
+                                        for item in field.value.values:
+                                            if hasattr(item, 'content'):
+                                                field_data['value'].append(item.content)
+                                            else:
+                                                field_data['value'].append(str(item))
+                                else:
+                                    field_data['value'] = str(field.value)
+                            else:
+                                field_data['value'] = str(field.value) if field.value is not None else ''
+                                
+                            doc_data['fields'][field_name] = field_data
+                    serialized_data['documents'].append(doc_data)
+                    
+            # Extract tables data
+            if hasattr(result, 'tables'):
+                serialized_data['tables'] = []
+                for table in result.tables:
+                    table_data = {
+                        'row_count': table.row_count,
+                        'column_count': table.column_count,
+                        'cells': []
+                    }
+                    
+                    # Extract cells
+                    if hasattr(table, 'cells'):
+                        for cell in table.cells:
+                            cell_data = {
+                                'row_index': cell.row_index,
+                                'column_index': cell.column_index,
+                                'content': cell.content,
+                                'kind': getattr(cell, 'kind', ''),
+                                'row_span': getattr(cell, 'row_span', 1),
+                                'column_span': getattr(cell, 'column_span', 1)
+                            }
+                            table_data['cells'].append(cell_data)
+                    
+                    serialized_data['tables'].append(table_data)
+            
+            return serialized_data
+        except Exception as e:
+            logger.error(f"Error serializing Azure result: {str(e)}")
+            return {"error": str(e)}
+    
+    def _deserialize_azure_result(self, serialized_result):
+        """
+        Deserialize stored Azure Document Intelligence result into a structured format
+        
+        Args:
+            serialized_result: JSON string or dictionary of serialized Azure result
+            
+        Returns:
+            dict: Structured representation of Azure result for easier access
+        """
+        try:
+            # Convert string to dict if needed
+            if isinstance(serialized_result, str):
+                data = json.loads(serialized_result)
+            else:
+                data = serialized_result
+                
+            # Create a structured result object
+            structured_result = {
+                "model_id": data.get("model_id", "unknown"),
+                "content": data.get("content", ""),
+                "pages": {},
+                "documents": {},
+                "tables": [],
+                "key_value_pairs": {}
+            }
+            
+            # Process pages data
+            if "pages" in data and isinstance(data["pages"], list):
+                for page in data["pages"]:
+                    page_num = page.get("page_number")
+                    if page_num:
+                        structured_result["pages"][page_num] = {
+                            "width": page.get("width"),
+                            "height": page.get("height"),
+                            "unit": page.get("unit"),
+                            "angle": page.get("angle")
+                        }
+            
+            # Process documents data - make key-value pairs more accessible
+            if "documents" in data and isinstance(data["documents"], list):
+                for i, doc in enumerate(data["documents"]):
+                    doc_id = f"doc_{i}"
+                    doc_type = doc.get("doc_type", "unknown")
+                    
+                    structured_result["documents"][doc_id] = {
+                        "doc_type": doc_type,
+                        "confidence": doc.get("confidence", 0.0),
+                        "fields": {}
+                    }
+                    
+                    # Process fields and make them more accessible
+                    if "fields" in doc and isinstance(doc["fields"], dict):
+                        for field_name, field in doc["fields"].items():
+                            # Store field data in structured format
+                            structured_result["documents"][doc_id]["fields"][field_name] = {
+                                "value": field.get("value"),
+                                "confidence": field.get("confidence", 0.0),
+                                "value_type": field.get("value_type", "unknown")
+                            }
+                            
+                            # Also store key-value pairs at root level for easy access
+                            structured_result["key_value_pairs"][field_name] = field.get("value")
+            
+            # Process tables data
+            if "tables" in data and isinstance(data["tables"], list):
+                for table_idx, table in enumerate(data["tables"]):
+                    table_data = {
+                        "id": f"table_{table_idx}",
+                        "rows": table.get("row_count", 0),
+                        "columns": table.get("column_count", 0),
+                        "grid": {}  # Will hold cells by row,col position
+                    }
+                    
+                    # Process cells and organize into a grid
+                    if "cells" in table and isinstance(table["cells"], list):
+                        # First pass: create grid structure
+                        for cell in table["cells"]:
+                            row = cell.get("row_index")
+                            col = cell.get("column_index")
+                            if row is not None and col is not None:
+                                if row not in table_data["grid"]:
+                                    table_data["grid"][row] = {}
+                                
+                                table_data["grid"][row][col] = {
+                                    "content": cell.get("content", ""),
+                                    "kind": cell.get("kind", ""),
+                                    "row_span": cell.get("row_span", 1),
+                                    "column_span": cell.get("column_span", 1)
+                                }
+                    
+                    structured_result["tables"].append(table_data)
+            
+            return structured_result
+        except Exception as e:
+            logger.error(f"Error deserializing Azure result: {str(e)}")
+            return {"error": str(e)}
+
 class OpenWebUIProcessor:
     """Process documents using Open WebUI"""
     
-    def __init__(self, user=None):
+    def __init__(self, user=None, doc2sys_item=None):
         """
         Initialize Open WebUI processor with user-specific settings
         
         Args:
             user (str): Optional user for user-specific settings.
                         If None, uses current user.
+            doc2sys_item: Optional Doc2Sys Item document or name.
         """
         self.user = user or frappe.session.user
+        self.doc2sys_item = doc2sys_item
         
         # Try to get user-specific settings first
         user_settings = None

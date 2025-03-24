@@ -30,6 +30,7 @@
   "extracted_text",
   "column_break_ibav",
   "extracted_data",
+  "azure_raw_response",
   "dashboard_tab",
   "integration_status_section",
   "integration_status_html"
@@ -192,6 +193,15 @@
    "fieldname": "integration_status_html",
    "fieldtype": "HTML",
    "label": "Integration Status"
+  },
+  {
+   "fieldname": "azure_raw_response",
+   "fieldtype": "Code",
+   "label": "Azure Raw Response",
+   "options": "JSON",
+   "read_only": 1,
+   "hidden": 0,
+   "collapsible": 1
   },
   {
    "fieldname": "dashboard_tab",

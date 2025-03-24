@@ -143,8 +143,11 @@ class Doc2SysItem(Document):
         Returns:
             LLMProcessor: The processor instance
         """
-        # Create processor with user-specific settings
-        processor = LLMProcessor(user=self.user)
+        # Create processor with document-specific settings
+        processor = LLMProcessor(doc2sys_item=self)
+        
+        # Rest of the method remains unchanged
+        # ...
         
         # Skip file upload if we have sufficient extracted text
         if extracted_text and len(extracted_text) > 100:
