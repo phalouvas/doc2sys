@@ -530,8 +530,20 @@ class AzureDocumentIntelligenceProcessor:
             # Extract basic invoice fields
             supplier_name = self._get_field_value(fields, "VendorName") or "Unknown Supplier"
             invoice_id = self._get_field_value(fields, "InvoiceId") or ""
-            invoice_date = self._get_field_value(fields, "InvoiceDate") or ""
+            # Default invoice date to today if missing
+            today = datetime.datetime.now().strftime("%Y-%m-%d")
+            invoice_date = self._get_field_value(fields, "InvoiceDate") or today
             due_date = self._get_field_value(fields, "DueDate") or invoice_date
+
+            # Ensure due_date is not before invoice_date
+            try:
+                invoice_date_obj = datetime.datetime.strptime(invoice_date, "%Y-%m-%d").date()
+                due_date_obj = datetime.datetime.strptime(due_date, "%Y-%m-%d").date()
+                if due_date_obj < invoice_date_obj:
+                    due_date = invoice_date
+            except (ValueError, TypeError):
+                # If date parsing fails, ensure due_date equals invoice_date
+                due_date = invoice_date
             tax = self._get_field_value(fields, "TotalTax") or 0.0
             net = self._get_field_value(fields, "SubTotal") or 0.0
             total = self._get_field_value(fields, "InvoiceTotal") or 0.0
