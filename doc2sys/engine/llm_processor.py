@@ -535,10 +535,26 @@ class AzureDocumentIntelligenceProcessor:
             tax = self._get_field_value(fields, "TotalTax") or 0.0
             net = self._get_field_value(fields, "SubTotal") or 0.0
             total = self._get_field_value(fields, "InvoiceTotal") or 0.0
+            
+            # Validate that total = net + tax (allowing for small floating point differences)
+            if abs((net + tax) - total) > 0.01 and total > 0:
+                logger.warning(f"Invoice total validation failed: {net} + {tax} != {total}")
+                # Recalculate to ensure consistency - prefer total as the source of truth
+                if net > 0 and tax > 0:
+                    # Both net and tax values are available, keep them
+                    total = net + tax
+                elif total > 0 and tax > 0:
+                    # Derive net from total and tax
+                    net = total - tax
+                elif total > 0 and net > 0:
+                    # Derive tax from total and net
+                    tax = total - net
+            
             items = self._get_field_value(fields, "Items") or []
             
             # Process line items if available
             line_items = []
+            total_items_amount = 0
             
             for item_obj in items:
                 if item_obj.get("confidence") < ACCEPTABLE_CONFIDENCE:
@@ -546,9 +562,12 @@ class AzureDocumentIntelligenceProcessor:
                 
                 value_obj = item_obj.get("valueObject")
                 description = value_obj.get("Description").get("content")
-                quantity = 1
+                quantity = value_obj.get("Quantity").get("content") if value_obj.get("Quantity") else 1
                 amount = value_obj.get("Amount").get("valueCurrency").get("amount") or 0
-                unit_price = amount
+                
+                # Ensure item amount excludes tax
+                unit_price = amount / quantity if quantity else amount
+                total_items_amount += amount
                 
                 line_items.append({
                     "item_code": description,
@@ -558,13 +577,20 @@ class AzureDocumentIntelligenceProcessor:
                     "item_group": "All Item Groups"
                 })
             
-            # If no line items detected, create one based on total amount
-            if not line_items and total:
+            # Scale item amounts if their total differs significantly from net amount
+            if line_items and abs(total_items_amount - net) > 0.01 and net > 0:
+                scale_factor = net / total_items_amount
+                for item in line_items:
+                    item["rate"] = item["rate"] * scale_factor
+                    item["amount"] = item["amount"] * scale_factor
+            
+            # If no line items detected, create one based on net amount (not total)
+            if not line_items and net:
                 line_items.append({
                     "item_code": "Invoice Item",
                     "qty": 1,
-                    "rate": total,
-                    "amount": total,
+                    "rate": net,
+                    "amount": net,
                     "item_group": "All Item Groups"
                 })
             
