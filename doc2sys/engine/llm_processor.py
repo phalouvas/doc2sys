@@ -378,7 +378,6 @@ class AzureDocumentIntelligenceProcessor:
                         #token_cost = self._calculate_token_cost({"prompt_tokens": 0, "completion_tokens": 0})
                         #extracted_data["_token_usage"] = token_cost
                         #extracted_data["_azure_raw_response"] = doc2sys_item_doc.azure_raw_response
-                        extracted_data["_from_cache"] = True
                         
                         return extracted_data
                 except Exception as e:
@@ -409,6 +408,7 @@ class AzureDocumentIntelligenceProcessor:
             
             # Convert Azure result to serializable JSON
             result_dict = result.as_dict()
+            extracted_text = result_dict.get("content")
             serialized_result = json.dumps(result_dict, ensure_ascii=False)
             
             # Process the result to extract structured data
@@ -420,6 +420,8 @@ class AzureDocumentIntelligenceProcessor:
             
             # Add raw response data to the extracted data
             extracted_data["_azure_raw_response"] = serialized_result
+            if extracted_text:
+                extracted_data["_azure_extracted_text"] = extracted_text
             
             # Save the raw response to doc2sys_item for future use if available
             if self.doc2sys_item:
@@ -431,9 +433,10 @@ class AzureDocumentIntelligenceProcessor:
                     
                     # Update the document with the raw response
                     doc2sys_item_doc.azure_raw_response = serialized_result
+                    doc2sys_item_doc.extracted_text = extracted_text
                     # Use db_set to directly update field without triggering validation
                     doc2sys_item_doc.db_set('azure_raw_response', serialized_result, update_modified=False)
-                    logger.info(f"Cached Azure response in doc2sys_item")
+                    doc2sys_item_doc.db_set('extracted_text', extracted_text, update_modified=False)
                 except Exception as e:
                     logger.warning(f"Failed to cache Azure response: {str(e)}")
             
