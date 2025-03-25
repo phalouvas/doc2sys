@@ -15,29 +15,13 @@
   "monitoring_enabled",
   "folder_to_monitor",
   "monitor_interval",
-  "ocr_settings_tab",
-  "ocr_settings_section",
-  "ocr_enabled",
-  "ocr_engine",
-  "llm_ocr_section",
-  "llm_ocr_provider",
-  "llm_ocr_endpoint",
-  "llm_ocr_apikey",
-  "llm_ocr_model",
-  "tesseract_section",
-  "ocr_languages",
   "llm_integration_tab",
   "llm_integration_section",
   "llm_provider",
-  "openwebui_endpoint",
-  "openwebui_model",
-  "openwebui_apikey",
   "azure_endpoint",
   "azure_key",
   "azure_model",
-  "column_break_ghrw",
-  "input_token_price",
-  "output_token_price",
+  "cost_invoice",
   "external_integrations_tab",
   "integrations_section",
   "user_integrations"
@@ -55,13 +39,6 @@
    "unique": 1
   },
   {
-   "default": "1",
-   "description": "Enable Optical Character Recognition for images and scanned documents",
-   "fieldname": "ocr_enabled",
-   "fieldtype": "Check",
-   "label": "Enable OCR"
-  },
-  {
    "default": "15",
    "depends_on": "eval:doc.monitoring_enabled==1",
    "description": "How often to check the monitored folder for new files",
@@ -77,36 +54,11 @@
    "label": "Enable Folder Monitoring"
   },
   {
-   "depends_on": "eval:doc.ocr_engine=='tesseract'",
-   "fieldname": "ocr_languages",
-   "fieldtype": "Table",
-   "label": "OCR Languages",
-   "options": "Doc2Sys OCR Language"
-  },
-  {
-   "default": "Open WebUI",
+   "default": "Azure AI Document Intelligence",
    "fieldname": "llm_provider",
    "fieldtype": "Select",
    "label": "LLM Provider",
-   "options": "Open WebUI\nAzure AI Document Intelligence"
-  },
-  {
-   "depends_on": "eval:doc.llm_provider=='Open WebUI'",
-   "fieldname": "openwebui_endpoint",
-   "fieldtype": "Data",
-   "label": "Open WebUI Endpoint"
-  },
-  {
-   "depends_on": "eval:doc.llm_provider=='Open WebUI'",
-   "fieldname": "openwebui_model",
-   "fieldtype": "Data",
-   "label": "Open WebUI Model"
-  },
-  {
-   "depends_on": "eval:doc.llm_provider=='Open WebUI'",
-   "fieldname": "openwebui_apikey",
-   "fieldtype": "Password",
-   "label": "Open WebUI API Key"
+   "options": "Azure AI Document Intelligence"
   },
   {
    "depends_on": "eval:doc.llm_provider=='Azure AI Document Intelligence'",
@@ -121,24 +73,12 @@
    "label": "Azure API Key"
   },
   {
+   "default": "prebuilt-invoice",
    "depends_on": "eval:doc.llm_provider=='Azure AI Document Intelligence'",
    "fieldname": "azure_model",
    "fieldtype": "Select",
-   "options": "prebuilt-layout\nprebuilt-document\nprebuilt-read\nprebuilt-invoice\nprebuilt-receipt\nprebuilt-tax.us.w2",
-   "default": "prebuilt-document",
-   "label": "Azure Model"
-  },
-  {
-   "default": "0",
-   "fieldname": "input_token_price",
-   "fieldtype": "Currency",
-   "label": "Input Token Price (\u20ac / million)"
-  },
-  {
-   "default": "0",
-   "fieldname": "output_token_price",
-   "fieldtype": "Currency",
-   "label": "Output Token Price (\u20ac / million)"
+   "label": "Azure Model",
+   "options": "prebuilt-layout\nprebuilt-document\nprebuilt-read\nprebuilt-invoice\nprebuilt-receipt"
   },
   {
    "fieldname": "folder_monitoring_section",
@@ -152,18 +92,9 @@
    "label": "Folder to Monitor"
   },
   {
-   "fieldname": "ocr_settings_section",
-   "fieldtype": "Section Break",
-   "label": "OCR Settings"
-  },
-  {
    "fieldname": "llm_integration_section",
    "fieldtype": "Section Break",
-   "label": "LLM Integration"
-  },
-  {
-   "fieldname": "column_break_ghrw",
-   "fieldtype": "Column Break"
+   "label": "Processing Engine"
   },
   {
    "fieldname": "naming_series",
@@ -184,64 +115,14 @@
    "options": "Doc2Sys User Integration"
   },
   {
-   "default": "tesseract",
-   "depends_on": "eval:doc.ocr_enabled==1",
-   "fieldname": "ocr_engine",
-   "fieldtype": "Select",
-   "label": "OCR Engine",
-   "options": "tesseract\nllm_api",
-   "reqd": 1
-  },
-  {
-   "depends_on": "eval:doc.ocr_engine=='tesseract' && doc.ocr_enabled==1",
-   "fieldname": "tesseract_section",
-   "fieldtype": "Section Break",
-   "label": "Tesseract OCR Settings"
-  },
-  {
-   "depends_on": "eval:doc.ocr_engine=='llm_api' && doc.ocr_enabled==1",
-   "fieldname": "llm_ocr_section",
-   "fieldtype": "Section Break",
-   "label": "LLM API OCR Settings"
-  },
-  {
-   "default": "Open WebUI",
-   "fieldname": "llm_ocr_provider",
-   "fieldtype": "Select",
-   "label": "LLM OCR Provider",
-   "options": "Open WebUI"
-  },
-  {
-   "depends_on": "eval:doc.llm_ocr_provider=='Open WebUI'",
-   "fieldname": "llm_ocr_endpoint",
-   "fieldtype": "Data",
-   "label": "LLM OCR API Endpoint"
-  },
-  {
-   "fieldname": "llm_ocr_apikey",
-   "fieldtype": "Password",
-   "label": "LLM OCR API Key"
-  },
-  {
-   "depends_on": "eval:['Open WebUI'].includes(doc.llm_ocr_provider)",
-   "fieldname": "llm_ocr_model",
-   "fieldtype": "Data",
-   "label": "LLM OCR Model"
-  },
-  {
    "fieldname": "folder_monitoring_tab",
    "fieldtype": "Tab Break",
    "label": "Folder Monitoring"
   },
   {
-   "fieldname": "ocr_settings_tab",
-   "fieldtype": "Tab Break",
-   "label": "OCR Settings"
-  },
-  {
    "fieldname": "llm_integration_tab",
    "fieldtype": "Tab Break",
-   "label": "LLM Integration"
+   "label": "Engine"
   },
   {
    "fieldname": "external_integrations_tab",
@@ -262,11 +143,17 @@
    "fieldtype": "Int",
    "label": "Days to Keep Files",
    "non_negative": 1
+  },
+  {
+   "fieldname": "cost_invoice",
+   "fieldtype": "Currency",
+   "label": "Cost per 1,000 pages",
+   "non_negative": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-21 15:13:46.931064",
+ "modified": "2025-03-25 17:39:42.936433",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",

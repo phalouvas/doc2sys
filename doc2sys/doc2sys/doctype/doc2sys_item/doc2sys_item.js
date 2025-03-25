@@ -49,59 +49,6 @@ frappe.ui.form.on('Doc2Sys Item', {
         // Add custom buttons or functionality here
         // Add buttons if a document is attached
         if(frm.doc.single_file) {
-            // Add Extract Text Only button
-            frm.add_custom_button(__('Extract Text Only'), function() {
-                // Show full screen processing overlay
-                frappe.dom.freeze(__('Extracting text from document...'));
-                
-                frm.call({
-                    doc: frm.doc,
-                    method: 'extract_text_only',
-                    callback: function(r) {
-                        // Unfreeze UI when processing is complete
-                        frappe.dom.unfreeze();
-                        
-                        if(r.message) {
-                            frappe.show_alert({
-                                message: __('Text extraction completed'),
-                                indicator: 'green'
-                            }, 3);
-                            frm.refresh();
-                        }
-                    },
-                    error: function() {
-                        // Make sure to unfreeze UI even if there's an error
-                        frappe.dom.unfreeze();
-                    }
-                });
-            }, __('Actions'));
-            
-            // Add Classify Document button
-            frm.add_custom_button(__('Classify Document'), function() {
-                // Show full screen processing overlay
-                frappe.dom.freeze(__('Classifying document...'));
-                
-                frm.call({
-                    doc: frm.doc,
-                    method: 'classify_document_only',
-                    callback: function(r) {
-                        // Unfreeze UI when processing is complete
-                        frappe.dom.unfreeze();
-                        
-                        if(r.message) {
-                            frappe.show_alert({
-                                message: __('Document classification completed'),
-                                indicator: 'green'
-                            }, 3);
-                            frm.refresh();
-                        }
-                    },
-                    error: function() {
-                        // Make sure to unfreeze UI even if there's an error
-                        frappe.dom.unfreeze();
-                    }
-                });
-            }, __('Actions'));
             
             // Add Extract Data button
             frm.add_custom_button(__('Extract Data'), function() {
@@ -110,7 +57,7 @@ frappe.ui.form.on('Doc2Sys Item', {
                 
                 frm.call({
                     doc: frm.doc,
-                    method: 'extract_data_only',
+                    method: 'extract_data',
                     callback: function(r) {
                         // Unfreeze UI when processing is complete
                         frappe.dom.unfreeze();
@@ -130,38 +77,22 @@ frappe.ui.form.on('Doc2Sys Item', {
                 });
             }, __('Actions'));
 
-            // Add Extract Data button
-            frm.add_custom_button(__('Extract Data From Azure'), function() {
-                // Show full screen processing overlay
-                frappe.dom.freeze(__('Extracting data from document...'));
-                
-                frm.call({
-                    doc: frm.doc,
-                    method: 'extract_data_azure',
-                    callback: function(r) {
-                        // Unfreeze UI when processing is complete
-                        frappe.dom.unfreeze();
-                        
-                        if(r.message) {
-                            frappe.show_alert({
-                                message: __('Data extraction completed'),
-                                indicator: 'green'
-                            }, 3);
-                            frm.refresh();
-                        }
+            // Add trigger integrations button that actually processes the integrations
+            frm.add_custom_button(__('Trigger Integrations'), function() {
+                frappe.call({
+                    method: "doc2sys.integrations.events.trigger_integrations_on_update",
+                    args: {
+                        doc: frm.doc
                     },
-                    error: function() {
-                        // Make sure to unfreeze UI even if there's an error
-                        frappe.dom.unfreeze();
+                    callback: function(r) {
+                        frappe.show_alert({message: __('Integrations triggered'), indicator: 'green'});
+                        setTimeout(function() {
+                            update_integration_status(frm);
+                        }, 3000); // Wait 3 seconds for processing
                     }
                 });
             }, __('Actions'));
-            
-            // Add a separator in the Actions dropdown
-            frm.add_custom_button('', function(){
-                // No-op function 
-            }, __('Actions')).addClass('dropdown-divider-btn disabled');
-            
+
             // Add Process All Steps button at the end of Actions dropdown
             frm.add_custom_button(__('Process All Steps'), function() {
                 // Show full screen processing overlay
@@ -189,34 +120,15 @@ frappe.ui.form.on('Doc2Sys Item', {
                 });
             }, __('Actions'));
             
-            // Add Reset Usage Metrics button
-            frm.add_custom_button(__('Reset Usage Metrics'), function() {
-                frappe.confirm(
-                    __('This will reset all token usage and duration metrics to zero. Continue?'),
-                    function() {
-                        // Action if user says Yes
-                        frappe.dom.freeze(__('Resetting metrics...'));
-                        
-                        frm.call({
-                            doc: frm.doc,
-                            method: 'reset_usage_metrics',
-                            callback: function(r) {
-                                frappe.dom.unfreeze();
-                                
-                                if(r.message) {
-                                    frappe.show_alert({
-                                        message: __('Usage metrics reset successfully'),
-                                        indicator: 'green'
-                                    }, 3);
-                                    frm.refresh();
-                                }
-                            },
-                            error: function() {
-                                frappe.dom.unfreeze();
-                            }
-                        });
-                    }
-                );
+            // Add a separator in the Actions dropdown
+            frm.add_custom_button('', function(){
+                // No-op function 
+            }, __('Actions')).addClass('dropdown-divider-btn disabled');            
+
+            // Add status refresh button that doesn't trigger integrations
+            frm.add_custom_button(__('Refresh Status'), function() {
+                update_integration_status(frm);
+                frappe.show_alert({message: __('Integration status refreshed'), indicator: 'blue'});
             }, __('Actions'));
             
             // Add custom styling for the divider
@@ -233,30 +145,6 @@ frappe.ui.form.on('Doc2Sys Item', {
 
         // Update integration status on page load
         update_integration_status(frm);
-        
-        if (!frm.doc.__islocal) {
-            // Add status refresh button that doesn't trigger integrations
-            frm.add_custom_button(__('Refresh Status'), function() {
-                update_integration_status(frm);
-                frappe.show_alert({message: __('Integration status refreshed'), indicator: 'blue'});
-            }, __('Integrations'));
-            
-            // Add trigger integrations button that actually processes the integrations
-            frm.add_custom_button(__('Trigger Integrations'), function() {
-                frappe.call({
-                    method: "doc2sys.integrations.events.trigger_integrations_on_update",
-                    args: {
-                        doc: frm.doc
-                    },
-                    callback: function(r) {
-                        frappe.show_alert({message: __('Integrations triggered'), indicator: 'green'});
-                        setTimeout(function() {
-                            update_integration_status(frm);
-                        }, 3000); // Wait 3 seconds for processing
-                    }
-                });
-            }, __('Integrations'));
-        }
 
     },
     

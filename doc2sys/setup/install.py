@@ -7,20 +7,6 @@ def after_install():
     """Run after app installation"""
     # List of required Python dependencies with specific versions
     dependencies = [
-        # Core dependencies (install first)
-        "numpy>=1.21.0",           # Numeric processing - base requirement
-        "pillow>=9.0.0",           # Image processing
-        "opencv-python-headless",  # OpenCV for image preprocessing (headless version for servers)
-        
-        # Document processing
-        "python-docx",             # For processing Microsoft Word documents
-        "PyPDF2>=2.0.0",           # For PDF text extraction
-        "pandas",                  # For data processing
-        
-        # OCR dependencies
-        "pytesseract",             # Python wrapper for Tesseract OCR
-        "pdf2image",               # For PDF to image conversion for OCR
-
         # AU Azure Document Intelligence
         "azure-ai-documentintelligence",
     ]
