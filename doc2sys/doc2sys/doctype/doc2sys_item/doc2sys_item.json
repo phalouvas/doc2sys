@@ -13,19 +13,6 @@
   "single_file",
   "document_type",
   "classification_confidence",
-  "process_stats_section",
-  "erpnext_document_type",
-  "erpnext_document",
-  "llm_file_id",
-  "input_tokens",
-  "output_tokens",
-  "total_tokens",
-  "total_duration",
-  "formatted_duration",
-  "column_break_bosq",
-  "input_cost",
-  "output_cost",
-  "total_cost",
   "extracted_data_tab",
   "extracted_text",
   "column_break_ibav",
@@ -71,12 +58,13 @@
    "read_only": 1
   },
   {
+   "default": "prebuilt-invoice",
    "fieldname": "document_type",
-   "fieldtype": "Link",
+   "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Document Type",
-   "options": "Doc2Sys Document Type"
+   "options": "prebuilt-layout\nprebuilt-document\nprebuilt-read\nprebuilt-invoice\nprebuilt-receipt"
   },
   {
    "fieldname": "classification_confidence",
@@ -98,86 +86,6 @@
    "fieldtype": "Long Text",
    "label": "Extracted Text",
    "read_only": 1
-  },
-  {
-   "fieldname": "erpnext_document_type",
-   "fieldtype": "Link",
-   "label": "ERPNext DocType",
-   "options": "DocType",
-   "read_only": 1
-  },
-  {
-   "fieldname": "erpnext_document",
-   "fieldtype": "Dynamic Link",
-   "label": "ERPNext Document",
-   "options": "erpnext_document_type",
-   "read_only": 1
-  },
-  {
-   "fieldname": "llm_file_id",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "LLM File ID",
-   "no_copy": 1
-  },
-  {
-   "fieldname": "input_tokens",
-   "fieldtype": "Int",
-   "label": "Input Tokens",
-   "read_only": 1
-  },
-  {
-   "fieldname": "output_tokens",
-   "fieldtype": "Int",
-   "label": "Output Tokens",
-   "read_only": 1
-  },
-  {
-   "fieldname": "total_tokens",
-   "fieldtype": "Int",
-   "label": "Total Tokens",
-   "read_only": 1
-  },
-  {
-   "fieldname": "total_duration",
-   "fieldtype": "Float",
-   "hidden": 1,
-   "label": "Processing Duration (s)",
-   "precision": "2",
-   "read_only": 1
-  },
-  {
-   "fieldname": "formatted_duration",
-   "fieldtype": "Data",
-   "label": "Processing Time",
-   "read_only": 1
-  },
-  {
-   "fieldname": "input_cost",
-   "fieldtype": "Currency",
-   "label": "Input Cost",
-   "read_only": 1
-  },
-  {
-   "fieldname": "output_cost",
-   "fieldtype": "Currency",
-   "label": "Output Cost",
-   "read_only": 1
-  },
-  {
-   "fieldname": "total_cost",
-   "fieldtype": "Currency",
-   "label": "Total Cost",
-   "read_only": 1
-  },
-  {
-   "fieldname": "process_stats_section",
-   "fieldtype": "Section Break",
-   "label": "Processing Statistics"
-  },
-  {
-   "fieldname": "column_break_bosq",
-   "fieldtype": "Column Break"
   },
   {
    "fieldname": "extracted_data_tab",
@@ -220,7 +128,7 @@
    "link_fieldname": "document"
   }
  ],
- "modified": "2025-03-25 09:12:13.838571",
+ "modified": "2025-03-25 17:41:02.184093",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",
