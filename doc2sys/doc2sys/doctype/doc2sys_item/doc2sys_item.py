@@ -137,7 +137,7 @@ class Doc2SysItem(Document):
             
             # If successful, trigger integrations
             if success:
-                trigger_integrations_on_update(self, True)
+                trigger_integrations_on_update(self, None, True)
                 
                 frappe.msgprint("Document processed and integrations triggered")
                 return True
