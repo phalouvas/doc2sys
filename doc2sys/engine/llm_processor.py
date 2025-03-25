@@ -579,7 +579,7 @@ class AzureDocumentIntelligenceProcessor:
                 stock_uom = value_obj.get("Unit").get("valueString") if value_obj.get("Unit") else None
                 
                 # Ensure item amount excludes tax
-                unit_price = amount / quantity if quantity else amount
+                unit_price = round(amount / quantity if quantity else amount, 2)
                 total_items_amount += amount
                 
                 line_items.append({
@@ -594,9 +594,24 @@ class AzureDocumentIntelligenceProcessor:
             # Scale item amounts if their total differs significantly from net amount
             if line_items and abs(total_items_amount - net) > 0.01 and net > 0:
                 scale_factor = net / total_items_amount
+                # Apply scaling with rounding
                 for item in line_items:
-                    item["rate"] = item["rate"] * scale_factor
-                    item["amount"] = item["amount"] * scale_factor
+                    item["rate"] = round(item["rate"] * scale_factor, 2)
+                    item["amount"] = round(item["amount"] * scale_factor, 2)
+                
+                # After scaling, check if the sum still matches the target
+                new_total = sum(item["amount"] for item in line_items)
+                diff = round(net - new_total, 2)
+                
+                # If there's still a difference, adjust the largest item
+                if abs(diff) > 0.001:
+                    # Find the item with the largest amount
+                    largest_item = max(line_items, key=lambda x: x["amount"])
+                    # Adjust its amount to make the total match exactly
+                    largest_item["amount"] = round(largest_item["amount"] + diff, 2)
+                    # Recalculate its rate if quantity is not zero
+                    if largest_item["qty"]:
+                        largest_item["rate"] = round(largest_item["amount"] / largest_item["qty"], 2)
             
             # If no line items detected, create one based on net amount (not total)
             if not line_items and net:
