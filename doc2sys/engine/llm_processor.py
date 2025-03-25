@@ -12,6 +12,7 @@ from .exceptions import ProcessingError, LLMProcessingError
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.exceptions import HttpResponseError
+from azure.ai.documentintelligence.models import AnalyzeResult
 
 # Move hardcoded values to constants
 MAX_TEXT_LENGTH = 10000
@@ -213,7 +214,7 @@ class AzureDocumentIntelligenceProcessor:
             with open(file_path, "rb") as file:
                 poller = self.client.begin_analyze_document(
                     model_id=model_id,
-                    document=file
+                    body=file
                 )
             
             # Wait for the operation to complete
@@ -352,6 +353,8 @@ class AzureDocumentIntelligenceProcessor:
             dict: Extracted data fields
         """
         try:
+            extracted_data = {}  # Initialize empty dictionary
+
             # First check if we have cached results in doc2sys_item
             if self.doc2sys_item:
                 try:
@@ -366,7 +369,7 @@ class AzureDocumentIntelligenceProcessor:
                         logger.info(f"Using cached Azure response from doc2sys_item")
                         
                         # Deserialize the stored response
-                        deserialized_result = self._deserialize_azure_result(doc2sys_item_doc.azure_raw_response)
+                        deserialized_result = json.loads(doc2sys_item_doc.azure_raw_response)
                         
                         # Process the cached result to extract structured data
                         extracted_data = self._process_azure_extraction_results(deserialized_result, document_type)
@@ -395,24 +398,25 @@ class AzureDocumentIntelligenceProcessor:
             
             # Process the document with the selected model
             with open(file_path, "rb") as file:
-                poller = self.client.begin_analyze_document(model_id=model_id, document=file)
+                poller = self.client.begin_analyze_document(model_id=model_id, body=file)
             
             # Wait for the operation to complete
             result = poller.result()
-            
+
             # Check if result is None and throw an error if it is
             if not result:
                 raise LLMProcessingError("Azure Document Intelligence returned no result")
             
             # Convert Azure result to serializable JSON
-            serialized_result = self._serialize_azure_result(result)
+            result_dict = result.as_dict()
+            serialized_result = json.dumps(result_dict, ensure_ascii=False)
             
             # Process the result to extract structured data
-            extracted_data = self._process_azure_extraction_results(result, document_type)
+            #extracted_data = self._process_azure_extraction_results(result, document_type)
             
             # Add token usage/cost estimate
-            token_cost = self._calculate_token_cost({"prompt_tokens": 0, "completion_tokens": 0})
-            extracted_data["_token_usage"] = token_cost
+            #token_cost = self._calculate_token_cost({"prompt_tokens": 0, "completion_tokens": 0})
+            #extracted_data["_token_usage"] = token_cost
             
             # Add raw response data to the extracted data
             extracted_data["_azure_raw_response"] = serialized_result
@@ -602,7 +606,7 @@ class AzureDocumentIntelligenceProcessor:
                     ],
                     "company": "KAINOTOMO PH LTD"
                 }
-            ])
+            })
             
             return {"items": result}
             
@@ -714,7 +718,7 @@ class AzureDocumentIntelligenceProcessor:
                     ],
                     "company": "KAINOTOMO PH LTD"
                 }
-            ])
+            })
             
             return {"items": result}
             
@@ -888,212 +892,6 @@ class AzureDocumentIntelligenceProcessor:
                 "output_cost": 0.0,
                 "total_cost": 0.0
             }
-
-    def _serialize_azure_result(self, result):
-        """
-        Serialize Azure Document Intelligence result to a JSON-compatible format
-        
-        Args:
-            result: Azure Document Intelligence API response object
-            
-        Returns:
-            dict: Serialized representation of the Azure result
-        """
-        try:
-            serialized_data = {}
-            
-            # Add document type and model info
-            serialized_data["model_id"] = self.model
-            
-            # Extract content if available
-            if hasattr(result, 'content'):
-                serialized_data['content'] = result.content
-                
-            # Extract pages data
-            if hasattr(result, 'pages'):
-                serialized_data['pages'] = []
-                for page in result.pages:
-                    page_data = {
-                        'page_number': page.page_number,
-                        'width': page.width,
-                        'height': page.height,
-                        'unit': page.unit,
-                        'angle': page.angle
-                    }
-                    serialized_data['pages'].append(page_data)
-            
-            # Extract documents data
-            if hasattr(result, 'documents'):
-                serialized_data['documents'] = []
-                for doc in result.documents:
-                    doc_data = {
-                        'doc_type': getattr(doc, 'doc_type', 'unknown'),
-                        'confidence': getattr(doc, 'confidence', 0.0)
-                    }
-                    # Extract fields
-                    if hasattr(doc, 'fields'):
-                        doc_data['fields'] = {}
-                        for field_name, field in doc.fields.items():
-                            field_data = {
-                                'type': getattr(field, 'type', 'unknown'),
-                                'confidence': getattr(field, 'confidence', 0.0)
-                            }
-                            
-                            # Handle different field value types
-                            if hasattr(field, 'value_type'):
-                                field_data['value_type'] = field.value_type
-                                
-                                # Handle different value types appropriately
-                                if field.value_type == 'string':
-                                    field_data['value'] = str(field.value)
-                                elif field.value_type in ['number', 'integer', 'float']:
-                                    field_data['value'] = field.value
-                                elif field.value_type == 'date':
-                                    field_data['value'] = str(field.value)
-                                elif field.value_type == 'array':
-                                    # Handle array values
-                                    field_data['value'] = []
-                                    if hasattr(field.value, 'values'):
-                                        for item in field.value.values:
-                                            if hasattr(item, 'content'):
-                                                field_data['value'].append(item.content)
-                                            else:
-                                                field_data['value'].append(str(item))
-                                else:
-                                    field_data['value'] = str(field.value)
-                            else:
-                                field_data['value'] = str(field.value) if field.value is not None else ''
-                                
-                            doc_data['fields'][field_name] = field_data
-                    serialized_data['documents'].append(doc_data)
-                    
-            # Extract tables data
-            if hasattr(result, 'tables'):
-                serialized_data['tables'] = []
-                for table in result.tables:
-                    table_data = {
-                        'row_count': table.row_count,
-                        'column_count': table.column_count,
-                        'cells': []
-                    }
-                    
-                    # Extract cells
-                    if hasattr(table, 'cells'):
-                        for cell in table.cells:
-                            cell_data = {
-                                'row_index': cell.row_index,
-                                'column_index': cell.column_index,
-                                'content': cell.content,
-                                'kind': getattr(cell, 'kind', ''),
-                                'row_span': getattr(cell, 'row_span', 1),
-                                'column_span': getattr(cell, 'column_span', 1)
-                            }
-                            table_data['cells'].append(cell_data)
-                    
-                    serialized_data['tables'].append(table_data)
-            
-            return serialized_data
-        except Exception as e:
-            logger.error(f"Error serializing Azure result: {str(e)}")
-            return {"error": str(e)}
-    
-    def _deserialize_azure_result(self, serialized_result):
-        """
-        Deserialize stored Azure Document Intelligence result into a structured format
-        
-        Args:
-            serialized_result: JSON string or dictionary of serialized Azure result
-            
-        Returns:
-            dict: Structured representation of Azure result for easier access
-        """
-        try:
-            # Convert string to dict if needed
-            if isinstance(serialized_result, str):
-                data = json.loads(serialized_result)
-            else:
-                data = serialized_result
-                
-            # Create a structured result object
-            structured_result = {
-                "model_id": data.get("model_id", "unknown"),
-                "content": data.get("content", ""),
-                "pages": {},
-                "documents": {},
-                "tables": [],
-                "key_value_pairs": {}
-            }
-            
-            # Process pages data
-            if "pages" in data and isinstance(data["pages"], list):
-                for page in data["pages"]:
-                    page_num = page.get("page_number")
-                    if page_num:
-                        structured_result["pages"][page_num] = {
-                            "width": page.get("width"),
-                            "height": page.get("height"),
-                            "unit": page.get("unit"),
-                            "angle": page.get("angle")
-                        }
-            
-            # Process documents data - make key-value pairs more accessible
-            if "documents" in data and isinstance(data["documents"], list):
-                for i, doc in enumerate(data["documents"]):
-                    doc_id = f"doc_{i}"
-                    doc_type = doc.get("doc_type", "unknown")
-                    
-                    structured_result["documents"][doc_id] = {
-                        "doc_type": doc_type,
-                        "confidence": doc.get("confidence", 0.0),
-                        "fields": {}
-                    }
-                    
-                    # Process fields and make them more accessible
-                    if "fields" in doc and isinstance(doc["fields"], dict):
-                        for field_name, field in doc["fields"].items():
-                            # Store field data in structured format
-                            structured_result["documents"][doc_id]["fields"][field_name] = {
-                                "value": field.get("value"),
-                                "confidence": field.get("confidence", 0.0),
-                                "value_type": field.get("value_type", "unknown")
-                            }
-                            
-                            # Also store key-value pairs at root level for easy access
-                            structured_result["key_value_pairs"][field_name] = field.get("value")
-            
-            # Process tables data
-            if "tables" in data and isinstance(data["tables"], list):
-                for table_idx, table in enumerate(data["tables"]):
-                    table_data = {
-                        "id": f"table_{table_idx}",
-                        "rows": table.get("row_count", 0),
-                        "columns": table.get("column_count", 0),
-                        "grid": {}  # Will hold cells by row,col position
-                    }
-                    
-                    # Process cells and organize into a grid
-                    if "cells" in table and isinstance(table["cells"], list):
-                        # First pass: create grid structure
-                        for cell in table["cells"]:
-                            row = cell.get("row_index")
-                            col = cell.get("column_index")
-                            if row is not None and col is not None:
-                                if row not in table_data["grid"]:
-                                    table_data["grid"][row] = {}
-                                
-                                table_data["grid"][row][col] = {
-                                    "content": cell.get("content", ""),
-                                    "kind": cell.get("kind", ""),
-                                    "row_span": cell.get("row_span", 1),
-                                    "column_span": cell.get("column_span", 1)
-                                }
-                    
-                    structured_result["tables"].append(table_data)
-            
-            return structured_result
-        except Exception as e:
-            logger.error(f"Error deserializing Azure result: {str(e)}")
-            return {"error": str(e)}
 
 class OpenWebUIProcessor:
     """Process documents using Open WebUI"""
