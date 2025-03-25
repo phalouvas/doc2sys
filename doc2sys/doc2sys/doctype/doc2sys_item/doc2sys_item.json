@@ -30,6 +30,7 @@
   "extracted_text",
   "column_break_ibav",
   "extracted_data",
+  "azure_raw_response",
   "dashboard_tab",
   "integration_status_section",
   "integration_status_html"
@@ -75,8 +76,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Document Type",
-   "options": "Doc2Sys Document Type",
-   "read_only": 1
+   "options": "Doc2Sys Document Type"
   },
   {
    "fieldname": "classification_confidence",
@@ -194,6 +194,14 @@
    "label": "Integration Status"
   },
   {
+   "collapsible": 1,
+   "fieldname": "azure_raw_response",
+   "fieldtype": "Code",
+   "label": "Azure Raw Response",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
    "fieldname": "dashboard_tab",
    "fieldtype": "Tab Break",
    "label": "Dashboard",
@@ -212,7 +220,7 @@
    "link_fieldname": "document"
   }
  ],
- "modified": "2025-03-24 10:35:45.538818",
+ "modified": "2025-03-25 09:12:13.838571",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",

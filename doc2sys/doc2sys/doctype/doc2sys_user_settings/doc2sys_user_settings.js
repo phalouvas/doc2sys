@@ -3,6 +3,7 @@
 
 frappe.ui.form.on('Doc2Sys User Settings', {
     refresh: function(frm) {
+
         // Add manual folder processing button
         if (frm.doc.monitoring_enabled) {
             frm.add_custom_button(__('Process Folder Now'), function() {
@@ -432,6 +433,11 @@ frappe.ui.form.on('Doc2Sys User Settings', {
 
     ocr_engine: function(frm) {
         // When OCR engine changes, refresh form to show/hide related sections
+        frm.refresh();
+    },
+
+    llm_provider: function(frm) {
+        // When LLM provider changes, refresh form to show/hide sections
         frm.refresh();
     }
 });

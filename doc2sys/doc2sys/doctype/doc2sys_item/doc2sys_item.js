@@ -129,6 +129,33 @@ frappe.ui.form.on('Doc2Sys Item', {
                     }
                 });
             }, __('Actions'));
+
+            // Add Extract Data button
+            frm.add_custom_button(__('Extract Data From Azure'), function() {
+                // Show full screen processing overlay
+                frappe.dom.freeze(__('Extracting data from document...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'extract_data_azure',
+                    callback: function(r) {
+                        // Unfreeze UI when processing is complete
+                        frappe.dom.unfreeze();
+                        
+                        if(r.message) {
+                            frappe.show_alert({
+                                message: __('Data extraction completed'),
+                                indicator: 'green'
+                            }, 3);
+                            frm.refresh();
+                        }
+                    },
+                    error: function() {
+                        // Make sure to unfreeze UI even if there's an error
+                        frappe.dom.unfreeze();
+                    }
+                });
+            }, __('Actions'));
             
             // Add a separator in the Actions dropdown
             frm.add_custom_button('', function(){

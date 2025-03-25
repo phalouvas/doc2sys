@@ -143,8 +143,11 @@ class Doc2SysItem(Document):
         Returns:
             LLMProcessor: The processor instance
         """
-        # Create processor with user-specific settings
-        processor = LLMProcessor(user=self.user)
+        # Create processor with document-specific settings
+        processor = LLMProcessor(doc2sys_item=self)
+        
+        # Rest of the method remains unchanged
+        # ...
         
         # Skip file upload if we have sufficient extracted text
         if extracted_text and len(extracted_text) > 100:
@@ -217,6 +220,12 @@ class Doc2SysItem(Document):
             if "_token_usage" in extracted_data:
                 token_usage = extracted_data.pop("_token_usage", {})
                 self.update_token_usage(token_usage)
+            
+            # Store the Azure raw response if it exists in the extracted data
+            if "_azure_raw_response" in extracted_data:
+                self.azure_raw_response = extracted_data.pop("_azure_raw_response")
+            if "_azure_extracted_text" in extracted_data:
+                self.extracted_text = extracted_data.pop("_azure_extracted_text")
             
             # Store extracted data
             self.extracted_data = frappe.as_json(extracted_data, 1, None, False)
@@ -592,6 +601,67 @@ class Doc2SysItem(Document):
                 
                 # Extract data using the classified document type
                 self._extract_document_data(processor, file_path, extracted_text)
+                
+                # Save the document
+                self.save()
+                frappe.msgprint("Data extraction completed")
+                return True
+            
+            except Exception as e:
+                frappe.log_error(f"Data extraction error: {str(e)}")
+                frappe.msgprint(f"An error occurred during data extraction: {str(e)}")
+                return False
+        finally:
+            # Remove from timing stack
+            if self._timing_stack:
+                self._timing_stack.pop()
+                
+            duration = time.time() - start_time
+            # When timing stack is empty, this is a root operation
+            is_child = len(self._timing_stack) > 0
+            self.update_processing_duration(duration, is_child_operation=is_child)
+
+    @frappe.whitelist()
+    def extract_data_azure(self):
+        """Extract data from the attached document based on its classification"""
+        start_time = time.time()
+        
+        # Add self to the timing stack
+        if not hasattr(self, '_timing_stack'):
+            self._timing_stack = []
+        self._timing_stack.append('extract_data_azure')
+        
+        try:
+            if not self.single_file:
+                frappe.msgprint("No document is attached to extract data from")
+                return False
+            
+            if not self.document_type or self.document_type == "unknown":
+                frappe.msgprint("Document must be classified before extracting data")
+                return False
+            
+            try:
+                frappe.msgprint("Extracting data from document...")
+                
+                file_path = self._get_file_path()
+                if not file_path:
+                    return False
+                    
+                # Use existing extracted text or extract it
+                if not self.extracted_text:
+                    extracted_text = self.get_document_text(file_path)
+                    self.extracted_text = extracted_text
+                else:
+                    extracted_text = self.extracted_text
+                
+                # Get processor and upload file only if needed
+                processor = self._get_processor_and_upload(file_path, extracted_text)
+                if not processor:
+                    frappe.msgprint("Failed to initialize document processor")
+                    return False
+                
+                # Extract data using the classified document type
+                self._extract_document_data(processor, file_path)
                 
                 # Save the document
                 self.save()
