@@ -573,10 +573,12 @@ class AzureDocumentIntelligenceProcessor:
                     continue
                 
                 value_obj = item_obj.get("valueObject")
-                description = value_obj.get("Description").get("content")
+                description = value_obj.get("Description").get("valueString")
+                description = description[:140] if description else "Item"
                 quantity = value_obj.get("Quantity").get("valueNumber") if value_obj.get("Quantity") else 1
                 amount = value_obj.get("Amount").get("valueCurrency").get("amount") or 0
                 stock_uom = value_obj.get("Unit").get("valueString") if value_obj.get("Unit") else None
+                stock_uom = stock_uom[:140] if stock_uom else "Nos"
                 
                 # Ensure item amount excludes tax
                 unit_price = round(amount / quantity if quantity else amount, 2)
@@ -852,9 +854,10 @@ class AzureDocumentIntelligenceProcessor:
         
         if isinstance(field, dict):
             
-            # Fpr stromg values
+            # Fpr string values
             if 'valueString' in field:
-                return field.get('valueString')
+                value_string = field.get('valueString')
+                return value_string[:140] if value_string else None
             
             # For array values (like Items)
             if 'valueArray' in field:
