@@ -17,7 +17,7 @@ from azure.ai.documentintelligence.models import AnalyzeResult
 # Move hardcoded values to constants
 MAX_TEXT_LENGTH = 10000
 DEFAULT_TEMPERATURE = 0
-ACCEPTABLE_CONFIDENCE = 0.5
+ACCEPTABLE_CONFIDENCE = 0.75
 
 class LLMProcessor:
     """Process documents using various LLM providers"""
@@ -533,6 +533,7 @@ class AzureDocumentIntelligenceProcessor:
             invoice_date = self._get_field_value(fields, "InvoiceDate") or ""
             due_date = self._get_field_value(fields, "DueDate") or invoice_date
             tax = self._get_field_value(fields, "TotalTax") or 0.0
+            net = self._get_field_value(fields, "SubTotal") or 0.0
             total = self._get_field_value(fields, "InvoiceTotal") or 0.0
             items = self._get_field_value(fields, "Items") or []
             
@@ -791,9 +792,6 @@ class AzureDocumentIntelligenceProcessor:
         
         # If field is None or empty
         if not field:
-            return None
-        
-        if field.get('type') != "array" and field.get('confidence') < ACCEPTABLE_CONFIDENCE:
             return None
         
         if isinstance(field, dict):
