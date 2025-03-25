@@ -17,6 +17,7 @@ from azure.ai.documentintelligence.models import AnalyzeResult
 # Move hardcoded values to constants
 MAX_TEXT_LENGTH = 10000
 DEFAULT_TEMPERATURE = 0
+ACCEPTABLE_CONFIDENCE = 0.5
 
 class LLMProcessor:
     """Process documents using various LLM providers"""
@@ -510,6 +511,8 @@ class AzureDocumentIntelligenceProcessor:
             doc = result.get("documents")[0]  # Get the first document
             if not doc:
                 return {}
+            if doc.get('confidence') < ACCEPTABLE_CONFIDENCE:
+                raise ProcessingError("Confidence level too low")
 
             # Use the SDK's structured objects instead of JSON
             # Initialize empty result
@@ -537,6 +540,9 @@ class AzureDocumentIntelligenceProcessor:
             line_items = []
             
             for item_obj in items:
+                if item_obj.get("confidence") < ACCEPTABLE_CONFIDENCE:
+                    continue
+                
                 value_obj = item_obj.get("valueObject")
                 description = value_obj.get("Description").get("content")
                 quantity = 1
@@ -785,6 +791,9 @@ class AzureDocumentIntelligenceProcessor:
         
         # If field is None or empty
         if not field:
+            return None
+        
+        if field.get('type') != "array" and field.get('confidence') < ACCEPTABLE_CONFIDENCE:
             return None
         
         if isinstance(field, dict):
