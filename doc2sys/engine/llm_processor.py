@@ -562,8 +562,9 @@ class AzureDocumentIntelligenceProcessor:
                 
                 value_obj = item_obj.get("valueObject")
                 description = value_obj.get("Description").get("content")
-                quantity = value_obj.get("Quantity").get("content") if value_obj.get("Quantity") else 1
+                quantity = value_obj.get("Quantity").get("valueNumber") if value_obj.get("Quantity") else 1
                 amount = value_obj.get("Amount").get("valueCurrency").get("amount") or 0
+                stock_uom = value_obj.get("Unit").get("valueString") if value_obj.get("Unit") else None
                 
                 # Ensure item amount excludes tax
                 unit_price = amount / quantity if quantity else amount
@@ -574,6 +575,7 @@ class AzureDocumentIntelligenceProcessor:
                     "qty": quantity,
                     "rate": unit_price,
                     "amount": amount,
+                    "stock_uom": stock_uom,
                     "item_group": "All Item Groups"
                 })
             
@@ -611,6 +613,7 @@ class AzureDocumentIntelligenceProcessor:
                         "doctype": "Item",
                         "item_code": item["item_code"],
                         "item_group": "All Item Groups",
+                        "stock_uom": item["stock_uom"],
                         "is_stock_item": 0
                     }
                 })
