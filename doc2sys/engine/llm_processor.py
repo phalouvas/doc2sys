@@ -369,15 +369,15 @@ class AzureDocumentIntelligenceProcessor:
                         logger.info(f"Using cached Azure response from doc2sys_item")
                         
                         # Deserialize the stored response
-                        deserialized_result = json.loads(doc2sys_item_doc.azure_raw_response)
+                        result_dict = json.loads(doc2sys_item_doc.azure_raw_response)
                         
                         # Process the cached result to extract structured data
-                        extracted_data = self._process_azure_extraction_results(deserialized_result, document_type)
+                        extracted_data = self._process_azure_extraction_results(result_dict)
                         
                         # Add token usage/cost estimate (zero as we're using cached data)
-                        token_cost = self._calculate_token_cost({"prompt_tokens": 0, "completion_tokens": 0})
-                        extracted_data["_token_usage"] = token_cost
-                        extracted_data["_azure_raw_response"] = doc2sys_item_doc.azure_raw_response
+                        #token_cost = self._calculate_token_cost({"prompt_tokens": 0, "completion_tokens": 0})
+                        #extracted_data["_token_usage"] = token_cost
+                        #extracted_data["_azure_raw_response"] = doc2sys_item_doc.azure_raw_response
                         extracted_data["_from_cache"] = True
                         
                         return extracted_data
@@ -412,7 +412,7 @@ class AzureDocumentIntelligenceProcessor:
             serialized_result = json.dumps(result_dict, ensure_ascii=False)
             
             # Process the result to extract structured data
-            #extracted_data = self._process_azure_extraction_results(result, document_type)
+            extracted_data = self._process_azure_extraction_results(result_dict)
             
             # Add token usage/cost estimate
             #token_cost = self._calculate_token_cost({"prompt_tokens": 0, "completion_tokens": 0})
@@ -473,7 +473,7 @@ class AzureDocumentIntelligenceProcessor:
         
         return model_id
     
-    def _process_azure_extraction_results(self, azure_result, document_type):
+    def _process_azure_extraction_results(self, azure_result):
         """
         Process Azure Document Intelligence results into structured data
         
@@ -485,6 +485,8 @@ class AzureDocumentIntelligenceProcessor:
             dict: Structured data extracted from document
         """
         try:
+            document_type = azure_result.get("modelId")
+
             # Different handling based on model type and document type
             if "prebuilt-invoice" in self.model or "invoice" in str(document_type).lower():
                 return self._process_invoice_results(azure_result)
@@ -498,9 +500,14 @@ class AzureDocumentIntelligenceProcessor:
             logger.error(f"Error processing Azure extraction results: {str(e)}")
             return {}
     
-    def _process_invoice_results(self, result):
+    def _process_invoice_results(self, result:dict):
         """Process invoice-specific results from Azure"""
         try:
+
+            doc = result.get("documents")[0]  # Get the first document
+            if not doc:
+                return {}
+
             # Use the SDK's structured objects instead of JSON
             # Initialize empty result
             supplier_name = "Unknown Supplier"
@@ -512,43 +519,34 @@ class AzureDocumentIntelligenceProcessor:
             total = 0.0
             
             # Extract invoice fields from document analysis
-            if result.documents:
-                doc = result.documents[0]  # Get the first document
-                fields = doc.fields
-                
-                # Extract basic invoice fields
-                supplier_name = self._get_field_value_sdk(fields, "VendorName") or "Unknown Supplier"
-                invoice_id = self._get_field_value_sdk(fields, "InvoiceId") or ""
-                invoice_date = self._get_field_value_sdk(fields, "InvoiceDate") or ""
-                due_date = self._get_field_value_sdk(fields, "DueDate") or invoice_date
-                subtotal = self._get_field_value_sdk(fields, "SubTotal") or 0.0
-                tax = self._get_field_value_sdk(fields, "TotalTax") or 0.0
-                total = self._get_field_value_sdk(fields, "InvoiceTotal") or 0.0
+            fields = doc.get("fields")
+            
+            # Extract basic invoice fields
+            supplier_name = self._get_field_value(fields, "VendorName") or "Unknown Supplier"
+            invoice_id = self._get_field_value(fields, "InvoiceId") or ""
+            invoice_date = self._get_field_value(fields, "InvoiceDate") or ""
+            due_date = self._get_field_value(fields, "DueDate") or invoice_date
+            tax = self._get_field_value(fields, "TotalTax") or 0.0
+            total = self._get_field_value(fields, "InvoiceTotal") or 0.0
+            items = self._get_field_value(fields, "Items") or []
             
             # Process line items if available
             line_items = []
             
-            # Check if we have the Items field and it's an array
-            if result.documents and "Items" in result.documents[0].fields:
-                items_field = result.documents[0].fields["Items"]
-                if items_field.value and hasattr(items_field.value, "values"):
-                    # Process each item in the array
-                    for item_obj in items_field.value.values:
-                        item_fields = item_obj.value.fields if (hasattr(item_obj, "value") and hasattr(item_obj.value, "fields")) else {}
-                        
-                        # Extract line item details
-                        description = self._get_field_value_sdk(item_fields, "Description") or "Item"
-                        quantity = float(self._get_field_value_sdk(item_fields, "Quantity") or 1)
-                        unit_price = float(self._get_field_value_sdk(item_fields, "UnitPrice") or 0)
-                        amount = float(self._get_field_value_sdk(item_fields, "Amount") or (quantity * unit_price))
-                        
-                        line_items.append({
-                            "item_code": description,
-                            "qty": quantity,
-                            "rate": unit_price,
-                            "amount": amount,
-                            "item_group": "All Item Groups"
-                        })
+            for item_obj in items:
+                value_obj = item_obj.get("valueObject")
+                description = value_obj.get("Description").get("content")
+                quantity = 1
+                amount = value_obj.get("Amount").get("valueCurrency").get("amount") or 0
+                unit_price = amount
+                
+                line_items.append({
+                    "item_code": description,
+                    "qty": quantity,
+                    "rate": unit_price,
+                    "amount": amount,
+                    "item_group": "All Item Groups"
+                })
             
             # If no line items detected, create one based on total amount
             if not line_items and total:
@@ -559,10 +557,6 @@ class AzureDocumentIntelligenceProcessor:
                     "amount": total,
                     "item_group": "All Item Groups"
                 })
-            
-            # Format date strings to YYYY-MM-DD
-            invoice_date_formatted = self._format_date(invoice_date)
-            due_date_formatted = self._format_date(due_date)
             
             # Construct ERPNext compatible JSON
             result = [
@@ -591,10 +585,10 @@ class AzureDocumentIntelligenceProcessor:
                     "doctype": "Purchase Invoice",
                     "supplier": supplier_name,
                     "bill_no": invoice_id,
-                    "bill_date": invoice_date_formatted,
-                    "posting_date": invoice_date_formatted,
+                    "bill_date": invoice_date,
+                    "posting_date": invoice_date,
                     "set_posting_time": 1,
-                    "due_date": due_date_formatted,
+                    "due_date": due_date,
                     "items": line_items,
                     "taxes": [
                         {
@@ -631,12 +625,12 @@ class AzureDocumentIntelligenceProcessor:
                 fields = doc.fields
                 
                 # Extract basic receipt fields
-                merchant_name = self._get_field_value_sdk(fields, "MerchantName") or "Unknown Merchant"
-                receipt_date = self._get_field_value_sdk(fields, "TransactionDate") or ""
-                receipt_time = self._get_field_value_sdk(fields, "TransactionTime") or ""
-                receipt_total = float(self._get_field_value_sdk(fields, "Total") or 0.0)
-                subtotal = float(self._get_field_value_sdk(fields, "Subtotal") or receipt_total)
-                tax = float(self._get_field_value_sdk(fields, "TotalTax") or 0.0)
+                merchant_name = self._get_field_value(fields, "MerchantName") or "Unknown Merchant"
+                receipt_date = self._get_field_value(fields, "TransactionDate") or ""
+                receipt_time = self._get_field_value(fields, "TransactionTime") or ""
+                receipt_total = float(self._get_field_value(fields, "Total") or 0.0)
+                subtotal = float(self._get_field_value(fields, "Subtotal") or receipt_total)
+                tax = float(self._get_field_value(fields, "TotalTax") or 0.0)
             
             # Process line items if available
             line_items = []
@@ -650,10 +644,10 @@ class AzureDocumentIntelligenceProcessor:
                         item_fields = item_obj.value.fields if (hasattr(item_obj, "value") and hasattr(item_obj.value, "fields")) else {}
                         
                         # Extract line item details
-                        description = self._get_field_value_sdk(item_fields, "Description") or "Item"
-                        quantity = float(self._get_field_value_sdk(item_fields, "Quantity") or 1)
-                        price = float(self._get_field_value_sdk(item_fields, "Price") or 0)
-                        total_price = float(self._get_field_value_sdk(item_fields, "TotalPrice") or (quantity * price))
+                        description = self._get_field_value(item_fields, "Description") or "Item"
+                        quantity = float(self._get_field_value(item_fields, "Quantity") or 1)
+                        price = float(self._get_field_value(item_fields, "Price") or 0)
+                        total_price = float(self._get_field_value(item_fields, "TotalPrice") or (quantity * price))
                         
                         line_items.append({
                             "item_code": description,
@@ -777,9 +771,10 @@ class AzureDocumentIntelligenceProcessor:
         except Exception as e:
             logger.error(f"Error processing generic document results: {str(e)}")
             return {}
-
-    def _get_field_value_sdk(self, fields, field_name):
-        """Helper to extract field value from Azure SDK objects"""
+    
+    def _get_field_value(self, fields, field_name):
+        """Helper to extract field value from Azure SDK objects or dictionaries"""
+        # Check if field exists
         if field_name not in fields:
             return None
         
@@ -789,69 +784,29 @@ class AzureDocumentIntelligenceProcessor:
         if not field:
             return None
         
-        # Fields in the SDK are dictionary-like objects with 'content' for the actual value
-        if isinstance(field, dict) and 'content' in field:
-            return field.get('content')
-        
-        # For array values (like Items)
-        if isinstance(field, dict) and 'valueArray' in field:
-            return field.get('valueArray')
-        
-        # For currency values
-        if isinstance(field, dict) and 'valueCurrency' in field:
-            return field.get('content')
-        
-        # For date values
-        if isinstance(field, dict) and 'valueDate' in field:
-            return field.get('content')
+        if isinstance(field, dict):
+            
+            # Fpr stromg values
+            if 'valueString' in field:
+                return field.get('valueString')
+            
+            # For array values (like Items)
+            if 'valueArray' in field:
+                return field.get('valueArray')
+            
+            # For currency values
+            if 'valueCurrency' in field:
+                return field.get('valueCurrency')['amount']
+            
+            # For date values
+            if 'valueDate' in field:
+                return field.get('valueDate')
         
         # Fallback: try to get content or return the field itself
-        return field.get('content') if hasattr(field, 'get') else field
-    
-    def _format_date(self, date_str):
-        """Format date string to YYYY-MM-DD format"""
-        if not date_str:
-            return ""
-        
-        try:
-            # Check if date is already a datetime object
-            if isinstance(date_str, datetime.datetime) or isinstance(date_str, datetime.date):
-                return date_str.strftime("%Y-%m-%d")
-                
-            # Check if the date is already in ISO format
-            if isinstance(date_str, str) and "-" in date_str and len(date_str) >= 10:
-                return date_str[:10]  # Return just the date part
-            
-            # Try parsing various date formats
-            from datetime import datetime
-            import locale
-            
-            # Try different formats
-            formats = [
-                "%Y-%m-%d",
-                "%d/%m/%Y",
-                "%m/%d/%Y",
-                "%d-%m-%Y",
-                "%m-%d-%Y",
-                "%d.%m.%Y",
-                "%m.%d.%Y",
-                "%B %d, %Y",
-                "%d %B %Y"
-            ]
-            
-            for fmt in formats:
-                try:
-                    return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
-                except (ValueError, TypeError):
-                    continue
-            
-            # If none of the formats worked
-            logger.warning(f"Could not parse date: {date_str}")
-            return date_str
-            
-        except Exception as e:
-            logger.error(f"Error formatting date {date_str}: {str(e)}")
-            return date_str
+        if isinstance(field, dict):
+            return field.get('content') if 'content' in field else field
+        else:
+            return field.content if hasattr(field, 'content') else field
 
     def _calculate_token_cost(self, usage):
         """
