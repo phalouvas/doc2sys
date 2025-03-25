@@ -530,8 +530,20 @@ class AzureDocumentIntelligenceProcessor:
             # Extract basic invoice fields
             supplier_name = self._get_field_value(fields, "VendorName") or "Unknown Supplier"
             invoice_id = self._get_field_value(fields, "InvoiceId") or ""
-            invoice_date = self._get_field_value(fields, "InvoiceDate") or ""
+            # Default invoice date to today if missing
+            today = datetime.datetime.now().strftime("%Y-%m-%d")
+            invoice_date = self._get_field_value(fields, "InvoiceDate") or today
             due_date = self._get_field_value(fields, "DueDate") or invoice_date
+
+            # Ensure due_date is not before invoice_date
+            try:
+                invoice_date_obj = datetime.datetime.strptime(invoice_date, "%Y-%m-%d").date()
+                due_date_obj = datetime.datetime.strptime(due_date, "%Y-%m-%d").date()
+                if due_date_obj < invoice_date_obj:
+                    due_date = invoice_date
+            except (ValueError, TypeError):
+                # If date parsing fails, ensure due_date equals invoice_date
+                due_date = invoice_date
             tax = self._get_field_value(fields, "TotalTax") or 0.0
             net = self._get_field_value(fields, "SubTotal") or 0.0
             total = self._get_field_value(fields, "InvoiceTotal") or 0.0
@@ -561,12 +573,15 @@ class AzureDocumentIntelligenceProcessor:
                     continue
                 
                 value_obj = item_obj.get("valueObject")
-                description = value_obj.get("Description").get("content")
-                quantity = value_obj.get("Quantity").get("content") if value_obj.get("Quantity") else 1
+                description = value_obj.get("Description").get("valueString")
+                description = description[:140] if description else "Item"
+                quantity = value_obj.get("Quantity").get("valueNumber") if value_obj.get("Quantity") else 1
                 amount = value_obj.get("Amount").get("valueCurrency").get("amount") or 0
+                stock_uom = value_obj.get("Unit").get("valueString") if value_obj.get("Unit") else None
+                stock_uom = stock_uom[:140] if stock_uom else "Nos"
                 
                 # Ensure item amount excludes tax
-                unit_price = amount / quantity if quantity else amount
+                unit_price = round(amount / quantity if quantity else amount, 2)
                 total_items_amount += amount
                 
                 line_items.append({
@@ -574,15 +589,31 @@ class AzureDocumentIntelligenceProcessor:
                     "qty": quantity,
                     "rate": unit_price,
                     "amount": amount,
+                    "stock_uom": stock_uom,
                     "item_group": "All Item Groups"
                 })
             
             # Scale item amounts if their total differs significantly from net amount
             if line_items and abs(total_items_amount - net) > 0.01 and net > 0:
                 scale_factor = net / total_items_amount
+                # Apply scaling with rounding
                 for item in line_items:
-                    item["rate"] = item["rate"] * scale_factor
-                    item["amount"] = item["amount"] * scale_factor
+                    item["rate"] = round(item["rate"] * scale_factor, 2)
+                    item["amount"] = round(item["amount"] * scale_factor, 2)
+                
+                # After scaling, check if the sum still matches the target
+                new_total = sum(item["amount"] for item in line_items)
+                diff = round(net - new_total, 2)
+                
+                # If there's still a difference, adjust the largest item
+                if abs(diff) > 0.001:
+                    # Find the item with the largest amount
+                    largest_item = max(line_items, key=lambda x: x["amount"])
+                    # Adjust its amount to make the total match exactly
+                    largest_item["amount"] = round(largest_item["amount"] + diff, 2)
+                    # Recalculate its rate if quantity is not zero
+                    if largest_item["qty"]:
+                        largest_item["rate"] = round(largest_item["amount"] / largest_item["qty"], 2)
             
             # If no line items detected, create one based on net amount (not total)
             if not line_items and net:
@@ -611,6 +642,7 @@ class AzureDocumentIntelligenceProcessor:
                         "doctype": "Item",
                         "item_code": item["item_code"],
                         "item_group": "All Item Groups",
+                        "stock_uom": item["stock_uom"],
                         "is_stock_item": 0
                     }
                 })
@@ -822,9 +854,10 @@ class AzureDocumentIntelligenceProcessor:
         
         if isinstance(field, dict):
             
-            # Fpr stromg values
+            # Fpr string values
             if 'valueString' in field:
-                return field.get('valueString')
+                value_string = field.get('valueString')
+                return value_string[:140] if value_string else None
             
             # For array values (like Items)
             if 'valueArray' in field:
