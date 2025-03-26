@@ -6,22 +6,24 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "details_tab",
   "naming_series",
-  "user",
+  "status",
   "auto_process_file",
+  "column_break_lbah",
+  "user",
   "document_section",
   "single_file",
+  "single_file_name",
   "document_type",
+  "column_break_prke",
   "classification_confidence",
   "cost",
   "extracted_data_tab",
   "extracted_text",
   "column_break_ibav",
   "extracted_data",
-  "azure_raw_response",
-  "dashboard_tab",
-  "integration_status_section",
-  "integration_status_html"
+  "azure_raw_response"
  ],
  "fields": [
   {
@@ -54,7 +56,6 @@
   {
    "fieldname": "single_file",
    "fieldtype": "Attach",
-   "in_list_view": 1,
    "label": "Single File",
    "read_only": 1
   },
@@ -62,8 +63,7 @@
    "default": "prebuilt-invoice",
    "fieldname": "document_type",
    "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
+   "hidden": 1,
    "label": "Document Type",
    "options": "prebuilt-layout\nprebuilt-document\nprebuilt-read\nprebuilt-invoice\nprebuilt-receipt"
   },
@@ -91,16 +91,12 @@
   {
    "fieldname": "extracted_data_tab",
    "fieldtype": "Tab Break",
+   "hidden": 1,
    "label": "Extracted Data"
   },
   {
    "fieldname": "column_break_ibav",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "integration_status_html",
-   "fieldtype": "HTML",
-   "label": "Integration Status"
   },
   {
    "collapsible": 1,
@@ -111,22 +107,42 @@
    "read_only": 1
   },
   {
-   "fieldname": "dashboard_tab",
-   "fieldtype": "Tab Break",
-   "label": "Dashboard",
-   "show_dashboard": 1
-  },
-  {
-   "fieldname": "integration_status_section",
-   "fieldtype": "Section Break",
-   "label": "Integration Status"
-  },
-  {
    "fieldname": "cost",
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Cost (\u20ac)",
    "non_negative": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_lbah",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nUploaded\nProcessed\nCompleted"
+  },
+  {
+   "fieldname": "column_break_prke",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "details_tab",
+   "fieldtype": "Tab Break",
+   "label": "Details",
+   "show_dashboard": 1
+  },
+  {
+   "fieldname": "single_file_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Name",
    "read_only": 1
   }
  ],
@@ -137,7 +153,7 @@
    "link_fieldname": "document"
   }
  ],
- "modified": "2025-03-26 09:56:44.429993",
+ "modified": "2025-03-26 11:18:58.140585",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",
@@ -157,7 +173,9 @@
    "write": 1
   }
  ],
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "single_file_name"
 }

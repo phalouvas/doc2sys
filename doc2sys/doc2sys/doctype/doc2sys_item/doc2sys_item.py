@@ -13,6 +13,10 @@ from frappe.handler import upload_file
 
 class Doc2SysItem(Document):
     def validate(self):
+        if self.single_file:
+            self.single_file_name = self.single_file.split("/")[-1]
+
+    def after_insert(self):
         """Validate the document before saving"""
         # Set default user if not specified
         if not self.user:
@@ -57,6 +61,8 @@ class Doc2SysItem(Document):
                 file_path=file_path, 
                 document_type=self.document_type
             )
+
+            self.update_status()
             
             return True
         
@@ -65,7 +71,24 @@ class Doc2SysItem(Document):
             frappe.msgprint(f"An error occurred during data extraction: {str(e)}")
             return False
 
-    @frappe.whitelist()
+    def update_status(self):
+
+        status = self.status
+
+        if self.single_file_name == "Pending":
+            status = "Uploaded"
+
+        if self.extract_data:
+            status = "Processed"
+
+        if status == "Processed" and self.status != "Completed":
+            integration_status = self.get_integration_status()
+            if all([i["status"] == "success" for i in integration_status]):
+                status = "Completed"
+
+        if status != self.status:
+            self.db_set('status', status, update_modified=False)
+
     def get_integration_status(self):
         """Get status of integrations for this document"""
         if not self.name:
@@ -125,6 +148,7 @@ class Doc2SysItem(Document):
         
         try:
             process_integrations(self)
+            self.update_status()
             return True
         except Exception as e:
             frappe.log_error(f"Integration processing error: {str(e)}")
@@ -142,6 +166,7 @@ class Doc2SysItem(Document):
             success = self.extract_data()
             if success:
                 process_integrations(self)
+                self.update_status()
                 return True
             else:
                 return False
