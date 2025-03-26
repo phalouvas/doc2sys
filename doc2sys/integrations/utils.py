@@ -136,7 +136,7 @@ def process_integrations(doc):
     user_settings_list = frappe.get_all(
         "Doc2Sys User Settings",
         filters={"user": document_user},
-        fields=["name", "user"]
+        fields=["name", "user", "credits"]
     )
     
     if not user_settings_list:
@@ -148,6 +148,13 @@ def process_integrations(doc):
     
     # There should only be one settings document per user
     settings_doc = frappe.get_doc("Doc2Sys User Settings", user_settings_list[0].name)
+
+    if settings_doc.credits < doc.cost:
+        frappe.logger().info(
+            f"Skipping integrations for document {doc.name} due to insufficient credits ({settings_doc.credits} available, {doc.cost} required)"
+        )
+        raise frappe.ValidationError("Insufficient credits to process integrations")
+        return
     
     # Log how many integrations are available vs how many are enabled
     total_integrations = len(settings_doc.user_integrations)
@@ -178,7 +185,7 @@ def process_integrations(doc):
                 settings=integration_settings
             )
             
-            # Sync the document
+                        # Sync the document
             result = integration_instance.sync_document(doc.as_dict())
             
             if not result.get("success"):
@@ -192,10 +199,10 @@ def process_integrations(doc):
                     },
                     user=settings_doc.user,
                     integration_reference=integration.name,
-                    document=doc.name  # Add this line
+                    document=doc.name
                 )
             else:
-                # Log successful integrations as well
+                # Log successful integrations
                 create_integration_log(
                     integration.integration_type,
                     "success",
@@ -206,7 +213,22 @@ def process_integrations(doc):
                     },
                     user=settings_doc.user,
                     integration_reference=integration.name,
-                    document=doc.name  # Add this line
+                    document=doc.name
+                )
+                
+                # Deduct credits after successful integration
+                # Get current credits and calculate new value
+                current_credits = settings_doc.credits
+                new_credits = current_credits - doc.cost
+                
+                # Update the credits in the database
+                frappe.db.set_value("Doc2Sys User Settings", settings_doc.name, "credits", new_credits)
+                frappe.db.commit()  # Ensure the change is committed
+                
+                # Log the credit deduction
+                frappe.logger().info(
+                    f"Deducted {doc.cost} credits from user {settings_doc.user}. " +
+                    f"New balance: {new_credits}"
                 )
                 
         except Exception as e:
