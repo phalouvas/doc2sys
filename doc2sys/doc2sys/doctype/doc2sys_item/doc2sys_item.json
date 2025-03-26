@@ -13,6 +13,7 @@
   "single_file",
   "document_type",
   "classification_confidence",
+  "cost",
   "extracted_data_tab",
   "extracted_text",
   "column_break_ibav",
@@ -119,6 +120,14 @@
    "fieldname": "integration_status_section",
    "fieldtype": "Section Break",
    "label": "Integration Status"
+  },
+  {
+   "fieldname": "cost",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Cost (\u20ac)",
+   "non_negative": 1,
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -128,7 +137,7 @@
    "link_fieldname": "document"
   }
  ],
- "modified": "2025-03-25 17:41:02.184093",
+ "modified": "2025-03-26 09:56:44.429993",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",
