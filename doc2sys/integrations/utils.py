@@ -35,7 +35,7 @@ def create_integration_log(integration_type, status, message, data=None, user=No
         
         # Convert data to JSON string if it's a dict/list
         if data and isinstance(data, (dict, list)):
-            data = json.dumps(data)
+            data = json.dumps(data, ensure_ascii=False)
             
         log = frappe.get_doc({
             "doctype": "Doc2Sys Integration Log",

@@ -169,7 +169,6 @@ class ERPNextIntegration(BaseIntegration):
                             created_documents[doctype] = []
                         
                         created_documents[doctype].append(document_name)
-                        self.log_activity("info", f"Created {doctype}: {document_name}")
                     else:
                         # Check if the error is because the document already exists
                         error_text = create_response.text
@@ -182,7 +181,6 @@ class ERPNextIntegration(BaseIntegration):
                             elif doctype == "Supplier":
                                 identifier = doc_data.get("supplier_name", "")
                             
-                            self.log_activity("info", f"{doctype} {identifier} already exists, skipping")
                         else:
                             error_message = f"Failed to create {doctype}: {error_text}"
                             self.log_activity("error", error_message)
