@@ -15,6 +15,7 @@ class Doc2SysItem(Document):
     def validate(self):
         if self.single_file:
             self.single_file_name = self.single_file.split("/")[-1]
+            self.update_status()
 
     def after_insert(self):
         """Validate the document before saving"""
@@ -73,12 +74,12 @@ class Doc2SysItem(Document):
 
     def update_status(self):
 
-        status = self.status
+        status = "Pending"
 
-        if self.single_file_name == "Pending":
+        if self.single_file_name:
             status = "Uploaded"
 
-        if self.extract_data:
+        if self.extracted_data:
             status = "Processed"
 
         if status == "Processed" and self.status != "Completed":
