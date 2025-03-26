@@ -30,7 +30,7 @@ app_license = "gpl-3.0"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/doc2sys/css/doc2sys.css"
-# web_include_js = "/assets/doc2sys/js/doc2sys.js"
+web_include_js = "/assets/doc2sys/js/doc2sys.js"
 
 # include custom scss in every website theme (without file extension ".scss")
 # website_theme_scss = "doc2sys/public/scss/website"
