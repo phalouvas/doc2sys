@@ -22,15 +22,11 @@ frappe.ui.form.on('Doc2Sys Item', {
                         frm.set_value('single_file', file_doc.file_url);
                         frm.save();
                         
-                        // If auto-process is enabled, trigger processing
-                        if (frm.doc.auto_process_file) {
-                            frappe.show_alert({
-                                message: __('Processing file...'),
-                                indicator: 'blue'
-                            });
-                            // Call your processing method here if needed
-                        }
-                        
+                        frappe.show_alert({
+                            message: __('Processing file...'),
+                            indicator: 'blue'
+                        });
+                    
                         frappe.show_alert({
                             message: __('File {0} uploaded successfully', [file_doc.file_name]),
                             indicator: 'green'

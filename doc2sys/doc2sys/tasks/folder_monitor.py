@@ -174,7 +174,7 @@ def process_folder(folder_path, user_settings):
                 results["files"].append(file_result)
                 continue
             
-            # Use a similar approach to upload_and_create_item
+            # Use a similar approach
             with open(file_path, 'rb') as f:
                 file_content = f.read()
                 
@@ -197,14 +197,12 @@ def process_folder(folder_path, user_settings):
             doc2sys_item.single_file = file_doc.file_url
             doc2sys_item.owner = user
             doc2sys_item.user = user
-            doc2sys_item.title = file_name
-            doc2sys_item.file_path = file_path
-            
-            # Save document (which triggers file processing through validate method)
             doc2sys_item.insert()
+
+            file_doc.attached_to_name = doc2sys_item.name
+            file_doc.attached_to_field = "single_file"
+            file_doc.save()
             frappe.db.commit()
-            doc2sys_item.reload()
-            doc2sys_item.process_attached_file()
 
             # Delete the original file from the monitored folder
             os.remove(file_path)

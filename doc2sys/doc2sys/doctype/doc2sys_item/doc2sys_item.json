@@ -9,7 +9,6 @@
   "details_tab",
   "naming_series",
   "status",
-  "auto_process_file",
   "column_break_lbah",
   "user",
   "document_section",
@@ -41,12 +40,6 @@
    "label": "User",
    "options": "User",
    "reqd": 1
-  },
-  {
-   "default": "1",
-   "fieldname": "auto_process_file",
-   "fieldtype": "Check",
-   "label": "Auto-Process Files on Upload"
   },
   {
    "fieldname": "document_section",
