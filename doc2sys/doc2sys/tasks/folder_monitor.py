@@ -177,20 +177,20 @@ def process_folder(folder_path, user_settings):
             # Use a similar approach
             with open(file_path, 'rb') as f:
                 file_content = f.read()
-                
-            # Create a temporary file object similar to what would come from a request
-            from frappe.utils.file_manager import save_file
-            
-            # Use save_file which is what upload_file uses internally
-            file_doc = save_file(
-                fname=file_name,
-                content=file_content,
-                dt="Doc2Sys Item",  # The doctype to attach to
-                dn="New Doc2Sys Item",  # Temporary name
-                folder=f"Home/Doc2Sys/{user}",  # Store in user-specific folder
-                is_private=1,
-                df=None
-            )
+
+            file_doc = frappe.get_doc(
+                {
+                    "doctype": "File",
+                    "attached_to_doctype": None,
+                    "attached_to_name": None,
+                    "attached_to_field": None,
+                    "folder": f"Home/Doc2Sys/{user}",
+                    "file_name": file_name,
+                    "file_url": None,
+                    "is_private": 1,
+                    "content": file_content,
+                }
+            ).save(ignore_permissions=False)
             
             # Create Doc2Sys Item in a more standard way
             doc2sys_item = frappe.new_doc("Doc2Sys Item")
@@ -198,10 +198,13 @@ def process_folder(folder_path, user_settings):
             doc2sys_item.owner = user
             doc2sys_item.user = user
             doc2sys_item.insert()
+            frappe.db.commit()
 
+            file_doc.reload()
+            file_doc.attached_to_doctype = "Doc2Sys Item"
             file_doc.attached_to_name = doc2sys_item.name
             file_doc.attached_to_field = "single_file"
-            file_doc.save()
+            file_doc.save(ignore_permissions=False)
             frappe.db.commit()
 
             # Delete the original file from the monitored folder
@@ -224,64 +227,3 @@ def process_folder(folder_path, user_settings):
             results["files"].append(file_result)
 
     return results
-
-def upload_file_to_frappe(file_path, file_name, user):
-    """
-    Upload file to Frappe file system and return file URL.
-    
-    Args:
-        file_path (str): Path to the file to upload
-        file_name (str): Name of the file
-        user (str): User who owns the file
-        
-    Returns:
-        str: File URL if successful, None otherwise
-    """
-    try:
-        # Check if Doc2Sys folder exists, create if not
-        doc2sys_folder = "Home/Doc2Sys"
-        if not frappe.db.exists("File", {"is_folder": 1, "file_name": "Doc2Sys", "folder": "Home"}):
-            # Create Doc2Sys folder
-            folder = frappe.get_doc({
-                "doctype": "File",
-                "file_name": "Doc2Sys",
-                "is_folder": 1,
-                "folder": "Home"
-            })
-            folder.insert()
-            frappe.logger().info("Created Doc2Sys folder for file uploads")
-        
-        # Check if user-specific folder exists, create if not
-        user_folder_name = f"Doc2Sys/{user}"
-        if not frappe.db.exists("File", {"is_folder": 1, "file_name": user, "folder": "Home/Doc2Sys"}):
-            # Create user folder
-            user_folder = frappe.get_doc({
-                "doctype": "File",
-                "file_name": user,
-                "is_folder": 1,
-                "folder": doc2sys_folder
-            })
-            user_folder.insert()
-            frappe.logger().info(f"Created user folder {user_folder_name} for file uploads")
-            
-        with open(file_path, 'rb') as f:
-            file_content = f.read()
-            
-        # Upload the file to Frappe's file system
-        file_doc = frappe.get_doc({
-            "doctype": "File",
-            "file_name": file_name,
-            "is_private": 1,
-            "folder": user_folder_name,
-            "attached_to_doctype": "Doc2Sys Item",
-            "attached_to_name": "New Doc2Sys Item",  # Temporary value
-            "content": file_content,
-            "owner": user
-        })
-        
-        file_doc.insert()
-        return file_doc.file_url
-        
-    except Exception as e:
-        frappe.log_error(f"Error uploading file for user {user}: {str(e)}")
-        return None
