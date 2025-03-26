@@ -21,7 +21,7 @@
   "azure_endpoint",
   "azure_key",
   "azure_model",
-  "cost_invoice",
+  "cost_prebuilt_invoice_per_page",
   "external_integrations_tab",
   "integrations_section",
   "user_integrations"
@@ -144,15 +144,15 @@
    "non_negative": 1
   },
   {
-   "fieldname": "cost_invoice",
+   "fieldname": "cost_prebuilt_invoice_per_page",
    "fieldtype": "Currency",
-   "label": "Cost per 1,000 pages",
+   "label": "Cost (\u20ac) per 1,000 pages",
    "non_negative": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-26 09:02:08.646675",
+ "modified": "2025-03-26 09:52:42.334843",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",

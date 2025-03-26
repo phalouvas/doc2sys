@@ -138,8 +138,7 @@ class AzureDocumentIntelligenceProcessor:
             ) or ""
             
             # Cache token pricing (per million tokens)
-            self.input_price_per_million = float(user_settings.input_token_price or 0.0)
-            self.output_price_per_million = float(user_settings.output_token_price or 0.0)
+            self.cost_prebuilt_invoice_per_page = float(user_settings.cost_prebuilt_invoice_per_page or 0.0)
             
             # Initialize Azure client
             try:
@@ -190,7 +189,7 @@ class AzureDocumentIntelligenceProcessor:
                         
                         # Deserialize the stored response
                         result_dict = json.loads(doc2sys_item_doc.azure_raw_response)
-                        
+
                         # Process the cached result to extract structured data
                         extracted_data = self._process_azure_extraction_results(result_dict)
                         extracted_data = frappe.as_json(extracted_data, 1, None, False)
@@ -199,6 +198,7 @@ class AzureDocumentIntelligenceProcessor:
                         return extracted_data
                 except Exception as e:
                     logger.warning(f"Failed to use cached Azure response: {str(e)}, proceeding with API call")
+                    return {}
             
             # Azure requires a file to process, so check if file path is provided
             if not file_path:
@@ -231,6 +231,11 @@ class AzureDocumentIntelligenceProcessor:
             # Process the result to extract structured data
             extracted_data = self._process_azure_extraction_results(result_dict)
             extracted_data = frappe.as_json(extracted_data, 1, None, False)
+
+            # Get the number of pages in result_dict
+            cost = len(result_dict.get("pages", [])) * self.cost_prebuilt_invoice_per_page / 1000
+            doc = result_dict.get("documents")[0]
+            confidence = doc.get("confidence")
             
             # Save the raw response to doc2sys_item for future use if available
             if self.doc2sys_item:
@@ -244,6 +249,8 @@ class AzureDocumentIntelligenceProcessor:
                     doc2sys_item_doc.db_set('extracted_data', extracted_data, update_modified=False)
                     doc2sys_item_doc.db_set('azure_raw_response', serialized_result, update_modified=False)
                     doc2sys_item_doc.db_set('extracted_text', extracted_text, update_modified=False)
+                    doc2sys_item_doc.db_set('cost', cost, update_modified=False)
+                    doc2sys_item_doc.db_set('classification_confidence', confidence, update_modified=False)
                 except Exception as e:
                     logger.warning(f"Failed to cache Azure response: {str(e)}")
             
