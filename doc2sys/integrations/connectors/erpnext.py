@@ -153,8 +153,6 @@ class ERPNextIntegration(BaseIntegration):
                         # Add doctype to each item
                         invoice_item["doctype"] = "Purchase Invoice Item"
                 
-                doc_data = self.fix_payload(doc_data)
-                
                 # Try to create the document directly without checking if it exists
                 try:
                     create_response = requests.post(
@@ -197,20 +195,3 @@ class ERPNextIntegration(BaseIntegration):
         except Exception as e:
             self.log_activity("error", f"Sync error: {str(e)}")
             return {"success": False, "message": str(e)}
-    
-    def fix_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Fix the payload before syncing"""
-        # Add any necessary transformations to the payload here
-        if payload.get("doctype") == "Supplier":
-            # Ensure city field exists for Supplier doctype
-            if "city" not in payload:
-                payload["city"] = "&nbsp;"
-
-        if payload.get("doctype") == "Item":
-            # Ensure item_group field exists for Item doctype
-            if "item_group" not in payload:
-                payload["item_group"] = "All Item Groups"
-            if "is_stock_item" not in payload:
-                payload["is_stock_item"] = 0
-    
-        return payload

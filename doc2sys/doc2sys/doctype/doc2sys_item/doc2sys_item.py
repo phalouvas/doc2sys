@@ -8,7 +8,7 @@ from doc2sys.engine.exceptions import ProcessingError
 from frappe import _
 from doc2sys.engine.llm_processor import LLMProcessor
 from doc2sys.engine.text_extractor import TextExtractor
-from doc2sys.integrations.events import trigger_integrations_on_update
+from doc2sys.integrations.utils import process_integrations
 from frappe.handler import upload_file
 
 class Doc2SysItem(Document):
@@ -124,6 +124,19 @@ class Doc2SysItem(Document):
         return list(integration_status.values())
 
     @frappe.whitelist()
+    def trigger_integrations(self):
+        
+        try:
+            process_integrations(self)
+            frappe.msgprint("Integration processed successfully")
+            return True
+        except Exception as e:
+            frappe.log_error(f"Integration processing error: {str(e)}")
+            frappe.msgprint(f"An error occurred during integration processing: {str(e)}")
+            return False
+
+
+    @frappe.whitelist()
     def process_all(self):
         if not self.single_file:
             frappe.msgprint("No document is attached to process")
@@ -137,7 +150,7 @@ class Doc2SysItem(Document):
             
             # If successful, trigger integrations
             if success:
-                trigger_integrations_on_update(self, None, True)
+                process_integrations(self)
                 
                 frappe.msgprint("Document processed and integrations triggered")
                 return True

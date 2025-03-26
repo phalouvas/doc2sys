@@ -67,11 +67,6 @@ def _process_integrations(doc, is_manual=False):
             frappe.logger().debug(f"Skipping disabled integration: {integration.integration_type} ({integration.name})")
             continue
             
-        # Skip integrations that don't match the sync method
-        if not is_manual and not integration.auto_sync:
-            frappe.logger().debug(f"Skipping non-auto integration during automatic processing: {integration.integration_type} ({integration.name})")
-            continue
-        
         # Log which integration we're processing
         frappe.logger().info(f"Processing integration {integration.integration_type} ({integration.name}) for document {doc.name}")
         
