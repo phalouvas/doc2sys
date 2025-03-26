@@ -308,7 +308,9 @@ class AzureDocumentIntelligenceProcessor:
             
             # Extract basic invoice fields
             supplier_name = self._get_field_value(fields, "VendorName") or "Unknown Supplier"
+            supplier_name = supplier_name[:140]
             invoice_id = self._get_field_value(fields, "InvoiceId") or ""
+            invoice_id = invoice_id[:140]
             # Default invoice date to today if missing
             today = datetime.datetime.now().strftime("%Y-%m-%d")
             invoice_date = self._get_field_value(fields, "InvoiceDate") or today
@@ -353,7 +355,10 @@ class AzureDocumentIntelligenceProcessor:
                 
                 value_obj = item_obj.get("valueObject")
                 description = value_obj.get("Description").get("valueString")
-                description = description[:140] if description else "Item"
+                if value_obj.get("ItemCode"):
+                    item_code = value_obj.get("ItemCode").get("valueString")
+                else:
+                    item_code = self._create_item_code_from_description(description)
                 quantity = value_obj.get("Quantity").get("valueNumber") if value_obj.get("Quantity") else 1
                 amount = value_obj.get("Amount").get("valueCurrency").get("amount") or 0
                 stock_uom = value_obj.get("Unit").get("valueString") if value_obj.get("Unit") else None
@@ -364,7 +369,8 @@ class AzureDocumentIntelligenceProcessor:
                 total_items_amount += amount
                 
                 line_items.append({
-                    "item_code": description,
+                    "item_code": item_code,
+                    "description": description,
                     "qty": quantity,
                     "rate": unit_price,
                     "amount": amount,
@@ -397,7 +403,8 @@ class AzureDocumentIntelligenceProcessor:
             # If no line items detected, create one based on net amount (not total)
             if not line_items and net:
                 line_items.append({
-                    "item_code": "Invoice Item",
+                    "item_code": "Item",
+                    "Description": "Item",
                     "qty": 1,
                     "rate": net,
                     "amount": net,
@@ -420,6 +427,7 @@ class AzureDocumentIntelligenceProcessor:
                     "doc": {
                         "doctype": "Item",
                         "item_code": item["item_code"],
+                        "description": item["description"],
                         "item_group": "All Item Groups",
                         "stock_uom": item["stock_uom"],
                         "is_stock_item": 0
@@ -491,3 +499,26 @@ class AzureDocumentIntelligenceProcessor:
             return field.get('content') if 'content' in field else field
         else:
             return field.content if hasattr(field, 'content') else field
+
+    def _create_item_code_from_description(self, description):
+        """Generate a meaningful item code from description when ItemCode is missing"""
+        import re
+        import hashlib
+        
+        if not description:
+            return "ITEM"
+        
+        description = description[:15]
+        
+        # Convert to lowercase and remove special characters
+        slug = description.lower()
+        slug = re.sub(r'[^\w\s-]', '', slug)
+        slug = re.sub(r'[\s-]+', '-', slug)
+        
+        # Trim and take first 15 chars of the slug
+        slug = slug.strip('-').strip()[:15]
+        
+        # Add a short hash to ensure uniqueness
+        hash_suffix = hashlib.md5(description.encode()).hexdigest()[:5]
+        
+        return f"{slug}-{hash_suffix}"
