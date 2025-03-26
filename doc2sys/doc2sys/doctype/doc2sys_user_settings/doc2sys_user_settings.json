@@ -105,8 +105,7 @@
   },
   {
    "fieldname": "integrations_section",
-   "fieldtype": "Section Break",
-   "label": "External Integrations"
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "user_integrations",
@@ -127,7 +126,7 @@
   {
    "fieldname": "external_integrations_tab",
    "fieldtype": "Tab Break",
-   "label": "External Integrations"
+   "label": "Integrations"
   },
   {
    "default": "0",
@@ -153,7 +152,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-25 17:39:42.936433",
+ "modified": "2025-03-26 09:02:08.646675",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",

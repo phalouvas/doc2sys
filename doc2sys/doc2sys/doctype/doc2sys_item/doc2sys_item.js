@@ -79,16 +79,27 @@ frappe.ui.form.on('Doc2Sys Item', {
 
             // Add trigger integrations button that actually processes the integrations
             frm.add_custom_button(__('Trigger Integrations'), function() {
-                frappe.call({
-                    method: "doc2sys.integrations.events.trigger_integrations_on_update",
-                    args: {
-                        doc: frm.doc
-                    },
+                // Show full screen processing overlay
+                frappe.dom.freeze(__('Running integrations...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'trigger_integrations',
                     callback: function(r) {
-                        frappe.show_alert({message: __('Integrations triggered'), indicator: 'green'});
-                        setTimeout(function() {
-                            update_integration_status(frm);
-                        }, 3000); // Wait 3 seconds for processing
+                        // Unfreeze UI when processing is complete
+                        frappe.dom.unfreeze();
+                        
+                        if(r.message) {
+                            frappe.show_alert({
+                                message: __('Integrations completed'),
+                                indicator: 'green'
+                            }, 3);
+                            frm.refresh();
+                        }
+                    },
+                    error: function() {
+                        // Make sure to unfreeze UI even if there's an error
+                        frappe.dom.unfreeze();
                     }
                 });
             }, __('Actions'));
