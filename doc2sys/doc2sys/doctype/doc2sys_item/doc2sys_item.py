@@ -42,8 +42,6 @@ class Doc2SysItem(Document):
             return False
         
         try:
-            frappe.msgprint("Extracting data from document...")
-            
             file_path = self._get_file_path()
             if not file_path:
                 return False
@@ -60,7 +58,6 @@ class Doc2SysItem(Document):
                 document_type=self.document_type
             )
             
-            frappe.msgprint("Data extraction completed")
             return True
         
         except Exception as e:
@@ -128,7 +125,6 @@ class Doc2SysItem(Document):
         
         try:
             process_integrations(self)
-            frappe.msgprint("Integration processed successfully")
             return True
         except Exception as e:
             frappe.log_error(f"Integration processing error: {str(e)}")
@@ -143,16 +139,9 @@ class Doc2SysItem(Document):
             return False
             
         try:
-            frappe.msgprint("Processing document with all steps...")
-            
-            # Use the consolidated process_document method
             success = self.extract_data()
-            
-            # If successful, trigger integrations
             if success:
                 process_integrations(self)
-                
-                frappe.msgprint("Document processed and integrations triggered")
                 return True
             else:
                 return False
