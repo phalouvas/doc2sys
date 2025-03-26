@@ -23,10 +23,8 @@ class Doc2SysItem(Document):
         if not self.user:
             self.user = frappe.session.user
             
-        if self.has_value_changed("single_file"):
-            # Only process file if auto_process_file is checked
-            if self.auto_process_file:
-                self.process_all()
+        if self.single_file and self.auto_process_file:
+            self.process_all()
       
     def _get_file_path(self):
         """Helper method to get file path from single_file URL"""

@@ -199,7 +199,6 @@ def process_folder(folder_path, user_settings):
             doc2sys_item.user = user
             doc2sys_item.title = file_name
             doc2sys_item.file_path = file_path
-            doc2sys_item.auto_process_file = 0
             
             # Save document (which triggers file processing through validate method)
             doc2sys_item.insert()
