@@ -19,6 +19,8 @@ MAX_TEXT_LENGTH = 10000
 DEFAULT_TEMPERATURE = 0
 ACCEPTABLE_CONFIDENCE = 0.75
 
+from typing import Dict, Any, List, Optional  # Add this import line
+
 class LLMProcessor:
     """Process documents using various LLM providers"""
     
@@ -263,33 +265,266 @@ class AzureDocumentIntelligenceProcessor:
             logger.error(f"Azure data extraction error: {str(e)}")
             return {}        
     
-    def _process_azure_extraction_results(self, azure_result):
-        """
-        Process Azure Document Intelligence results into structured data
-        
-        Args:
-            azure_result: Azure Document Intelligence API response object
-            document_type: Type of document
-            
-        Returns:
-            dict: Structured data extracted from document
-        """
+    def _process_azure_extraction_results(self, result_dict: dict) -> dict:
+        """Process the raw Azure Document Intelligence results into a structured format"""
         try:
-            document_type = azure_result.get("modelId")
-
-            # Different handling based on model type and document type
-            if "prebuilt-invoice" in self.model or "invoice" in str(document_type).lower():
-                return self._process_invoice_results(azure_result)
-            elif "prebuilt-receipt" in self.model or "receipt" in str(document_type).lower():
-                return self._process_receipt_results(azure_result)
-            else:
-                # Generic document processing
-                return self._process_generic_document_results(azure_result)
+            # Initialize an empty dictionary to store the extracted data
+            extracted_data = {}
+            
+            # Get the document type - for now we only handle invoices in this example
+            document_type = self.doc2sys_item.document_type if isinstance(self.doc2sys_item, Document) else "prebuilt-invoice"
+            
+            # Get the extracted fields from the Azure response
+            if 'documents' in result_dict and len(result_dict['documents']) > 0:
+                doc = result_dict['documents'][0]
+                fields = doc.get('fields', {})
                 
+                # Extract generic document data - not tied to any specific integration
+                if document_type == "prebuilt-invoice":
+                    # Common invoice metadata
+                    extracted_data = {
+                        "document_type": "Invoice",  # Generic document type
+                        "invoice_number": self._get_field_value(fields, "InvoiceId"),
+                        "invoice_date": self._get_field_value(fields, "InvoiceDate"),
+                        "due_date": self._get_field_value(fields, "DueDate"),
+                        "total_amount": self._get_field_value(fields, "InvoiceTotal"),
+                        "subtotal": self._get_field_value(fields, "SubTotal"),
+                        "tax_amount": self._get_field_value(fields, "TotalTax"),
+                        
+                        # Vendor/supplier information (generic naming)
+                        "supplier_name": self._get_field_value(fields, "VendorName"),
+                        "supplier_address": self._get_field_value(fields, "VendorAddress"),
+                        "supplier_email": self._get_field_value(fields, "VendorEmail"),
+                        "supplier_phone": self._get_field_value(fields, "VendorPhone"),
+                        
+                        # Customer information (generic naming)
+                        "customer_name": self._get_field_value(fields, "CustomerName"),
+                        "customer_address": self._get_field_value(fields, "CustomerAddress"),
+                        "customer_id": self._get_field_value(fields, "CustomerId"),
+                        
+                        # Line items in a generic format
+                        "items": []
+                    }
+                    
+                    # Extract line items from Azure response
+                    items = self._get_field_value(fields, "Items") or []
+                    for item in items:
+                        if 'valueObject' in item:
+                            value_obj = item['valueObject']
+                            
+                            # Extract basic item details in a generic format
+                            item_data = {
+                                "description": self._get_nested_value(value_obj, "Description", "valueString"),
+                                "quantity": self._get_nested_value(value_obj, "Quantity", "valueNumber"),
+                                "unit_price": self._get_nested_value(value_obj, "UnitPrice", "valueCurrency", "amount"),
+                                "amount": self._get_nested_value(value_obj, "Amount", "valueCurrency", "amount"),
+                                "item_code": self._get_nested_value(value_obj, "ProductCode", "valueString")
+                            }
+                            
+                            extracted_data["items"].append(item_data)
+            
+            return extracted_data
         except Exception as e:
             logger.error(f"Error processing Azure extraction results: {str(e)}")
             return {}
-    
+
+    def _process_azure_extraction_results(self, result_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Process the raw Azure Document Intelligence results into a structured format"""
+        try:
+            # Initialize an empty dictionary to store the extracted data
+            extracted_data = {}
+            
+            # Get the document type from the object or fallback
+            document_type = self.doc2sys_item.document_type if isinstance(self.doc2sys_item, Document) else "prebuilt-document"
+            
+            # Get the extracted fields from the Azure response
+            if 'documents' in result_dict and len(result_dict['documents']) > 0:
+                doc = result_dict['documents'][0]
+                fields = doc.get('fields', {})
+                
+                # Extract generic document data based on document type
+                if document_type == "prebuilt-invoice":
+                    extracted_data = self._process_invoice_result(fields)
+                elif document_type == "prebuilt-receipt":
+                    extracted_data = self._process_receipt_result(fields)
+                elif document_type in ["prebuilt-document", "prebuilt-layout", "prebuilt-read"]:
+                    extracted_data = self._process_generic_document_result(result_dict)
+            
+            return extracted_data
+        except Exception as e:
+            logger.error(f"Error processing Azure extraction results: {str(e)}")
+            return {}
+        
+    def _process_invoice_result(self, fields: Dict) -> Dict:
+        """Process invoice-specific fields from Azure"""
+        # Common invoice metadata in generic format
+        extracted_data = {
+            "document_type": "Invoice",
+            "invoice_number": self._get_field_value(fields, "InvoiceId"),
+            "invoice_date": self._get_field_value(fields, "InvoiceDate"),
+            "due_date": self._get_field_value(fields, "DueDate"),
+            "total_amount": self._get_field_value(fields, "InvoiceTotal"),
+            "subtotal": self._get_field_value(fields, "SubTotal"),
+            "tax_amount": self._get_field_value(fields, "TotalTax"),
+            
+            # Vendor/supplier information
+            "supplier_name": self._get_field_value(fields, "VendorName"),
+            "supplier_address": self._get_field_value(fields, "VendorAddress"),
+            "supplier_email": self._get_field_value(fields, "VendorEmail"),
+            "supplier_phone": self._get_field_value(fields, "VendorPhone"),
+            
+            # Customer information
+            "customer_name": self._get_field_value(fields, "CustomerName"),
+            "customer_address": self._get_field_value(fields, "CustomerAddress"),
+            "customer_id": self._get_field_value(fields, "CustomerId"),
+            
+            # Line items in a generic format
+            "items": []
+        }
+        
+        # Extract line items from Azure response
+        items = self._get_field_value(fields, "Items") or []
+        for item in items:
+            if 'valueObject' in item:
+                value_obj = item['valueObject']
+                
+                # Extract basic item details in a generic format
+                item_data = {
+                    "description": self._get_nested_value(value_obj, "Description", "valueString"),
+                    "quantity": self._get_nested_value(value_obj, "Quantity", "valueNumber"),
+                    "unit_price": self._get_nested_value(value_obj, "UnitPrice", "valueCurrency", "amount"),
+                    "amount": self._get_nested_value(value_obj, "Amount", "valueCurrency", "amount"),
+                    "item_code": self._get_nested_value(value_obj, "ProductCode", "valueString")
+                }
+                
+                extracted_data["items"].append(item_data)
+        
+        return extracted_data
+
+    def _process_receipt_result(self, fields: Dict) -> Dict:
+        """Process receipt-specific fields from Azure"""
+        # Common receipt metadata
+        extracted_data = {
+            "document_type": "Receipt",
+            "receipt_number": self._get_field_value(fields, "ReceiptNumber") or self._get_field_value(fields, "InvoiceId"),
+            "transaction_date": self._get_field_value(fields, "TransactionDate"),
+            "total_amount": self._get_field_value(fields, "Total"),
+            "subtotal": self._get_field_value(fields, "Subtotal"),
+            "tax_amount": self._get_field_value(fields, "TotalTax"),
+            
+            # Merchant information
+            "merchant_name": self._get_field_value(fields, "MerchantName"),
+            "merchant_address": self._get_field_value(fields, "MerchantAddress"),
+            "merchant_phone": self._get_field_value(fields, "MerchantPhoneNumber"),
+            
+            # Payment information
+            "payment_method": self._get_field_value(fields, "PaymentMethod"),
+            "card_last4": self._get_field_value(fields, "PaymentCardNumber"),
+            
+            # Items in a generic format
+            "items": []
+        }
+        
+        # Extract line items from Azure response
+        items = self._get_field_value(fields, "Items") or []
+        for item in items:
+            if 'valueObject' in item:
+                value_obj = item['valueObject']
+                
+                # Extract basic item details in a generic format
+                item_data = {
+                    "description": self._get_nested_value(value_obj, "Description", "valueString"),
+                    "quantity": self._get_nested_value(value_obj, "Quantity", "valueNumber"),
+                    "price": self._get_nested_value(value_obj, "Price", "valueCurrency", "amount"),
+                    "total_price": self._get_nested_value(value_obj, "TotalPrice", "valueCurrency", "amount"),
+                }
+                
+                extracted_data["items"].append(item_data)
+        
+        return extracted_data
+
+    def _process_generic_document_result(self, result_dict: Dict) -> Dict:
+        """Process general document extraction results from Azure"""
+        extracted_data = {
+            "document_type": "Document",
+            "content": result_dict.get("content", ""),
+            "pages": len(result_dict.get("pages", [])),
+            "tables": [],
+            "key_value_pairs": []
+        }
+        
+        # Extract tables if available
+        if "tables" in result_dict:
+            for table in result_dict["tables"]:
+                table_data = {
+                    "row_count": len(table.get("cells", [])),
+                    "column_count": table.get("columnCount", 0),
+                    "cells": []
+                }
+                
+                # Process cells
+                for cell in table.get("cells", []):
+                    table_data["cells"].append({
+                        "text": cell.get("content", ""),
+                        "row_index": cell.get("rowIndex", 0),
+                        "column_index": cell.get("columnIndex", 0)
+                    })
+                    
+                extracted_data["tables"].append(table_data)
+        
+        # For prebuilt-document, also extract key-value pairs
+        if "keyValuePairs" in result_dict:
+            for kv_pair in result_dict["keyValuePairs"]:
+                key = kv_pair.get("key", {}).get("content", "")
+                value = kv_pair.get("value", {}).get("content", "")
+                
+                if key and value:
+                    extracted_data["key_value_pairs"].append({
+                        "key": key,
+                        "value": value
+                    })
+        
+        return extracted_data
+
+    def _get_field_value(self, fields, field_name):
+        """Extract a field value from Azure Document Intelligence results"""
+        if field_name not in fields:
+            return None
+            
+        field = fields[field_name]
+        if not field:
+            return None
+            
+        # Handle different value types
+        if "valueString" in field:
+            return field["valueString"]
+        elif "valueDate" in field:
+            return field["valueDate"]
+        elif "valueTime" in field:
+            return field["valueTime"]
+        elif "valuePhoneNumber" in field:
+            return field["valuePhoneNumber"]
+        elif "valueNumber" in field:
+            return field["valueNumber"]
+        elif "valueCurrency" in field:
+            return field["valueCurrency"]["amount"]
+        elif "valueArray" in field:
+            return field["valueArray"]
+        elif "valueObject" in field:
+            return field["valueObject"]
+        
+        return None
+        
+    def _get_nested_value(self, obj, *keys):
+        """Get a value from a nested dictionary by navigating through multiple keys"""
+        current = obj
+        for key in keys:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return None
+        return current
+
     def _process_invoice_results(self, result:dict):
         """Process invoice-specific results from Azure"""
         try:

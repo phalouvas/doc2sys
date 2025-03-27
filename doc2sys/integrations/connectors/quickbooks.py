@@ -1,7 +1,7 @@
-import frappe
-import requests
-from typing import Dict, Any
 import json
+import requests
+import frappe
+from typing import Dict, Any, Optional, List
 
 from doc2sys.integrations.base import BaseIntegration
 from doc2sys.integrations.registry import register_integration
@@ -159,122 +159,56 @@ class QuickBooks(BaseIntegration):
             return {"success": False, "message": "Authentication failed"}
             
         try:
-            # Add this line to track the current document
+            # Track the current document
             self.current_document = doc2sys_item.get("name")
             
-            # Map fields based on the document type
+            # Get document type
             document_type = doc2sys_item.get("document_type", "").lower()
             
-            # Extract and parse data
+            # Get extracted data
             try:
-                extracted_data = doc2sys_item.get("extracted_data", {})
+                extracted_data = doc2sys_item.get("extracted_data", "{}")
                 if isinstance(extracted_data, str):
                     extracted_data = json.loads(extracted_data)
             except json.JSONDecodeError:
                 self.log_activity("error", "Invalid JSON in extracted_data")
                 return {"success": False, "message": "Invalid JSON in extracted_data"}
-            
-            # Create appropriate QuickBooks object based on document type
-            qb_object = {}
-            endpoint = ""
-            
-            if document_type == "invoice":
-                # Map invoice fields
-                qb_object = {
-                    "Line": [],
-                    "CustomerRef": {
-                        "value": extracted_data.get("customer_id", "")
-                    },
-                    "DocNumber": extracted_data.get("invoice_number", ""),
-                    "TxnDate": extracted_data.get("invoice_date", "")
-                }
                 
-                # Add line items
-                for item in extracted_data.get("items", []):
-                    line_item = {
-                        "DetailType": "SalesItemLineDetail",
-                        "Amount": item.get("amount", 0),
-                        "Description": item.get("description", ""),
-                        "SalesItemLineDetail": {
-                            "ItemRef": {
-                                "name": item.get("description", ""),
-                            },
-                            "Qty": item.get("quantity", 1),
-                            "UnitPrice": item.get("unit_price", 0)
-                        }
-                    }
-                    qb_object["Line"].append(line_item)
+            # Transform the generic extracted data to QuickBooks format
+            qb_data = self._transform_to_quickbooks_format(extracted_data, document_type)
+            if not qb_data.get("success"):
+                return qb_data
                 
-                endpoint = "invoice"
-                
-            elif document_type in ["bill", "purchase invoice"]:
-                # Map purchase invoice/bill fields
-                vendor_id = extracted_data.get("vendor_id") or extracted_data.get("supplier_id")
-                vendor_name = extracted_data.get("vendor_name") or extracted_data.get("supplier_name")
-                
-                qb_object = {
-                    "Line": [],
-                    "VendorRef": {
-                        "value": vendor_id,
-                        "name": vendor_name
-                    },
-                    "DocNumber": extracted_data.get("bill_number") or extracted_data.get("invoice_number", ""),
-                    "TxnDate": extracted_data.get("bill_date") or extracted_data.get("invoice_date", "")
-                }
-                
-                # Add due date if available
-                due_date = extracted_data.get("due_date")
-                if due_date:
-                    qb_object["DueDate"] = due_date
-                    
-                # Add bill total if available
-                bill_total = extracted_data.get("total_amount")
-                if bill_total:
-                    qb_object["TotalAmt"] = bill_total
-                
-                # Add line items
-                for item in extracted_data.get("items", []):
-                    line_item = {
-                        "DetailType": "AccountBasedExpenseLineDetail",
-                        "Amount": item.get("amount", 0),
-                        "Description": item.get("description", ""),
-                        "AccountBasedExpenseLineDetail": {
-                            "AccountRef": {
-                                "name": item.get("account", "Expenses")
-                            },
-                            "BillableStatus": "NotBillable",
-                            "TaxCodeRef": {
-                                "value": item.get("tax_code", "NON")
-                            }
-                        }
-                    }
-                    qb_object["Line"].append(line_item)
-                
-                endpoint = "bill"
-                
-            else:
-                return {"success": False, "message": f"Unsupported document type: {document_type}"}
-            
-            # Get QuickBooks API credentials
+            # Get API credentials
             access_token = self.settings.get("access_token")
             realm_id = self.settings.get("realm_id")
             is_sandbox = self.settings.get("quickbooks_sandbox")
             
-            # Handle environment (sandbox vs production)
+            # Determine base URL based on environment
             if is_sandbox:
                 base_url = "https://sandbox-quickbooks.api.intuit.com/v3/company"
             else:
                 base_url = "https://quickbooks.api.intuit.com/v3/company"
             
-            # Send to QuickBooks
+            # Prepare the request
+            qb_object = qb_data.get("qb_object", {})
+            endpoint = qb_data.get("endpoint", "")
+            
+            if not endpoint:
+                return {"success": False, "message": f"Unsupported document type: {document_type}"}
+                
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
                 "Accept": "application/json"
             }
             
-            self.log_activity("info", f"Sending {document_type} to QuickBooks", {"endpoint": endpoint})
+            self.log_activity("info", f"Sending {document_type} to QuickBooks", {
+                "endpoint": endpoint,
+                "object_size": len(str(qb_object))
+            })
             
+            # Make the API call
             response = requests.post(
                 f"{base_url}/{realm_id}/{endpoint}",
                 headers=headers,
@@ -284,15 +218,17 @@ class QuickBooks(BaseIntegration):
             if response.status_code in (200, 201):
                 result = response.json()
                 
-                # Extract the ID based on document type
+                # Extract the response ID based on document type
                 qb_id = None
                 if document_type == "invoice":
                     qb_id = result.get("Invoice", {}).get("Id")
                 elif document_type in ["bill", "purchase invoice"]:
                     qb_id = result.get("Bill", {}).get("Id")
                 
-                self.log_activity("success", f"{document_type.capitalize()} synced to QuickBooks", 
-                                {"qb_id": qb_id})
+                self.log_activity("success", f"{document_type.capitalize()} synced to QuickBooks", {
+                    "qb_id": qb_id,
+                    "response_size": len(str(result))
+                })
                 
                 return {
                     "success": True, 
@@ -303,6 +239,172 @@ class QuickBooks(BaseIntegration):
                 error_message = f"Failed to sync {document_type}: {response.status_code} - {response.text}"
                 self.log_activity("error", error_message)
                 return {"success": False, "message": error_message}
+                
         except Exception as e:
             self.log_activity("error", f"Sync error: {str(e)}")
             return {"success": False, "message": str(e)}
+
+    def _transform_to_quickbooks_format(self, extracted_data: Dict[str, Any], 
+                                        document_type: str) -> Dict[str, Any]:
+        """Transform generic extracted data to QuickBooks API format"""
+        try:
+            # Handle different document types
+            if document_type == "invoice" or extracted_data.get("document_type") == "Invoice":
+                return self._transform_invoice(extracted_data)
+            elif document_type in ["bill", "purchase invoice"] or extracted_data.get("document_type") == "Invoice":
+                return self._transform_bill(extracted_data)
+            elif document_type == "receipt" or extracted_data.get("document_type") == "Receipt":
+                # Receipts are often processed as bills in accounting systems
+                return self._transform_receipt_to_bill(extracted_data)
+            else:
+                return {
+                    "success": False,
+                    "message": f"Unsupported document type for QuickBooks: {document_type}"
+                }
+        except Exception as e:
+            self.log_activity("error", f"Error transforming data for QuickBooks: {str(e)}")
+            return {"success": False, "message": f"Error transforming data: {str(e)}"}
+
+    def _transform_invoice(self, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform generic invoice data to QuickBooks Invoice format"""
+        # Initialize QuickBooks invoice object
+        qb_invoice = {
+            "Line": [],
+            "CustomerRef": {
+                "value": extracted_data.get("customer_id", "1")  # Default to first customer if not found
+            },
+            "DocNumber": extracted_data.get("invoice_number", ""),
+            "TxnDate": extracted_data.get("invoice_date", "")
+        }
+        
+        # Add customer name if available
+        if extracted_data.get("customer_name"):
+            qb_invoice["CustomerRef"]["name"] = extracted_data.get("customer_name")
+            
+        # Add due date if available
+        if extracted_data.get("due_date"):
+            qb_invoice["DueDate"] = extracted_data.get("due_date")
+            
+        # Add line items
+        items = extracted_data.get("items", [])
+        for item in items:
+            line_item = {
+                "DetailType": "SalesItemLineDetail",
+                "Amount": item.get("amount", 0),
+                "Description": item.get("description", ""),
+                "SalesItemLineDetail": {
+                    "ItemRef": {
+                        "name": item.get("description", ""),
+                    },
+                    "Qty": item.get("quantity", 1),
+                    "UnitPrice": item.get("unit_price", 0)
+                }
+            }
+            
+            # Add item code if available
+            if item.get("item_code"):
+                line_item["SalesItemLineDetail"]["ItemRef"]["value"] = item.get("item_code")
+                
+            qb_invoice["Line"].append(line_item)
+            
+        return {
+            "success": True,
+            "qb_object": qb_invoice,
+            "endpoint": "invoice"
+        }
+            
+    def _transform_bill(self, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform generic invoice/bill data to QuickBooks Bill format"""
+        # Initialize QuickBooks bill object
+        qb_bill = {
+            "Line": [],
+            "VendorRef": {
+                "name": extracted_data.get("supplier_name", "Unknown Vendor")
+            },
+            "DocNumber": extracted_data.get("invoice_number", ""),
+            "TxnDate": extracted_data.get("invoice_date", "")
+        }
+        
+        # Add supplier ID if available (vendor ID in QuickBooks terms)
+        if extracted_data.get("supplier_id"):
+            qb_bill["VendorRef"]["value"] = extracted_data.get("supplier_id")
+            
+        # Add due date if available
+        if extracted_data.get("due_date"):
+            qb_bill["DueDate"] = extracted_data.get("due_date")
+            
+        # Add total amount if available
+        if extracted_data.get("total_amount"):
+            qb_bill["TotalAmt"] = extracted_data.get("total_amount")
+            
+        # Add line items
+        items = extracted_data.get("items", [])
+        for item in items:
+            line_item = {
+                "DetailType": "AccountBasedExpenseLineDetail",
+                "Amount": item.get("amount", 0),
+                "Description": item.get("description", ""),
+                "AccountBasedExpenseLineDetail": {
+                    "AccountRef": {
+                        "name": "Expenses"  # Default account
+                    },
+                    "BillableStatus": "NotBillable",
+                    "TaxCodeRef": {
+                        "value": "NON"  # Default tax code
+                    }
+                }
+            }
+            
+            # Add tax information if available
+            if item.get("tax_amount"):
+                line_item["AccountBasedExpenseLineDetail"]["TaxAmount"] = item.get("tax_amount")
+                
+            qb_bill["Line"].append(line_item)
+            
+        return {
+            "success": True,
+            "qb_object": qb_bill,
+            "endpoint": "bill"
+        }
+
+    def _transform_receipt_to_bill(self, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform receipt data to QuickBooks Bill format"""
+        # Initialize QuickBooks bill object from receipt data
+        qb_bill = {
+            "Line": [],
+            "VendorRef": {
+                "name": extracted_data.get("merchant_name", "Unknown Vendor")
+            },
+            "DocNumber": extracted_data.get("receipt_number", ""),
+            "TxnDate": extracted_data.get("transaction_date", "")
+        }
+        
+        # Add total amount if available
+        if extracted_data.get("total_amount"):
+            qb_bill["TotalAmt"] = extracted_data.get("total_amount")
+            
+        # Add line items
+        items = extracted_data.get("items", [])
+        for item in items:
+            line_item = {
+                "DetailType": "AccountBasedExpenseLineDetail",
+                "Amount": item.get("total_price", 0) or item.get("price", 0),
+                "Description": item.get("description", ""),
+                "AccountBasedExpenseLineDetail": {
+                    "AccountRef": {
+                        "name": "Expenses"  # Default account
+                    },
+                    "BillableStatus": "NotBillable",
+                    "TaxCodeRef": {
+                        "value": "NON"  # Default tax code
+                    }
+                }
+            }
+            
+            qb_bill["Line"].append(line_item)
+            
+        return {
+            "success": True,
+            "qb_object": qb_bill,
+            "endpoint": "bill"
+        }

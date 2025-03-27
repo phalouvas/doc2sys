@@ -1,54 +1,36 @@
 import frappe
-from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
-from doc2sys.integrations.utils import create_integration_log  # Add this import
+from abc import ABC, abstractmethod  # Add this import
+from typing import Dict, Any, Optional
+
+from doc2sys.integrations.log_utils import create_integration_log
 
 class BaseIntegration(ABC):
-    """Abstract base class for all integrations in doc2sys.
+    """Base class for all integration connectors"""
     
-    All integration connectors must inherit from this class and implement
-    its abstract methods.
-    """
-    
-    def __init__(self, settings: Optional[Dict[str, Any]] = None):
+    def __init__(self, settings: Dict[str, Any]) -> None:
         self.settings = settings or {}
-        self.name = self.__class__.__name__
+        self.integration_type = self.__class__.__name__
         self.is_authenticated = False
-        
+        self.current_document = None
+    
+    def log_activity(self, status: str, message: str, data: Optional[Dict] = None) -> None:
+        """Log integration activity"""
+        create_integration_log(
+            integration_type=self.integration_type,
+            status=status,
+            message=message,
+            data=data,
+            doc_reference=self.current_document,
+            user=self.settings.get("user")
+        )
+
+    # These should be abstract methods
     @abstractmethod
     def authenticate(self) -> bool:
         """Authenticate with the external system"""
         pass
         
     @abstractmethod
-    def test_connection(self) -> Dict[str, Any]:
-        """Test the connection to the external system"""
-        pass
-        
-    @abstractmethod
     def sync_document(self, doc2sys_item: Dict[str, Any]) -> Dict[str, Any]:
-        """Sync a processed doc2sys_item to the external system"""
+        """Sync a document to the external system"""
         pass
-        
-    def log_activity(self, status, message, data=None):
-        """Log integration activity"""
-        integration_type = getattr(self, "integration_type", self.__class__.__name__)
-        
-        # Get document reference from instance attribute if available
-        document = getattr(self, "current_document", None)
-        
-        # Add document reference to data if available
-        if document and data is None:
-            data = {"doc_name": document}
-        elif document and isinstance(data, dict) and "doc_name" not in data:
-            data["doc_name"] = document
-            
-        create_integration_log(
-            integration_type=integration_type,
-            status=status,
-            message=message,
-            data=data,
-            user=self.settings.get("user"),
-            integration_reference=self.settings.get("name"),
-            document=document  # Use the document reference
-        )

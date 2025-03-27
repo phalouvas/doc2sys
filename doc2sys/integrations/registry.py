@@ -1,8 +1,34 @@
 import frappe
 import importlib
 import os
-from typing import Dict, Type, List
+from typing import Dict, Type, List, Optional
 from doc2sys.integrations.base import BaseIntegration
+
+# Dictionary to store integration classes
+INTEGRATION_REGISTRY = {}
+
+def register_integration(cls):
+    """Decorator to register integration classes"""
+    INTEGRATION_REGISTRY[cls.__name__] = cls
+    return cls
+
+def get_integration_class(integration_name: str) -> Optional[Type]:
+    """Get an integration class by name"""
+    # Check if we need to load connectors first
+    if not INTEGRATION_REGISTRY:
+        load_connectors()
+        
+    return INTEGRATION_REGISTRY.get(integration_name)
+
+def load_connectors():
+    """Dynamically import all connector modules to register integrations"""
+    try:
+        # Import connectors modules dynamically
+        import doc2sys.integrations.connectors.quickbooks
+        import doc2sys.integrations.connectors.erpnext
+        # Add other connectors here as needed
+    except Exception as e:
+        frappe.logger().error(f"Error loading integration connectors: {str(e)}")
 
 class IntegrationRegistry:
     """Registry for available integrations in doc2sys."""
@@ -45,9 +71,3 @@ class IntegrationRegistry:
                     importlib.import_module(module_path)
                 except Exception as e:
                     frappe.log_error(f"Error loading integration: {module_path}\n{str(e)}")
-
-
-def register_integration(cls):
-    """Decorator to register an integration class"""
-    IntegrationRegistry.register(cls)
-    return cls
