@@ -310,3 +310,34 @@ def get_user_credits(user=None):
             "credits": 0,
             "message": f"Error: {str(e)}"
         }
+
+@frappe.whitelist()
+def get_quickbooks_auth_url(user_settings):
+    """Generate QuickBooks authorization URL"""
+    try:
+        # Get user settings
+        settings_doc = frappe.get_doc("Doc2Sys User Settings", user_settings)
+        
+        # Validate required fields
+        if not settings_doc.integration_type == "QuickBooks":
+            return {"success": False, "message": "Not a QuickBooks integration"}
+            
+        if not (settings_doc.client_id and settings_doc.client_secret):
+            return {"success": False, "message": "Missing QuickBooks credentials (Client ID and Secret required)"}
+            
+        # Import registry and create integration instance
+        from doc2sys.integrations.registry import IntegrationRegistry
+        
+        integration_instance = IntegrationRegistry.create_instance(
+            "QuickBooks", 
+            settings=settings_doc.as_dict()
+        )
+        
+        # Get authorization URL from integration instance
+        auth_result = integration_instance.get_authorization_url()
+        
+        return auth_result
+            
+    except Exception as e:
+        frappe.log_error(f"Error generating QuickBooks authorization URL: {str(e)}", "Integration Error")
+        return {"success": False, "message": str(e)}
