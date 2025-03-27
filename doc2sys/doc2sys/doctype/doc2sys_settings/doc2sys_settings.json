@@ -11,7 +11,14 @@
   "max_file_size_mb",
   "credits",
   "file_types_section",
-  "supported_file_types"
+  "supported_file_types",
+  "llm_integration_tab",
+  "llm_integration_section",
+  "llm_provider",
+  "azure_endpoint",
+  "azure_key",
+  "azure_model",
+  "cost_prebuilt_invoice_per_page"
  ],
  "fields": [
   {
@@ -51,13 +58,56 @@
   {
    "fieldname": "credits",
    "fieldtype": "Currency",
-   "label": "Create Credits"
+   "label": "Initial Credits"
+  },
+  {
+   "fieldname": "llm_integration_tab",
+   "fieldtype": "Tab Break",
+   "label": "Engine"
+  },
+  {
+   "fieldname": "llm_integration_section",
+   "fieldtype": "Section Break",
+   "label": "Processing Engine"
+  },
+  {
+   "default": "Azure AI Document Intelligence",
+   "fieldname": "llm_provider",
+   "fieldtype": "Select",
+   "label": "LLM Provider",
+   "options": "Azure AI Document Intelligence"
+  },
+  {
+   "depends_on": "eval:doc.llm_provider=='Azure AI Document Intelligence'",
+   "fieldname": "azure_endpoint",
+   "fieldtype": "Data",
+   "label": "Azure Endpoint URL"
+  },
+  {
+   "depends_on": "eval:doc.llm_provider=='Azure AI Document Intelligence'",
+   "fieldname": "azure_key",
+   "fieldtype": "Password",
+   "label": "Azure API Key"
+  },
+  {
+   "default": "prebuilt-invoice",
+   "depends_on": "eval:doc.llm_provider=='Azure AI Document Intelligence'",
+   "fieldname": "azure_model",
+   "fieldtype": "Select",
+   "label": "Azure Model",
+   "options": "prebuilt-layout\nprebuilt-document\nprebuilt-read\nprebuilt-invoice\nprebuilt-receipt"
+  },
+  {
+   "fieldname": "cost_prebuilt_invoice_per_page",
+   "fieldtype": "Currency",
+   "label": "Cost (€) per 1,000 pages",
+   "non_negative": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-03-27 06:25:54.923152",
+ "modified": "2025-03-27 06:31:14.109166",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Settings",
