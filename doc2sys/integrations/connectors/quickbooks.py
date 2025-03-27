@@ -1,7 +1,6 @@
 import frappe
 import requests
-from typing import Dict, Any, List
-import json
+from typing import Dict, Any
 
 from doc2sys.integrations.base import BaseIntegration
 from doc2sys.integrations.registry import register_integration
@@ -13,14 +12,72 @@ class QuickBooks(BaseIntegration):
     def authenticate(self) -> bool:
         """Authenticate with QuickBooks using OAuth"""
         try:
+            # Get settings values
             access_token = self.settings.get("access_token")
             refresh_token = self.settings.get("refresh_token")
             realm_id = self.settings.get("realm_id")
+            is_sandbox = self.settings.get("quickbooks_sandbox")
+            doc_name = self.settings.get("name")
+            
+            # Handle environment (sandbox vs production)
+            if is_sandbox:
+                base_url = "https://sandbox-quickbooks.api.intuit.com/v3/company"
+            else:
+                base_url = "https://quickbooks.api.intuit.com/v3/company"
+            
+            # Try to refresh token if needed
+            if not access_token and refresh_token:
+                client_id = self.settings.get("client_id")
+                
+                # Securely get the decrypted client secret
+                client_secret = ""
+                if doc_name:
+                    try:
+                        client_secret = frappe.utils.password.get_decrypted_password(
+                            "Doc2Sys User Settings", doc_name, "client_secret"
+                        ) or ""
+                    except Exception as e:
+                        self.log_activity("error", f"Failed to get client secret: {str(e)}")
+                        return False
+                
+                if not (client_id and client_secret):
+                    self.log_activity("error", "Missing client credentials for token refresh")
+                    return False
+                    
+                # Refresh token API endpoint
+                token_endpoint = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer"
+                refresh_data = {
+                    "grant_type": "refresh_token",
+                    "refresh_token": refresh_token
+                }
+                
+                token_response = requests.post(
+                    token_endpoint,
+                    data=refresh_data,
+                    auth=(client_id, client_secret)
+                )
+                
+                if token_response.status_code != 200:
+                    self.log_activity("error", f"Token refresh failed: {token_response.text}")
+                    return False
+                    
+                token_data = token_response.json()
+                
+                # Update tokens in settings
+                access_token = token_data.get("access_token")
+                new_refresh_token = token_data.get("refresh_token")
+                
+                # Save the new tokens back to the settings
+                frappe.db.set_value("Doc2Sys User Settings", doc_name, {
+                    "access_token": access_token,
+                    "refresh_token": new_refresh_token
+                })
+                frappe.db.commit()
+                
+                self.log_activity("info", "QuickBooks tokens refreshed successfully")
             
             if not (access_token and realm_id):
-                if refresh_token:
-                    # Implement refresh token logic here
-                    pass
+                self.log_activity("error", "Missing required authentication credentials")
                 return False
                 
             # Test authentication with a simple API call
@@ -29,17 +86,65 @@ class QuickBooks(BaseIntegration):
                 "Accept": "application/json"
             }
             
-            base_url = "https://quickbooks.api.intuit.com/v3/company"
             response = requests.get(f"{base_url}/{realm_id}/companyinfo/{realm_id}", headers=headers)
             
             if response.status_code == 200:
                 self.is_authenticated = True
                 return True
-            
-            return False
+            elif response.status_code == 401:
+                # Token might be expired, try refreshing
+                # This handles the case where we had a valid access token but it expired during this session
+                self.log_activity("info", "Access token expired, attempting refresh")
+                self.is_authenticated = False
+                
+                # Clear the access token and retry authentication
+                frappe.db.set_value("Doc2Sys User Settings", doc_name, {"access_token": ""})
+                frappe.db.commit()
+                
+                # Recursive call to try again with refresh token
+                return self.authenticate()
+            else:
+                self.log_activity("error", f"Authentication failed: {response.status_code} - {response.text}")
+                return False
         except Exception as e:
             self.log_activity("error", f"Authentication failed: {str(e)}")
             return False
+
+    def get_authorization_url(self) -> Dict[str, Any]:
+        """Generate QuickBooks authorization URL"""
+        try:
+            client_id = self.settings.get("client_id")
+            doc_name = self.settings.get("name")
+            
+            if not client_id:
+                return {"success": False, "message": "Missing client ID"}
+                
+            # Your callback URL - must match what's registered in QuickBooks app
+            redirect_uri = frappe.utils.get_url("/quickbooks_callback")
+            
+            # Using the doc_name as the state parameter for security
+            state = doc_name
+            
+            # Build authorization URL
+            auth_url = "https://appcenter.intuit.com/connect/oauth2"
+            auth_params = {
+                "client_id": client_id,
+                "response_type": "code",
+                "scope": "com.intuit.quickbooks.accounting",
+                "redirect_uri": redirect_uri,
+                "state": state
+            }
+            
+            auth_url_with_params = f"{auth_url}?{'&'.join([f'{k}={v}' for k, v in auth_params.items()])}"
+            
+            return {
+                "success": True, 
+                "url": auth_url_with_params,
+                "message": "Please open this URL to authorize QuickBooks access"
+            }
+        except Exception as e:
+            self.log_activity("error", f"Failed to generate authorization URL: {str(e)}")
+            return {"success": False, "message": str(e)}
     
     def test_connection(self) -> Dict[str, Any]:
         """Test connection to QuickBooks"""
