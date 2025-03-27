@@ -2,7 +2,6 @@ import frappe
 from frappe import _ 
 from frappe.model.document import Document
 import datetime
-from frappe.core.api.file import create_new_folder
 
 class Doc2SysUserSettings(Document):
     def validate(self):
@@ -16,19 +15,20 @@ class Doc2SysUserSettings(Document):
 
     def ensure_user_folder_exists(self):
         """Create folder for the user in Doc2Sys directory if it doesn't exist"""
-        # Check if Doc2Sys folder exists, create if not
-        doc2sys_folder = "Home/Doc2Sys"
-        if not frappe.db.exists("File", {"is_folder": 1, "file_name": "Doc2Sys", "folder": "Home"}):
-            # Use the frappe API to create the folder
-            create_new_folder("Doc2Sys", "Home")
-            frappe.logger().info("Created Doc2Sys folder for file monitoring")
-        
-        # Check if user-specific folder exists, create if not
-        user_folder_name = f"Doc2Sys/{self.user}"
-        if not frappe.db.exists("File", {"is_folder": 1, "file_name": self.user, "folder": "Home/Doc2Sys"}):
+        user_folder_name = f"Home/Doc2Sys/{self.user}"
+        if not frappe.db.exists("File", {"is_folder": 1, "file_name": self.user, "folder": user_folder_name}):
             # Create user folder
-            create_new_folder(self.user, "Home/Doc2Sys")
+            self.create_new_folder(self.user, "Home/Doc2Sys")
             frappe.logger().info(f"Created user folder {user_folder_name} for file monitoring")
+
+    def create_new_folder(self, file_name: str, folder: str):
+        """create new folder under current parent folder"""
+        file = frappe.new_doc("File")
+        file.file_name = file_name
+        file.is_folder = 1
+        file.folder = folder
+        file.insert(ignore_permissions=True, ignore_if_duplicate=True)
+        return file
         
     def update_scheduler(self):
         """Update the scheduler interval for this specific user"""

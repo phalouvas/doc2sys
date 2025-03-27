@@ -55,8 +55,6 @@ def create_user_settings(doc, method=None):
         
         user_settings.save(ignore_permissions=True)
         frappe.db.commit()
-        
-        frappe.msgprint(f"Created Doc2Sys User Settings for {doc.name} with {default_settings.get('credits', 0)} credits")
     except Exception as e:
         frappe.log_error(
             f"Error creating Doc2Sys User Settings for user {doc.name}: {str(e)}",
