@@ -21,15 +21,19 @@ def create_user_settings(doc, method=None):
     
     # Get default settings from Doc2Sys Settings
     default_settings = {}
+    azure_key = None
     try:
         doc2sys_settings = frappe.get_single("Doc2Sys Settings")
         
-        # Get default values
+        # Store azure_key separately
+        azure_key = doc2sys_settings.get_password("azure_key")
+        
+        # Get default values (excluding azure_key)
         default_settings = {
             "credits": doc2sys_settings.credits or 0,
             "llm_provider": doc2sys_settings.llm_provider,
             "azure_endpoint": doc2sys_settings.azure_endpoint,
-            "azure_key": doc2sys_settings.azure_key,
+            "azure_key": azure_key,
             "azure_model": doc2sys_settings.azure_model,
             "cost_prebuilt_invoice_per_page": doc2sys_settings.cost_prebuilt_invoice_per_page
         }
