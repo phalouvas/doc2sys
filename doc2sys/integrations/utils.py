@@ -23,37 +23,46 @@ def execute_webhook(url: str, data: Dict[str, Any],
         return {"success": False, "error": str(e)}
 
 def create_integration_log(integration_type, status, message, data=None, user=None, integration_reference=None, document=None):
-    """Create an integration log entry"""
+    """Create a log entry using Frappe's logging system"""
     try:
         # Ensure integration_type is always provided
         if not integration_type:
-            integration_type = "Unknown"  # Provide a default value
+            integration_type = "Unknown"
         
-        # Extract document reference from data if not explicitly provided
-        if not document and isinstance(data, dict) and data.get("doc_name"):
-            document = data.get("doc_name")
+        # Format data for logging
+        log_data = ""
+        if data:
+            if isinstance(data, (dict, list)):
+                log_data = json.dumps(data, ensure_ascii=False)
+            else:
+                log_data = str(data)
         
-        # Convert data to JSON string if it's a dict/list
-        if data and isinstance(data, (dict, list)):
-            data = json.dumps(data, ensure_ascii=False)
+        # Build log message
+        log_message = f"[{integration_type}] {message}"
+        if user:
+            log_message += f" | User: {user}"
+        if integration_reference:
+            log_message += f" | Ref: {integration_reference}"
+        if document:
+            log_message += f" | Doc: {document}"
+        if log_data:
+            log_message += f" | Data: {log_data}"
+        
+        # Log based on status
+        if status.lower() == "error":
+            frappe.log_error(log_message, f"Integration {status.title()}")
+        elif status.lower() == "warning":
+            frappe.logger().warning(log_message)
+        elif status.lower() == "success":
+            frappe.logger().info(log_message)
+        else:
+            frappe.logger().debug(log_message)
             
-        log = frappe.get_doc({
-            "doctype": "Doc2Sys Integration Log",
-            "integration_type": integration_type,
-            "status": status,
-            "message": message,
-            "data": data,
-            "user": user,
-            "integration_reference": integration_reference,
-            "document": document
-        })
-        
-        log.insert(ignore_permissions=True)
-        return log.name
+        return f"{integration_type}_{status}"  # Return a reference ID for compatibility
     except Exception as e:
-        # Fallback to system log if integration log creation fails
+        # Final fallback
         frappe.log_error(
-            f"Failed to create integration log: {str(e)}\n"
+            f"Failed to create log: {str(e)}\n"
             f"Original info: {integration_type} - {status} - {message}",
             "Integration Log Error"
         )
@@ -207,19 +216,8 @@ def process_integrations(doc):
                 document=doc.name
             )
         else:
-            # Log successful integrations
-            create_integration_log(
-                settings_doc.integration_type,
-                "success",
-                "Integration processed successfully",
-                data={
-                    "doc_name": doc.name,
-                    "result": result.get('data', {})
-                },
-                user=settings_doc.user,
-                integration_reference=settings_doc.name,
-                document=doc.name
-            )
+            # Update the document status
+            doc.db_set('status', "Completed", update_modified=False)
             
             # Deduct credits after successful integration
             # Get current credits and calculate new value
