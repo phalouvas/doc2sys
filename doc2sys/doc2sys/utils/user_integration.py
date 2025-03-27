@@ -54,6 +54,14 @@ def create_user_settings(doc, method=None):
                 user_settings.set(field, value)
         
         user_settings.save(ignore_permissions=True)
+        
+        # Update the owner, creation, and modified_by fields directly in the database
+        frappe.db.set_value("Doc2Sys User Settings", user_settings.name, {
+            "owner": doc.name,
+            "creation": frappe.utils.now(),
+            "modified_by": doc.name
+        }, update_modified=False)
+        
         frappe.db.commit()
     except Exception as e:
         frappe.log_error(
