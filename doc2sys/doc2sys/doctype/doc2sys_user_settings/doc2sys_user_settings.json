@@ -208,19 +208,19 @@
   {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
    "fieldname": "access_token",
-   "fieldtype": "Data",
+   "fieldtype": "Text",
    "label": "Access Token",
    "read_only": 1,
    "hidden": 1
   },
-{
+  {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
    "fieldname": "refresh_token",
-   "fieldtype": "Data",
+   "fieldtype": "Text",
    "label": "Refresh Token",
    "read_only": 1,
    "hidden": 1
-},
+  },
   {
    "depends_on": "eval:doc.integration_type=='ERPNext'",
    "fieldname": "base_url",

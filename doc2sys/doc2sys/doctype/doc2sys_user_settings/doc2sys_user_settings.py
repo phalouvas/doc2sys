@@ -341,3 +341,23 @@ def get_quickbooks_auth_url(user_settings):
     except Exception as e:
         frappe.log_error(f"Error generating QuickBooks authorization URL: {str(e)}", "Integration Error")
         return {"success": False, "message": str(e)}
+
+@frappe.whitelist()
+def get_quickbooks_auth_url_for_user(user=None):
+    """Generate QuickBooks authorization URL for the current user"""
+    try:
+        if not user:
+            user = frappe.session.user
+            
+        # Get user settings doc for this user
+        settings_name = frappe.db.get_value("Doc2Sys User Settings", {"user": user})
+        
+        if not settings_name:
+            return {"success": False, "message": "User settings not found"}
+            
+        # Call the existing method with the retrieved settings name
+        return get_quickbooks_auth_url(settings_name)
+            
+    except Exception as e:
+        frappe.log_error(f"Error generating QuickBooks authorization URL for user: {str(e)}", "Integration Error")
+        return {"success": False, "message": str(e)}
