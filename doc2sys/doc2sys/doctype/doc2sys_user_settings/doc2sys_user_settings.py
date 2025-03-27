@@ -152,6 +152,27 @@ def test_integration(user_settings):
         return {"status": "error", "message": str(e)}
 
 @frappe.whitelist()
+def test_integration_user(user):
+    """Test the connection for the user integration settings"""
+    try:
+        # Get the user settings
+        settings_doc = frappe.get_all(
+            "Doc2Sys User Settings",
+            filters={"user": user},
+            fields=["name"]
+        )
+        
+        if not settings_doc or len(settings_doc) == 0:
+            return {"status": "error", "message": "User settings not found"}
+        
+        # Test the integration for the user
+        return test_integration(settings_doc[0].name)
+        
+    except Exception as e:
+        frappe.log_error(f"Connection test failed for {user}: {str(e)}", "Integration Error")
+        return {"status": "error", "message": str(e)}
+
+@frappe.whitelist()
 def delete_old_doc2sys_files(user_settings):
     """Delete old files from Doc2Sys Item documents based on user settings."""
     settings = frappe.get_doc("Doc2Sys User Settings", user_settings)
