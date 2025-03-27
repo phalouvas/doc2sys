@@ -1,6 +1,7 @@
 import frappe
 import requests
 from typing import Dict, Any
+import json
 
 from doc2sys.integrations.base import BaseIntegration
 from doc2sys.integrations.registry import register_integration
@@ -158,12 +159,24 @@ class QuickBooks(BaseIntegration):
             return {"success": False, "message": "Authentication failed"}
             
         try:
+            # Add this line to track the current document
+            self.current_document = doc2sys_item.get("name")
+            
             # Map fields based on the document type
             document_type = doc2sys_item.get("document_type", "").lower()
-            extracted_data = doc2sys_item.get("extracted_data", {})
+            
+            # Extract and parse data
+            try:
+                extracted_data = doc2sys_item.get("extracted_data", {})
+                if isinstance(extracted_data, str):
+                    extracted_data = json.loads(extracted_data)
+            except json.JSONDecodeError:
+                self.log_activity("error", "Invalid JSON in extracted_data")
+                return {"success": False, "message": "Invalid JSON in extracted_data"}
             
             # Create appropriate QuickBooks object based on document type
             qb_object = {}
+            endpoint = ""
             
             if document_type == "invoice":
                 # Map invoice fields
@@ -181,6 +194,7 @@ class QuickBooks(BaseIntegration):
                     line_item = {
                         "DetailType": "SalesItemLineDetail",
                         "Amount": item.get("amount", 0),
+                        "Description": item.get("description", ""),
                         "SalesItemLineDetail": {
                             "ItemRef": {
                                 "name": item.get("description", ""),
@@ -190,17 +204,67 @@ class QuickBooks(BaseIntegration):
                         }
                     }
                     qb_object["Line"].append(line_item)
+                
+                endpoint = "invoice"
+                
+            elif document_type in ["bill", "purchase invoice"]:
+                # Map purchase invoice/bill fields
+                vendor_id = extracted_data.get("vendor_id") or extracted_data.get("supplier_id")
+                vendor_name = extracted_data.get("vendor_name") or extracted_data.get("supplier_name")
+                
+                qb_object = {
+                    "Line": [],
+                    "VendorRef": {
+                        "value": vendor_id,
+                        "name": vendor_name
+                    },
+                    "DocNumber": extracted_data.get("bill_number") or extracted_data.get("invoice_number", ""),
+                    "TxnDate": extracted_data.get("bill_date") or extracted_data.get("invoice_date", "")
+                }
+                
+                # Add due date if available
+                due_date = extracted_data.get("due_date")
+                if due_date:
+                    qb_object["DueDate"] = due_date
+                    
+                # Add bill total if available
+                bill_total = extracted_data.get("total_amount")
+                if bill_total:
+                    qb_object["TotalAmt"] = bill_total
+                
+                # Add line items
+                for item in extracted_data.get("items", []):
+                    line_item = {
+                        "DetailType": "AccountBasedExpenseLineDetail",
+                        "Amount": item.get("amount", 0),
+                        "Description": item.get("description", ""),
+                        "AccountBasedExpenseLineDetail": {
+                            "AccountRef": {
+                                "name": item.get("account", "Expenses")
+                            },
+                            "BillableStatus": "NotBillable",
+                            "TaxCodeRef": {
+                                "value": item.get("tax_code", "NON")
+                            }
+                        }
+                    }
+                    qb_object["Line"].append(line_item)
+                
+                endpoint = "bill"
+                
+            else:
+                return {"success": False, "message": f"Unsupported document type: {document_type}"}
             
             # Get QuickBooks API credentials
             access_token = self.settings.get("access_token")
             realm_id = self.settings.get("realm_id")
+            is_sandbox = self.settings.get("quickbooks_sandbox")
             
-            # Determine the endpoint based on document type
-            endpoint = "invoice"
-            if document_type == "bill":
-                endpoint = "bill"
-            elif document_type == "receipt":
-                endpoint = "purchaseorder"
+            # Handle environment (sandbox vs production)
+            if is_sandbox:
+                base_url = "https://sandbox-quickbooks.api.intuit.com/v3/company"
+            else:
+                base_url = "https://quickbooks.api.intuit.com/v3/company"
             
             # Send to QuickBooks
             headers = {
@@ -209,7 +273,8 @@ class QuickBooks(BaseIntegration):
                 "Accept": "application/json"
             }
             
-            base_url = "https://quickbooks.api.intuit.com/v3/company"
+            self.log_activity("info", f"Sending {document_type} to QuickBooks", {"endpoint": endpoint})
+            
             response = requests.post(
                 f"{base_url}/{realm_id}/{endpoint}",
                 headers=headers,
@@ -218,13 +283,26 @@ class QuickBooks(BaseIntegration):
             
             if response.status_code in (200, 201):
                 result = response.json()
-                self.log_activity("success", "Document synced to QuickBooks", 
-                                 {"qb_id": result.get("Invoice", {}).get("Id")})
-                return {"success": True, "data": result}
+                
+                # Extract the ID based on document type
+                qb_id = None
+                if document_type == "invoice":
+                    qb_id = result.get("Invoice", {}).get("Id")
+                elif document_type in ["bill", "purchase invoice"]:
+                    qb_id = result.get("Bill", {}).get("Id")
+                
+                self.log_activity("success", f"{document_type.capitalize()} synced to QuickBooks", 
+                                {"qb_id": qb_id})
+                
+                return {
+                    "success": True, 
+                    "data": result, 
+                    "message": f"{document_type.capitalize()} successfully created in QuickBooks"
+                }
             else:
-                self.log_activity("error", f"Failed to sync document: {response.text}")
-                return {"success": False, "message": response.text}
+                error_message = f"Failed to sync {document_type}: {response.status_code} - {response.text}"
+                self.log_activity("error", error_message)
+                return {"success": False, "message": error_message}
         except Exception as e:
             self.log_activity("error", f"Sync error: {str(e)}")
             return {"success": False, "message": str(e)}
-    
