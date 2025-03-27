@@ -10,9 +10,7 @@ class Doc2SysUserSettings(Document):
         if self.monitor_interval <= 0:
             frappe.throw(_("Monitor interval must be greater than 0"))
         
-        # Ensure user folder exists if monitoring is enabled
-        if self.monitoring_enabled:
-            self.ensure_user_folder_exists()
+        self.ensure_user_folder_exists()
             
         self.update_scheduler()
 

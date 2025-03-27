@@ -150,6 +150,9 @@ after_install = "doc2sys.setup.install.after_install"
 doc_events = {
     "Payment Entry": {
         "on_submit": "doc2sys.doc2sys.utils.payment_integration.update_user_credits"
+    },
+    "User": {
+        "after_insert": "doc2sys.doc2sys.utils.user_integration.create_user_settings"
     }
 }
 

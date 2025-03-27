@@ -1,5 +1,4 @@
-console.log('Document List JS loaded');
-frappe.ready(function() {
+frappe.ready(function () {
     // Only run on the list view
     if (frappe.web_form_list) {
         // Add the upload button to the list view
@@ -8,25 +7,31 @@ frappe.ready(function() {
                 ${__('Upload')}
             </button>
         `);
-        
+
         // Handle click event for the upload button
-        $('.btn-upload-document').on('click', function() {
+        $('.btn-upload-document').on('click', function () {
             // Get the current user
             const current_user = frappe.session.user;
             // Construct the folder path
             const folder_path = `Home/Doc2Sys/${current_user}`;
-            
+
             // Use Frappe's built-in file uploader
             new frappe.ui.FileUploader({
                 as_dataurl: false,
                 allow_multiple: true,
                 folder: folder_path,
-                on_success: function(file_doc) {
+                on_success: function (file_doc) {
                     // Create doc2sys_items after successful upload
                     create_doc2sys_items_from_files(file_doc);
                 }
             });
         });
+
+        // Hide the "Create a new Doc2Sys Item" button on document list view
+        setTimeout(function () {
+            // Hide the default "New" button 
+            $('.no-result').hide();
+        }, 500);
     }
 });
 
@@ -35,12 +40,12 @@ function create_doc2sys_items_from_files(file_docs) {
     if (!Array.isArray(file_docs)) {
         file_docs = [file_docs]; // Convert to array if single file
     }
-    
+
     if (file_docs.length === 0) return;
-    
+
     const total = file_docs.length;
     let processed = 0;
-    
+
     // Show progress dialog
     const dialog = new frappe.ui.Dialog({
         title: __('Creating Documents'),
@@ -57,9 +62,9 @@ function create_doc2sys_items_from_files(file_docs) {
             }
         ]
     });
-    
+
     dialog.show();
-    
+
     // Process files one by one to create doc2sys_items
     function process_next_file(index) {
         if (index >= file_docs.length) {
@@ -75,29 +80,29 @@ function create_doc2sys_items_from_files(file_docs) {
             }, 1000);
             return;
         }
-        
+
         const file_doc = file_docs[index];
-        
+
         // Create doc2sys_item from file
         frappe.call({
             method: 'doc2sys.doc2sys.doctype.doc2sys_item.doc2sys_item.create_item_from_file',
             args: {
                 file_doc_name: file_doc.name
             },
-            callback: function(r) {
+            callback: function (r) {
                 processed++;
-                
+
                 // Update progress
                 const percent = (processed / total) * 100;
                 dialog.$wrapper.find('.progress-bar').css('width', percent + '%');
                 dialog.$wrapper.find('.processed').text(processed);
-                
+
                 // Process next file
                 process_next_file(index + 1);
             }
         });
     }
-    
+
     // Start processing files
     process_next_file(0);
 }
