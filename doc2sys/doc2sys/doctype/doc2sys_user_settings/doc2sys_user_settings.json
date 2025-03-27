@@ -28,6 +28,7 @@
   "integration_type",
   "section_credentials",
   "base_url",
+  "integration_enabled",
   "api_key",
   "api_secret",
   "access_token",
@@ -206,11 +207,17 @@
    "fieldname": "realm_id",
    "fieldtype": "Data",
    "label": "Realm ID"
+  },
+  {
+   "default": "0",
+   "fieldname": "integration_enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-27 08:42:27.204645",
+ "modified": "2025-03-27 11:00:54.210640",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",

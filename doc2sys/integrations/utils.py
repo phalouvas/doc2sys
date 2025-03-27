@@ -86,23 +86,32 @@ def find_user_integration(user, integration_type=None, integration_reference=Non
         
     user_settings = frappe.get_doc("Doc2Sys User Settings", user_settings_list[0].name)
     
-    # Find the matching integration
-    for integ in user_settings.user_integrations:
-        # Skip disabled integrations if enabled_only is True
-        if enabled_only and not integ.enabled:
-            continue
-            
-        # Match by reference if provided
-        if integration_reference and integ.name == integration_reference:
-            integration_dict = integ.as_dict()
-            integration_dict['parent'] = user_settings.name
-            return integration_dict, user_settings.name
-            
-        # Match by type if provided and reference didn't match
-        if integration_type and integ.integration_type == integration_type:
-            integration_dict = integ.as_dict()
-            integration_dict['parent'] = user_settings.name
-            return integration_dict, user_settings.name
+    # Check if integration is enabled (if enabled_only)
+    if enabled_only and not user_settings.get("integration_enabled", 0):
+        return None, user_settings.name
+    
+    # If integration_type is specified, check if it matches
+    if integration_type and user_settings.get("integration_type") != integration_type:
+        return None, user_settings.name
+    
+    # Integration settings now directly in user_settings
+    if user_settings.get("integration_type"):
+        # Create a dict with the integration settings
+        integration_dict = {
+            "integration_type": user_settings.integration_type,
+            "enabled": user_settings.get("integration_enabled", 0),
+            "name": user_settings.name,  # Use the user settings name as the integration reference
+            "parent": user_settings.name,
+            # Add any other fields that are needed
+        }
+        
+        # Add all integration-specific fields from user_settings
+        # This assumes field names are consistent between old and new structure
+        for field in ["api_key", "api_secret", "base_url", "webhook_url"]:
+            if user_settings.get(field):
+                integration_dict[field] = user_settings.get(field)
+                
+        return integration_dict, user_settings.name
             
     # No matching integration found
     return None, user_settings.name
@@ -156,91 +165,87 @@ def process_integrations(doc):
         raise frappe.ValidationError("Insufficient credits to process integrations")
         return
     
-    # Log how many integrations are available vs how many are enabled
-    total_integrations = len(settings_doc.user_integrations)
-    enabled_integrations = sum(1 for i in settings_doc.user_integrations if i.enabled)
+    # Check if there is an integration configured
+    has_integration = settings_doc.get("integration_type") is not None
+    is_enabled = settings_doc.get("integration_enabled", 0) == 1
     
     frappe.logger().debug(
-        f"Processing integrations for document {doc.name}: {enabled_integrations} enabled out of {total_integrations} total"
+        f"Processing integrations for document {doc.name}: Integration is {'enabled' if is_enabled else 'disabled'}"
     )
     
-    # Process each enabled integration for this user
-    for integration in settings_doc.user_integrations:
-        # Skip disabled integrations
-        if integration.enabled != 1:  # Explicitly check for 1 (enabled)
-            frappe.logger().debug(f"Skipping disabled integration: {integration.integration_type} ({integration.name})")
-            continue
-            
-        # Log which integration we're processing
-        frappe.logger().info(f"Processing integration {integration.integration_type} ({integration.name}) for document {doc.name}")
+    # Skip if no integration or not enabled
+    if not has_integration or not is_enabled:
+        frappe.logger().debug(f"No enabled integration found for user {document_user}")
+        return
+    
+    # Log which integration we're processing
+    frappe.logger().info(f"Processing integration {settings_doc.integration_type} for document {doc.name}")
+    
+    try:
+        # Create integration instance with user context
+        integration_settings = settings_doc.as_dict()
         
-        try:
-            # Create integration instance with user context
-            integration_settings = integration.as_dict()
-            integration_settings['parent'] = settings_doc.name
-            integration_settings['user'] = settings_doc.user
-            
-            integration_instance = IntegrationRegistry.create_instance(
-                integration.integration_type,
-                settings=integration_settings
-            )
-            
-                        # Sync the document
-            result = integration_instance.sync_document(doc.as_dict())
-            
-            if not result.get("success"):
-                create_integration_log(
-                    integration.integration_type,
-                    "error",
-                    f"Integration failed: {result.get('message')}",
-                    data={
-                        "doc_name": doc.name,
-                        "error": result.get('message')
-                    },
-                    user=settings_doc.user,
-                    integration_reference=integration.name,
-                    document=doc.name
-                )
-            else:
-                # Log successful integrations
-                create_integration_log(
-                    integration.integration_type,
-                    "success",
-                    "Integration processed successfully",
-                    data={
-                        "doc_name": doc.name,
-                        "result": result.get('data', {})
-                    },
-                    user=settings_doc.user,
-                    integration_reference=integration.name,
-                    document=doc.name
-                )
-                
-                # Deduct credits after successful integration
-                # Get current credits and calculate new value
-                current_credits = settings_doc.credits
-                new_credits = current_credits - doc.cost
-                
-                # Update the credits in the database
-                frappe.db.set_value("Doc2Sys User Settings", settings_doc.name, "credits", new_credits)
-                frappe.db.commit()  # Ensure the change is committed
-                
-                # Log the credit deduction
-                frappe.logger().info(
-                    f"Deducted {doc.cost} credits from user {settings_doc.user}. " +
-                    f"New balance: {new_credits}"
-                )
-                
-        except Exception as e:
+        integration_instance = IntegrationRegistry.create_instance(
+            settings_doc.integration_type,
+            settings=integration_settings
+        )
+        
+        # Sync the document
+        result = integration_instance.sync_document(doc.as_dict())
+        
+        if not result.get("success"):
             create_integration_log(
-                integration.integration_type,
+                settings_doc.integration_type,
                 "error",
-                f"Error processing integration: {str(e)}",
+                f"Integration failed: {result.get('message')}",
                 data={
                     "doc_name": doc.name,
-                    "error": str(e)
+                    "error": result.get('message')
                 },
                 user=settings_doc.user,
-                integration_reference=integration.name,
-                document=doc.name  # Add the direct document reference
+                integration_reference=settings_doc.name,
+                document=doc.name
             )
+        else:
+            # Log successful integrations
+            create_integration_log(
+                settings_doc.integration_type,
+                "success",
+                "Integration processed successfully",
+                data={
+                    "doc_name": doc.name,
+                    "result": result.get('data', {})
+                },
+                user=settings_doc.user,
+                integration_reference=settings_doc.name,
+                document=doc.name
+            )
+            
+            # Deduct credits after successful integration
+            # Get current credits and calculate new value
+            current_credits = settings_doc.credits
+            new_credits = current_credits - doc.cost
+            
+            # Update the credits in the database
+            frappe.db.set_value("Doc2Sys User Settings", settings_doc.name, "credits", new_credits)
+            frappe.db.commit()  # Ensure the change is committed
+            
+            # Log the credit deduction
+            frappe.logger().info(
+                f"Deducted {doc.cost} credits from user {settings_doc.user}. " +
+                f"New balance: {new_credits}"
+            )
+            
+    except Exception as e:
+        create_integration_log(
+            settings_doc.integration_type,
+            "error",
+            f"Error processing integration: {str(e)}",
+            data={
+                "doc_name": doc.name,
+                "error": str(e)
+            },
+            user=settings_doc.user,
+            integration_reference=settings_doc.name,
+            document=doc.name
+        )

@@ -2,7 +2,6 @@
 # For license information, please see license.txt
 
 import frappe
-import time
 from frappe.model.document import Document
 from doc2sys.engine.exceptions import ProcessingError
 from frappe import _
@@ -108,11 +107,9 @@ class Doc2SysItem(Document):
             fields=["name"]
         )
         
-        all_integrations = []
         if user_settings:
-            # Get all integrations configured for this user
             settings_doc = frappe.get_doc("Doc2Sys User Settings", user_settings[0].name)
-            all_integrations = [i.integration_type for i in settings_doc.user_integrations if i.enabled]
+            
         
         # Group by integration_type and get the latest status
         integration_status = {}
@@ -126,18 +123,6 @@ class Doc2SysItem(Document):
                     "timestamp": log.creation,
                     "integration_reference": log.integration_reference,
                     "log_name": log.name
-                }
-        
-        # Add configured integrations that don't have logs yet
-        for integration_type in all_integrations:
-            if integration_type not in integration_status:
-                integration_status[integration_type] = {
-                    "integration_type": integration_type,
-                    "status": "pending",
-                    "message": "Not yet processed",
-                    "timestamp": None,
-                    "integration_reference": None,
-                    "log_name": None
                 }
         
         return list(integration_status.values())
