@@ -7,7 +7,7 @@ from doc2sys.integrations.base import BaseIntegration
 from doc2sys.integrations.registry import register_integration
 
 @register_integration
-class QuickBooksIntegration(BaseIntegration):
+class QuickBooks(BaseIntegration):
     """Integration with QuickBooks Online"""
     
     def authenticate(self) -> bool:

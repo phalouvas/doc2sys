@@ -163,7 +163,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Integration Type",
-   "options": "ERPNext\nQuickBooksIntegration",
+   "options": "ERPNext\nQuickBooks",
    "reqd": 1
   },
   {
@@ -184,13 +184,13 @@
    "label": "API Secret"
   },
   {
-   "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'",
+   "depends_on": "eval:doc.integration_type=='QuickBooks'",
    "fieldname": "access_token",
    "fieldtype": "Password",
    "label": "Access Token"
   },
   {
-   "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'",
+   "depends_on": "eval:doc.integration_type=='QuickBooks'",
    "fieldname": "refresh_token",
    "fieldtype": "Password",
    "label": "Refresh Token"
@@ -203,7 +203,7 @@
    "options": "URL"
   },
   {
-   "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'",
+   "depends_on": "eval:doc.integration_type=='QuickBooks'",
    "fieldname": "realm_id",
    "fieldtype": "Data",
    "label": "Realm ID"
