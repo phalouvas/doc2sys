@@ -7,7 +7,7 @@ from doc2sys.integrations.base import BaseIntegration
 from doc2sys.integrations.registry import register_integration
 
 @register_integration
-class ERPNextIntegration(BaseIntegration):
+class ERPNext(BaseIntegration):
     """Integration with another ERPNext instance"""
     
     def authenticate(self) -> bool:

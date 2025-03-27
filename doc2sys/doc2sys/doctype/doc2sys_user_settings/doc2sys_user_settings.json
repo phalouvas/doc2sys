@@ -163,7 +163,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Integration Type",
-   "options": "ERPNextIntegration\nQuickBooksIntegration",
+   "options": "ERPNext\nQuickBooksIntegration",
    "reqd": 1
   },
   {
@@ -172,13 +172,13 @@
    "label": "Credentials"
   },
   {
-   "depends_on": "eval:doc.integration_type=='ERPNextIntegration'",
+   "depends_on": "eval:doc.integration_type=='ERPNext'",
    "fieldname": "api_key",
    "fieldtype": "Data",
    "label": "API Key"
   },
   {
-   "depends_on": "eval:doc.integration_type=='ERPNextIntegration'",
+   "depends_on": "eval:doc.integration_type=='ERPNext'",
    "fieldname": "api_secret",
    "fieldtype": "Password",
    "label": "API Secret"
@@ -196,7 +196,7 @@
    "label": "Refresh Token"
   },
   {
-   "depends_on": "eval:doc.integration_type=='ERPNextIntegration'",
+   "depends_on": "eval:doc.integration_type=='ERPNext'",
    "fieldname": "base_url",
    "fieldtype": "Data",
    "label": "Base URL",
