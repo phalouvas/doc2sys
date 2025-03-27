@@ -31,6 +31,9 @@
   "integration_enabled",
   "api_key",
   "api_secret",
+  "quickbooks_sandbox",
+  "client_id",
+  "client_secret",
   "access_token",
   "refresh_token",
   "realm_id"
@@ -185,16 +188,39 @@
   },
   {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
-   "fieldname": "access_token",
-   "fieldtype": "Password",
-   "label": "Access Token"
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "label": "Client ID"
   },
   {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
-   "fieldname": "refresh_token",
+   "fieldname": "client_secret",
    "fieldtype": "Password",
-   "label": "Refresh Token"
+   "label": "Client Secret"
   },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.integration_type=='QuickBooks'",
+   "fieldname": "quickbooks_sandbox",
+   "fieldtype": "Check",
+   "label": "Use Sandbox Environment"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='QuickBooks'",
+   "fieldname": "access_token",
+   "fieldtype": "Data",
+   "label": "Access Token",
+   "read_only": 1,
+   "hidden": 1
+  },
+{
+   "depends_on": "eval:doc.integration_type=='QuickBooks'",
+   "fieldname": "refresh_token",
+   "fieldtype": "Data",
+   "label": "Refresh Token",
+   "read_only": 1,
+   "hidden": 1
+},
   {
    "depends_on": "eval:doc.integration_type=='ERPNext'",
    "fieldname": "base_url",
@@ -206,7 +232,7 @@
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
    "fieldname": "realm_id",
    "fieldtype": "Data",
-   "label": "Realm ID"
+   "label": "Company ID (Realm ID)"
   },
   {
    "default": "0",
