@@ -79,7 +79,7 @@ class Doc2SysItem(Document):
         if self.extracted_data:
             status = "Processed"
 
-        if status:
+        if status and self.status != "Completed":
             self.db_set('status', status, update_modified=False)
 
     @frappe.whitelist()
