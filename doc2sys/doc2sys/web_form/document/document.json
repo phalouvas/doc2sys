@@ -30,12 +30,22 @@
    "fieldname": "single_file_name",
    "fieldtype": "Data",
    "label": "Name"
+  },
+  {
+   "fieldname": "classification_confidence",
+   "fieldtype": "Float",
+   "label": "Confidence"
+  },
+  {
+   "fieldname": "cost",
+   "fieldtype": "Currency",
+   "label": "Cost (\u20ac)"
   }
  ],
  "list_title": "Documents",
  "login_required": 1,
  "max_attachment_size": 0,
- "modified": "2025-03-26 19:14:01.447329",
+ "modified": "2025-03-27 11:43:32.424258",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "document",

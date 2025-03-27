@@ -265,3 +265,48 @@ def delete_old_doc2sys_files(user_settings):
             "success": False,
             "message": f"Error during file cleanup: {str(e)}"
         }
+
+@frappe.whitelist()
+def get_user_credits(user=None):
+    """Get the available credits for a user.
+    
+    Args:
+        user (str, optional): The user to get credits for. 
+                             If not provided, uses the current user.
+    
+    Returns:
+        dict: A dictionary containing the credits and status information
+    """
+    try:
+        # If no user specified, use current user
+        if not user:
+            user = frappe.session.user
+            
+        # Get the user settings
+        settings_doc = frappe.get_all(
+            "Doc2Sys User Settings",
+            filters={"user": user},
+            fields=["name", "credits"]
+        )
+        
+        if not settings_doc or len(settings_doc) == 0:
+            return {
+                "success": False,
+                "credits": 0,
+                "message": "User settings not found"
+            }
+        
+        # Return the credits
+        return {
+            "success": True,
+            "credits": settings_doc[0].credits or 0,
+            "settings_id": settings_doc[0].name
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Error retrieving credits for {user}: {str(e)}", "Doc2Sys")
+        return {
+            "success": False,
+            "credits": 0,
+            "message": f"Error: {str(e)}"
+        }
