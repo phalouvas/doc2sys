@@ -17,15 +17,15 @@ class ERPNextIntegration(BaseIntegration):
             api_key = self.settings.get("api_key")
             base_url = self.settings.get("base_url")
             
-            # Get the name of the integration record
+            # Get the name of the settings document
             doc_name = self.settings.get("name")
             
-            # Get decrypted password using just the row name (without parent prefix)
+            # Get decrypted password from user settings
             api_secret = ""
             if doc_name:
                 try:
                     api_secret = frappe.utils.password.get_decrypted_password(
-                        "Doc2Sys User Integration", doc_name, "api_secret"
+                        "Doc2Sys User Settings", doc_name, "api_secret"
                     ) or ""
                 except Exception as e:
                     self.log_activity("error", f"Failed to get password: {str(e)}")
@@ -75,12 +75,12 @@ class ERPNextIntegration(BaseIntegration):
             api_key = self.settings.get("api_key")
             doc_name = self.settings.get("name")
             
-            # Get decrypted password using just the row name (without parent prefix)
+            # Get decrypted password from user settings
             api_secret = ""
             if doc_name:
                 try:
                     api_secret = frappe.utils.password.get_decrypted_password(
-                        "Doc2Sys User Integration", doc_name, "api_secret"
+                        "Doc2Sys User Settings", doc_name, "api_secret"
                     ) or ""
                 except Exception as e:
                     self.log_activity("error", f"Failed to get password: {str(e)}")

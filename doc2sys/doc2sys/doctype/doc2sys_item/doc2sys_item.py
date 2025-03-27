@@ -2,7 +2,6 @@
 # For license information, please see license.txt
 
 import frappe
-import time
 from frappe.model.document import Document
 from doc2sys.engine.exceptions import ProcessingError
 from frappe import _
@@ -72,7 +71,7 @@ class Doc2SysItem(Document):
 
     def update_status(self):
 
-        status = "Pending"
+        status = None
 
         if self.single_file_name:
             status = "Uploaded"
@@ -80,67 +79,8 @@ class Doc2SysItem(Document):
         if self.extracted_data:
             status = "Processed"
 
-        if status == "Processed" and self.status != "Completed":
-            integration_status = self.get_integration_status()
-            if all([i["status"] == "success" for i in integration_status]):
-                status = "Completed"
-
-        if status != self.status:
+        if status and self.status != "Completed":
             self.db_set('status', status, update_modified=False)
-
-    def get_integration_status(self):
-        """Get status of integrations for this document"""
-        if not self.name:
-            return []
-            
-        # Query integration logs for this document using the direct link field
-        logs = frappe.get_all(
-            "Doc2Sys Integration Log",
-            filters={"document": self.name},  # Use the document field directly
-            fields=["integration_type", "status", "message", "creation", "integration_reference", "name"],
-            order_by="creation desc"
-        )
-        
-        # Get user's configured integrations
-        user_settings = frappe.get_all(
-            "Doc2Sys User Settings",
-            filters={"user": self.user},
-            fields=["name"]
-        )
-        
-        all_integrations = []
-        if user_settings:
-            # Get all integrations configured for this user
-            settings_doc = frappe.get_doc("Doc2Sys User Settings", user_settings[0].name)
-            all_integrations = [i.integration_type for i in settings_doc.user_integrations if i.enabled]
-        
-        # Group by integration_type and get the latest status
-        integration_status = {}
-        for log in logs:
-            integration_type = log.integration_type
-            if integration_type not in integration_status:
-                integration_status[integration_type] = {
-                    "integration_type": integration_type,
-                    "status": log.status,
-                    "message": log.message,
-                    "timestamp": log.creation,
-                    "integration_reference": log.integration_reference,
-                    "log_name": log.name
-                }
-        
-        # Add configured integrations that don't have logs yet
-        for integration_type in all_integrations:
-            if integration_type not in integration_status:
-                integration_status[integration_type] = {
-                    "integration_type": integration_type,
-                    "status": "pending",
-                    "message": "Not yet processed",
-                    "timestamp": None,
-                    "integration_reference": None,
-                    "log_name": None
-                }
-        
-        return list(integration_status.values())
 
     @frappe.whitelist()
     def trigger_integrations(self):
@@ -174,24 +114,6 @@ class Doc2SysItem(Document):
             frappe.log_error(f"Process all error: {str(e)}")
             frappe.msgprint(f"An error occurred during processing: {str(e)}")
             return False
-
-    def on_trash(self):
-        """Delete all related integration logs when the document is deleted"""
-        try:
-            # Find all integration logs linked to this document
-            integration_logs = frappe.get_all(
-                "Doc2Sys Integration Log", 
-                filters={"document": self.name},
-                pluck="name"
-            )
-            
-            # Delete each log
-            for log_name in integration_logs:
-                frappe.delete_doc("Doc2Sys Integration Log", log_name, ignore_permissions=True)
-                
-            frappe.logger().info(f"Deleted {len(integration_logs)} integration logs for document {self.name}")
-        except Exception as e:
-            frappe.log_error(f"Failed to delete integration logs for document {self.name}: {str(e)}")
 
 @frappe.whitelist()
 def create_item_from_file(file_doc_name):

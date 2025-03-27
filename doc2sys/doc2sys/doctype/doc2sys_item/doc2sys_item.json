@@ -140,13 +140,8 @@
   }
  ],
  "index_web_pages_for_search": 1,
- "links": [
-  {
-   "link_doctype": "Doc2Sys Integration Log",
-   "link_fieldname": "document"
-  }
- ],
- "modified": "2025-03-26 11:18:58.140585",
+ "links": [],
+ "modified": "2025-03-27 11:15:51.047592",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",

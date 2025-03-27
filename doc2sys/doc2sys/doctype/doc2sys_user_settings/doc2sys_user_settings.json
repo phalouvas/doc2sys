@@ -24,9 +24,16 @@
   "azure_key",
   "azure_model",
   "cost_prebuilt_invoice_per_page",
-  "external_integrations_tab",
-  "integrations_section",
-  "user_integrations"
+  "integration_settings_tab",
+  "integration_type",
+  "section_credentials",
+  "base_url",
+  "integration_enabled",
+  "api_key",
+  "api_secret",
+  "access_token",
+  "refresh_token",
+  "realm_id"
  ],
  "fields": [
   {
@@ -106,16 +113,6 @@
    "options": "D2S-US-.YYYY.-"
   },
   {
-   "fieldname": "integrations_section",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "user_integrations",
-   "fieldtype": "Table",
-   "label": "Integrations",
-   "options": "Doc2Sys User Integration"
-  },
-  {
    "fieldname": "folder_monitoring_tab",
    "fieldtype": "Tab Break",
    "label": "Folder Monitoring"
@@ -124,11 +121,6 @@
    "fieldname": "llm_integration_tab",
    "fieldtype": "Tab Break",
    "label": "Engine"
-  },
-  {
-   "fieldname": "external_integrations_tab",
-   "fieldtype": "Tab Break",
-   "label": "Integrations"
   },
   {
    "default": "0",
@@ -160,11 +152,72 @@
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Credits"
+  },
+  {
+   "fieldname": "integration_settings_tab",
+   "fieldtype": "Tab Break",
+   "label": "Integration"
+  },
+  {
+   "fieldname": "integration_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Integration Type",
+   "options": "ERPNextIntegration\nQuickBooksIntegration",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_credentials",
+   "fieldtype": "Section Break",
+   "label": "Credentials"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='ERPNextIntegration'",
+   "fieldname": "api_key",
+   "fieldtype": "Data",
+   "label": "API Key"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='ERPNextIntegration'",
+   "fieldname": "api_secret",
+   "fieldtype": "Password",
+   "label": "API Secret"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'",
+   "fieldname": "access_token",
+   "fieldtype": "Password",
+   "label": "Access Token"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'",
+   "fieldname": "refresh_token",
+   "fieldtype": "Password",
+   "label": "Refresh Token"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='ERPNextIntegration'",
+   "fieldname": "base_url",
+   "fieldtype": "Data",
+   "label": "Base URL",
+   "options": "URL"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='QuickBooksIntegration'",
+   "fieldname": "realm_id",
+   "fieldtype": "Data",
+   "label": "Realm ID"
+  },
+  {
+   "default": "0",
+   "fieldname": "integration_enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-26 18:30:49.105436",
+ "modified": "2025-03-27 11:00:54.210640",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",

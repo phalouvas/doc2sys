@@ -2,7 +2,6 @@ import frappe
 from frappe import _ 
 from frappe.model.document import Document
 import datetime
-from frappe.core.api.file import create_new_folder
 
 class Doc2SysUserSettings(Document):
     def validate(self):
@@ -16,19 +15,20 @@ class Doc2SysUserSettings(Document):
 
     def ensure_user_folder_exists(self):
         """Create folder for the user in Doc2Sys directory if it doesn't exist"""
-        # Check if Doc2Sys folder exists, create if not
-        doc2sys_folder = "Home/Doc2Sys"
-        if not frappe.db.exists("File", {"is_folder": 1, "file_name": "Doc2Sys", "folder": "Home"}):
-            # Use the frappe API to create the folder
-            create_new_folder("Doc2Sys", "Home")
-            frappe.logger().info("Created Doc2Sys folder for file monitoring")
-        
-        # Check if user-specific folder exists, create if not
-        user_folder_name = f"Doc2Sys/{self.user}"
-        if not frappe.db.exists("File", {"is_folder": 1, "file_name": self.user, "folder": "Home/Doc2Sys"}):
+        user_folder_name = f"Home/Doc2Sys/{self.user}"
+        if not frappe.db.exists("File", {"is_folder": 1, "file_name": self.user, "folder": user_folder_name}):
             # Create user folder
-            create_new_folder(self.user, "Home/Doc2Sys")
+            self.create_new_folder(self.user, "Home/Doc2Sys")
             frappe.logger().info(f"Created user folder {user_folder_name} for file monitoring")
+
+    def create_new_folder(self, file_name: str, folder: str):
+        """create new folder under current parent folder"""
+        file = frappe.new_doc("File")
+        file.file_name = file_name
+        file.is_folder = 1
+        file.folder = folder
+        file.insert(ignore_permissions=True, ignore_if_duplicate=True)
+        return file
         
     def update_scheduler(self):
         """Update the scheduler interval for this specific user"""
@@ -71,123 +71,105 @@ def process_user_folder(user_settings):
         }
 
 @frappe.whitelist()
-def test_integration_connection(user_settings, selected):
-    """Test the connection for selected user integrations"""
+def test_integration(user_settings):
+    """Test the connection for the user integration settings"""
     try:
-        # Parse the selected parameter
-        if isinstance(selected, str):
-            import json
-            selected = json.loads(selected)
-            
-        if not selected or not selected.get('user_integrations'):
-            return {"status": "error", "message": "No integration selected"}
-            
-        # Get all selected integration names
-        integration_names = selected['user_integrations']
         settings_doc = frappe.get_doc("Doc2Sys User Settings", user_settings)
         
         # Import the registry
         from doc2sys.integrations.registry import IntegrationRegistry
         
-        # Track results for all tested integrations
-        results = []
-        
-        # Flag to track if we need to save the settings doc
+        # Validate required integration fields
+        if not getattr(settings_doc, "integration_type", None):
+            return {"status": "error", "message": "Integration type not configured"}
+            
+        # Get display name for the integration
+        display_name = settings_doc.integration_type
+        if getattr(settings_doc, "base_url", None):
+            display_name += f" ({settings_doc.base_url})"
+            
         need_to_save = False
         
-        # Test each selected integration
-        for integration_name in integration_names:
-            # Find the integration by name
-            integration = None
-            for idx, integ in enumerate(settings_doc.user_integrations):
-                if integ.name == integration_name:
-                    integration = integ
-                    break
-                    
-            if not integration:
-                results.append({
-                    "integration": integration_name,
-                    "integration_type": "Unknown",
-                    "status": "error", 
-                    "message": "Integration not found"
-                })
-                continue
+        try:
+            # Create integration instance using fields directly from settings document
+            integration_instance = IntegrationRegistry.create_instance(
+                settings_doc.integration_type, 
+                settings=settings_doc.as_dict()
+            )
             
-            # Get display name for the integration
-            display_name = getattr(integration, "integration_name", None) or integration.integration_type
-            if getattr(integration, "base_url", None):
-                display_name += f" ({integration.base_url})"
-                
-            try:
-                # Create integration instance
-                integration_instance = IntegrationRegistry.create_instance(
-                    integration.integration_type, 
-                    settings=integration.as_dict()
-                )
-                
-                # Test connection
-                result = integration_instance.test_connection()
-                
-                # Set enabled status based on test result
-                if result.get("success"):
-                    # Enable integration if test was successful
-                    if integration.enabled != 1:
-                        integration.enabled = 1
-                        need_to_save = True
-                        result["message"] += " (Integration automatically enabled)"
-                else:
-                    # Disable integration if test failed
-                    if integration.enabled == 1:
-                        integration.enabled = 0
-                        need_to_save = True
-                        result["message"] += " (Integration automatically disabled)"
-                
-                # Add result with integration info
-                results.append({
-                    "integration": display_name,
-                    "integration_type": integration.integration_type,
-                    "status": "success" if result.get("success") else "error",
-                    "message": result.get("message", "No message returned"),
-                    "enabled": integration.enabled
-                })
-                
-            except Exception as e:
-                # Handle individual integration errors and disable integration
-                frappe.log_error(
-                    f"Connection test failed for {display_name}: {str(e)}", 
-                    "Integration Error"
-                )
-                
-                # Disable integration on exception
-                was_enabled = integration.enabled
-                integration.enabled = 0
-                if was_enabled:
+            # Test connection
+            result = integration_instance.test_connection()
+            
+            # Set enabled status based on test result
+            if result.get("success"):
+                # Enable integration if test was successful
+                if getattr(settings_doc, "integration_enabled", 0) != 1:
+                    settings_doc.integration_enabled = 1
                     need_to_save = True
+                    result["message"] += " (Integration automatically enabled)"
+            else:
+                # Disable integration if test failed
+                if getattr(settings_doc, "integration_enabled", 0) == 1:
+                    settings_doc.integration_enabled = 0
+                    need_to_save = True
+                    result["message"] += " (Integration automatically disabled)"
+            
+            # Save settings doc if we made any changes
+            if need_to_save:
+                settings_doc.save()
+            
+            return {
+                "status": "success" if result.get("success") else "error",
+                "integration": display_name,
+                "integration_type": settings_doc.integration_type,
+                "message": result.get("message", "No message returned"),
+                "enabled": getattr(settings_doc, "integration_enabled", 0)
+            }
                 
-                results.append({
-                    "integration": display_name,
-                    "integration_type": getattr(integration, "integration_type", "Unknown"),
-                    "status": "error",
-                    "message": f"{str(e)} (Integration automatically disabled)",
-                    "enabled": 0
-                })
-        
-        # Save settings doc if we made any changes
-        if need_to_save:
-            settings_doc.save()
-        
-        # Determine overall status
-        overall_status = "success" if all(r["status"] == "success" for r in results) else "error"
-        
-        # Return consolidated results
-        return {
-            "status": overall_status,
-            "results": results,
-            "message": f"Tested {len(results)} integration(s)"
-        }
+        except Exception as e:
+            # Handle integration errors and disable integration
+            frappe.log_error(
+                f"Connection test failed for {display_name}: {str(e)}", 
+                "Integration Error"
+            )
+            
+            # Disable integration on exception
+            was_enabled = getattr(settings_doc, "integration_enabled", 0)
+            settings_doc.integration_enabled = 0
+            if was_enabled:
+                settings_doc.save()
+            
+            return {
+                "status": "error",
+                "integration": display_name,
+                "integration_type": settings_doc.integration_type,
+                "message": f"{str(e)} (Integration automatically disabled)",
+                "enabled": 0
+            }
             
     except Exception as e:
         frappe.log_error(f"Connection test failed: {str(e)}", "Integration Error")
+        return {"status": "error", "message": str(e)}
+
+@frappe.whitelist()
+def test_integration_user(user):
+    """Test the connection for the user integration settings"""
+    try:
+        # Get the user settings
+        settings_doc = frappe.get_all(
+            "Doc2Sys User Settings",
+            filters={"user": user},
+            fields=["name"]
+        )
+        
+        if not settings_doc or len(settings_doc) == 0:
+            return {"status": "error", "message": "User settings not found"}
+        
+        # Test the integration for the user
+        return test_integration(settings_doc[0].name)
+        
+    except Exception as e:
+        frappe.log_error(f"Connection test failed for {user}: {str(e)}", "Integration Error")
         return {"status": "error", "message": str(e)}
 
 @frappe.whitelist()
