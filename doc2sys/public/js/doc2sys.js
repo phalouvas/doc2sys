@@ -1,12 +1,28 @@
 frappe.ready(function () {
     // Only run on the list view
     if (frappe.web_form_list) {
-        // Add the upload button to the list view
+        // Add the upload button and credits container to the list view
         $('.web-list-header').append(`
-            <button class="btn btn-primary btn-sm btn-upload-document">
-                ${__('Upload')}
-            </button>
+            <div class="d-flex align-items-center">
+                <button class="btn btn-primary btn-sm btn-upload-document">
+                    ${__('Upload')}
+                </button>
+                <span class="user-credits ml-2 text-danger text-center"></span>
+            </div>
         `);
+
+        // Get and display user credits
+        frappe.call({
+            method: "doc2sys.doc2sys.doctype.doc2sys_user_settings.doc2sys_user_settings.get_user_credits",
+            callback: function(response) {
+                if (response.message && response.message.success) {
+                    // Format and display credits
+                    const credits = response.message.credits || 0;
+                    // Use Frappe's currency formatter
+                    $('.user-credits').html(`${__('Credits')}:<br/> ${format_currency(credits, "EUR")}`);
+                }
+            }
+        });
 
         // Handle click event for the upload button
         $('.btn-upload-document').on('click', function () {
