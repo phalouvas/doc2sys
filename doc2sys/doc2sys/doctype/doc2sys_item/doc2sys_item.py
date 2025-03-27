@@ -76,7 +76,7 @@ class Doc2SysItem(Document):
         if self.single_file_name:
             status = "Uploaded"
 
-        if self.extracted_data:
+        if self.azure_raw_response:
             status = "Processed"
 
         if status and self.status != "Completed":
