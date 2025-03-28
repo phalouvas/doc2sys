@@ -9,13 +9,48 @@ from doc2sys.engine.llm_processor import LLMProcessor
 from doc2sys.engine.text_extractor import TextExtractor
 from doc2sys.integrations.utils import process_integrations
 from frappe.handler import upload_file
-from frappe.desk.form.utils import remove_attach  # Add this import
+from frappe.desk.form.utils import remove_attach
 
 class Doc2SysItem(Document):
     def validate(self):
+        # Check if this is a new document (being inserted)
+        # We validate credits for all new documents, regardless of file attachment
+        if self.is_new() and not self.flags.ignore_credit_validation:
+            # Validate user credits before allowing document processing
+            self.validate_user_credits()
+
+        # Update file name and status if a file is attached
         if self.single_file:
             self.single_file_name = self.single_file.split("/")[-1]
             self.update_status()
+        
+    
+    def validate_user_credits(self):
+        """
+        Check if user has sufficient credits to process a document
+        Raises frappe.ValidationError if credits are insufficient
+        """
+        # Get the user if not already set
+        user = self.user or frappe.session.user
+        
+        # Get user settings
+        user_settings = frappe.get_all(
+            'Doc2Sys User Settings',
+            filters={'user': user},
+            fields=['name', 'credits']
+        )
+        
+        if not user_settings:
+            frappe.throw(_("No Doc2Sys User Settings found for user {}").format(user))
+        
+        # Check if credits are sufficient (greater than zero)
+        credits = user_settings[0].credits or 0
+        
+        if credits <= 0:
+            frappe.throw(_(
+                "Insufficient credits to process document. Current balance: {}. "
+                "Please add credits to continue."
+            ).format(credits))
 
     def after_insert(self):
         """Validate the document before saving"""
@@ -177,3 +212,108 @@ def create_item_from_file(file_doc_name):
     doc.insert()
     
     return doc.name
+
+@frappe.whitelist()
+def upload_and_create_item():
+    """
+    Upload a file and create a Doc2Sys Item in one step.
+    
+    This endpoint accepts multipart/form-data with a file field.
+    Returns the newly created Doc2Sys Item document name.
+    """
+    try:
+        # Get the uploaded file from request
+        if not frappe.request.files or 'file' not in frappe.request.files:
+            return {
+                "success": False,
+                "message": _("No file was uploaded. Please select a file and try again.")
+            }
+
+        # Create Doc2Sys Item with this file
+        doc = frappe.new_doc("Doc2Sys Item")
+        doc.user = frappe.session.user
+        
+        try:
+            # This will trigger the validate method which checks for credits
+            doc.insert()
+        except frappe.ValidationError as ve:
+            # This will catch credit validation errors and other validation errors
+            return {
+                "success": False,
+                "message": str(ve),
+                "error_type": "validation"
+            }
+            
+        frappe.db.commit()
+        doc.reload()
+        
+        # Save original form values before they get consumed by upload_file
+        is_private = frappe.form_dict.get('is_private')
+        
+        # Ensure proper type conversion for is_private
+        if is_private is not None:
+            # Convert to boolean if needed
+            is_private = is_private.lower() == 'true' if isinstance(is_private, str) else bool(is_private)
+        
+        # First, upload the file using Frappe's handler
+        frappe.form_dict["doctype"] = "Doc2Sys Item"
+        frappe.form_dict["docname"] = doc.name
+        frappe.form_dict["file_name"] = frappe.request.files['file'].filename
+        frappe.form_dict["folder"] = f"Home/Doc2Sys/{doc.user}"
+        
+        try:
+            ret = upload_file()
+        except Exception as file_error:
+            # If file upload fails, delete the Doc2Sys Item we just created
+            frappe.delete_doc("Doc2Sys Item", doc.name, ignore_permissions=True)
+            frappe.db.commit()
+            
+            return {
+                "success": False,
+                "message": _("File upload failed: {}").format(str(file_error)),
+                "error_type": "file_upload"
+            }
+            
+        # Update the Doc2Sys Item with the file URL
+        if ret.get("file_url"):
+            doc.db_set("single_file", ret.get("file_url"))
+            frappe.db.commit()
+            
+            # Process the document now that we have the file
+            try:
+                doc.process_all()
+                return {
+                    "success": True,
+                    "message": _("Document uploaded and processed successfully"),
+                    "doc2sys_item": doc.name,
+                    "extracted_data": doc.extracted_data
+                }
+            except Exception as process_error:
+                return {
+                    "success": False,
+                    "message": _("Document uploaded but processing failed: {}").format(str(process_error)),
+                    "doc2sys_item": doc.name,
+                    "error_type": "processing"
+                }
+        else:
+            return {
+                "success": False,
+                "message": _("File was uploaded but couldn't be attached to document"),
+                "doc2sys_item": doc.name,
+                "error_type": "attachment"
+            }
+            
+    except frappe.ValidationError as ve:
+        # This catches validation errors not handled above
+        return {
+            "success": False,
+            "message": str(ve),
+            "error_type": "validation"
+        }
+    except Exception as e:
+        frappe.log_error(f"Error in upload_and_create_item: {str(e)}", "Doc2Sys")
+        return {
+            "success": False,
+            "message": _("An unexpected error occurred: {}").format(str(e)),
+            "error_type": "unexpected"
+        }

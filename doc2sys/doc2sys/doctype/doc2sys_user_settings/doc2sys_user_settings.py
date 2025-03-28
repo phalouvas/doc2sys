@@ -19,7 +19,6 @@ class Doc2SysUserSettings(Document):
         if not frappe.db.exists("File", {"is_folder": 1, "file_name": self.user, "folder": user_folder_name}):
             # Create user folder
             self.create_new_folder(self.user, "Home/Doc2Sys")
-            frappe.logger().info(f"Created user folder {user_folder_name} for file monitoring")
 
     def create_new_folder(self, file_name: str, folder: str):
         """create new folder under current parent folder"""

@@ -66,3 +66,44 @@ def update_user_credits(payment_entry, method):
     
     # Display the message
     frappe.msgprint(f"Your credits updated: {current_credits} → {new_credits}")
+
+def deduct_user_credits(user, amount, doc_reference=None):
+    """
+    Deduct credits from user's balance after document processing
+    
+    Args:
+        user (str): The user to deduct credits from
+        amount (float): The amount to deduct
+        doc_reference (str, optional): Reference to the document being processed
+    
+    Returns:
+        float: New credit balance or None if error
+    """
+    if not user or not amount or amount <= 0:
+        return None
+    
+    # Find the user settings for this user
+    user_settings = frappe.get_all(
+        "Doc2Sys User Settings", 
+        filters={"user": user},
+        fields=["name", "credits"]
+    )
+    
+    if not user_settings:
+        frappe.log_error(
+            f"No Doc2Sys User Settings found for user {user}",
+            "Credit Deduction Error"
+        )
+        return None
+    
+    # Get the user setting (there should be only one per user)
+    user_setting = user_settings[0]
+    
+    # Get the current credits value
+    current_credits = user_setting.credits or 0
+    new_credits = max(0, current_credits - amount)  # Don't allow negative credits
+    
+    # Update the credits using standard database update
+    frappe.db.set_value("Doc2Sys User Settings", user_setting.name, "credits", new_credits)
+    
+    return new_credits
