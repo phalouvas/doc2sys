@@ -77,7 +77,7 @@ def test_integration(user_settings):
         settings_doc = frappe.get_doc("Doc2Sys User Settings", user_settings)
         
         # Import the registry
-        from doc2sys.integrations.registry import IntegrationRegistry
+        from doc2sys.integrations.registry import get_integration_class
         
         # Validate required integration fields
         if not getattr(settings_doc, "integration_type", None):
@@ -92,13 +92,9 @@ def test_integration(user_settings):
         
         try:
             # Create integration instance using fields directly from settings document
-            integration_instance = IntegrationRegistry.create_instance(
-                settings_doc.integration_type, 
-                settings=settings_doc.as_dict()
-            )
-            
-            # Test connection
-            result = integration_instance.test_connection()
+            integration_class = get_integration_class(settings_doc.integration_type)
+            integration = integration_class(settings_doc)
+            result = integration.test_connection()
             
             # Set enabled status based on test result
             if result.get("success"):
