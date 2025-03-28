@@ -20,6 +20,7 @@ DEFAULT_TEMPERATURE = 0
 ACCEPTABLE_CONFIDENCE = 0.75
 
 from typing import Dict, Any, List, Optional  # Add this import line
+from frappe.model.document import Document  # Import Document from frappe
 
 class LLMProcessor:
     """Process documents using various LLM providers"""
@@ -265,69 +266,6 @@ class AzureDocumentIntelligenceProcessor:
             logger.error(f"Azure data extraction error: {str(e)}")
             return {}        
     
-    def _process_azure_extraction_results(self, result_dict: dict) -> dict:
-        """Process the raw Azure Document Intelligence results into a structured format"""
-        try:
-            # Initialize an empty dictionary to store the extracted data
-            extracted_data = {}
-            
-            # Get the document type - for now we only handle invoices in this example
-            document_type = self.doc2sys_item.document_type if isinstance(self.doc2sys_item, Document) else "prebuilt-invoice"
-            
-            # Get the extracted fields from the Azure response
-            if 'documents' in result_dict and len(result_dict['documents']) > 0:
-                doc = result_dict['documents'][0]
-                fields = doc.get('fields', {})
-                
-                # Extract generic document data - not tied to any specific integration
-                if document_type == "prebuilt-invoice":
-                    # Common invoice metadata
-                    extracted_data = {
-                        "document_type": "Invoice",  # Generic document type
-                        "invoice_number": self._get_field_value(fields, "InvoiceId"),
-                        "invoice_date": self._get_field_value(fields, "InvoiceDate"),
-                        "due_date": self._get_field_value(fields, "DueDate"),
-                        "total_amount": self._get_field_value(fields, "InvoiceTotal"),
-                        "subtotal": self._get_field_value(fields, "SubTotal"),
-                        "tax_amount": self._get_field_value(fields, "TotalTax"),
-                        
-                        # Vendor/supplier information (generic naming)
-                        "supplier_name": self._get_field_value(fields, "VendorName"),
-                        "supplier_address": self._get_field_value(fields, "VendorAddress"),
-                        "supplier_email": self._get_field_value(fields, "VendorEmail"),
-                        "supplier_phone": self._get_field_value(fields, "VendorPhone"),
-                        
-                        # Customer information (generic naming)
-                        "customer_name": self._get_field_value(fields, "CustomerName"),
-                        "customer_address": self._get_field_value(fields, "CustomerAddress"),
-                        "customer_id": self._get_field_value(fields, "CustomerId"),
-                        
-                        # Line items in a generic format
-                        "items": []
-                    }
-                    
-                    # Extract line items from Azure response
-                    items = self._get_field_value(fields, "Items") or []
-                    for item in items:
-                        if 'valueObject' in item:
-                            value_obj = item['valueObject']
-                            
-                            # Extract basic item details in a generic format
-                            item_data = {
-                                "description": self._get_nested_value(value_obj, "Description", "valueString"),
-                                "quantity": self._get_nested_value(value_obj, "Quantity", "valueNumber"),
-                                "unit_price": self._get_nested_value(value_obj, "UnitPrice", "valueCurrency", "amount"),
-                                "amount": self._get_nested_value(value_obj, "Amount", "valueCurrency", "amount"),
-                                "item_code": self._get_nested_value(value_obj, "ProductCode", "valueString")
-                            }
-                            
-                            extracted_data["items"].append(item_data)
-            
-            return extracted_data
-        except Exception as e:
-            logger.error(f"Error processing Azure extraction results: {str(e)}")
-            return {}
-
     def _process_azure_extraction_results(self, result_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Process the raw Azure Document Intelligence results into a structured format"""
         try:
