@@ -123,13 +123,13 @@ class ERPNext(BaseIntegration):
             # Sort items by doctype priority to ensure dependencies are created first
             # Items consistently have a nested "doc" structure in the new format
             sorted_items = sorted(items, key=lambda x: doctype_priority.get(
-                x.get("doc", {}).get("doctype", ""), 999
+                x.get("doctype", ""), 999
             ))
             
             # Process each item in priority order
             for item in sorted_items:
                 # New format consistently has a nested doc structure
-                doc_data = item.get("doc", {})
+                doc_data = item
                 
                 doctype = doc_data.get("doctype")
                 
@@ -154,8 +154,9 @@ class ERPNext(BaseIntegration):
                         # Ensure all required fields exist for each invoice item
                         if "rate" not in invoice_item:
                             invoice_item["rate"] = 0
-                        if "qty" not in invoice_item:
+                        if "qty" not in invoice_item or invoice_item.get("qty") == None:
                             invoice_item["qty"] = 1
+                        invoice_item["rate"] = invoice_item['amount'] / invoice_item["qty"]
                         # Add doctype to each item
                         invoice_item["doctype"] = "Purchase Invoice Item"
                 
