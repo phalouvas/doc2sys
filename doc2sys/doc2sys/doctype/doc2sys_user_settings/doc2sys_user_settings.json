@@ -35,6 +35,7 @@
   "quickbooks_sandbox",
   "client_id",
   "client_secret",
+  "qb_tax_code",
   "access_token",
   "refresh_token",
   "realm_id"
@@ -212,6 +213,13 @@
    "fieldname": "quickbooks_sandbox",
    "fieldtype": "Check",
    "label": "Use Sandbox Environment"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='QuickBooks'",
+   "fieldname": "qb_tax_code",
+   "fieldtype": "Data",
+   "label": "QuickBooks Tax Code",
+   "description": "The tax code to use for QuickBooks transactions (e.g., 'TAX' or leave empty for 'NON')"
   },
   {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",

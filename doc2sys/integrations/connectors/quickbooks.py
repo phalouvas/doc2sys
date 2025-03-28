@@ -392,6 +392,9 @@ class QuickBooks(BaseIntegration):
         if extracted_data.get("total_amount"):
             qb_bill["TotalAmt"] = extracted_data.get("total_amount")
             
+        # Get tax code from settings or use default
+        tax_code = self.settings.get("qb_tax_code") or "NON"
+        
         # Add line items
         items = extracted_data.get("items", [])
         for item in items:
@@ -405,7 +408,7 @@ class QuickBooks(BaseIntegration):
                     },
                     "BillableStatus": "NotBillable",
                     "TaxCodeRef": {
-                        "value": "NON"  # Default tax code
+                        "value": tax_code  # Use tax code from settings
                     }
                 }
             }
