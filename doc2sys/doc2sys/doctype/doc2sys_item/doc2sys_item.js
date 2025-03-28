@@ -44,97 +44,93 @@ frappe.ui.form.on('Doc2Sys Item', {
         
         // Add custom buttons or functionality here
         // Add buttons if a document is attached
-        if(frm.doc.single_file) {
-            
             // Add Extract Data button
-            if(frm.doc.status === 'Uploaded') {
-                frm.add_custom_button(__('Extract Data'), function() {
-                    // Show full screen processing overlay
-                    frappe.dom.freeze(__('Extracting data from document...'));
-                    
-                    frm.call({
-                        doc: frm.doc,
-                        method: 'extract_data',
-                        callback: function(r) {
-                            // Unfreeze UI when processing is complete
-                            frappe.dom.unfreeze();
-                            
-                            if(r.message) {
-                                frappe.show_alert({
-                                    message: __('Data extraction completed'),
-                                    indicator: 'green'
-                                }, 3);
-                                frm.refresh();
-                            }
-                        },
-                        error: function() {
-                            // Make sure to unfreeze UI even if there's an error
-                            frappe.dom.unfreeze();
+        if(frm.doc.single_file) {
+            frm.add_custom_button(__('Extract Data'), function() {
+                // Show full screen processing overlay
+                frappe.dom.freeze(__('Extracting data from document...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'extract_data',
+                    callback: function(r) {
+                        // Unfreeze UI when processing is complete
+                        frappe.dom.unfreeze();
+                        
+                        if(r.message) {
+                            frappe.show_alert({
+                                message: __('Data extraction completed'),
+                                indicator: 'green'
+                            }, 3);
+                            frm.refresh();
                         }
-                    });
-                }, __('Actions'));
-            }
-
-            // Add trigger integrations button that actually processes the integrations
-            if(frm.doc.status === 'Processed') {
-                frm.add_custom_button(__('Trigger Integrations'), function() {
-                    // Show full screen processing overlay
-                    frappe.dom.freeze(__('Running integrations...'));
-                    
-                    frm.call({
-                        doc: frm.doc,
-                        method: 'trigger_integrations',
-                        callback: function(r) {
-                            // Unfreeze UI when processing is complete
-                            frappe.dom.unfreeze();
-                            
-                            if(r.message) {
-                                frappe.show_alert({
-                                    message: __('Integrations completed'),
-                                    indicator: 'green'
-                                }, 3);
-                                frm.refresh();
-                            }
-                        },
-                        error: function() {
-                            // Make sure to unfreeze UI even if there's an error
-                            frappe.dom.unfreeze();
-                        }
-                    });
-                }, __('Actions'));
-            }
-
-            // Add Process All Steps button at the end of Actions dropdown
-            if(frm.doc.status === 'Uploaded') {
-                frm.add_custom_button(__('Process All Steps'), function() {
-                    // Show full screen processing overlay
-                    frappe.dom.freeze(__('Processing document with all steps...'));
-                    
-                    frm.call({
-                        doc: frm.doc,
-                        method: 'process_all',
-                        callback: function(r) {
-                            // Unfreeze UI when processing is complete
-                            frappe.dom.unfreeze();
-                            
-                            if(r.message) {
-                                frappe.show_alert({
-                                    message: __('Document processing completed'),
-                                    indicator: 'green'
-                                }, 3);
-                                frm.refresh();
-                            }
-                        },
-                        error: function() {
-                            // Make sure to unfreeze UI even if there's an error
-                            frappe.dom.unfreeze();
-                        }
-                    });
-                }, __('Actions'));
-            }
-            
+                    },
+                    error: function() {
+                        // Make sure to unfreeze UI even if there's an error
+                        frappe.dom.unfreeze();
+                    }
+                });
+            }, __('Actions'));
         }
 
+            // Add trigger integrations button that actually processes the integrations
+        if(frm.doc.status === 'Processed') {
+            frm.add_custom_button(__('Trigger Integrations'), function() {
+                // Show full screen processing overlay
+                frappe.dom.freeze(__('Running integrations...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'trigger_integrations',
+                    callback: function(r) {
+                        // Unfreeze UI when processing is complete
+                        frappe.dom.unfreeze();
+                        
+                        if(r.message) {
+                            frappe.show_alert({
+                                message: __('Integrations completed'),
+                                indicator: 'green'
+                            }, 3);
+                            frm.refresh();
+                        }
+                    },
+                    error: function() {
+                        // Make sure to unfreeze UI even if there's an error
+                        frappe.dom.unfreeze();
+                    }
+                });
+            }, __('Actions'));
+        }
+
+            // Add Process All Steps button at the end of Actions dropdown
+        if(frm.doc.single_file) {
+            frm.add_custom_button(__('Process All Steps'), function() {
+                // Show full screen processing overlay
+                frappe.dom.freeze(__('Processing document with all steps...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'process_all',
+                    callback: function(r) {
+                        // Unfreeze UI when processing is complete
+                        frappe.dom.unfreeze();
+                        
+                        if(r.message) {
+                            frappe.show_alert({
+                                message: __('Document processing completed'),
+                                indicator: 'green'
+                            }, 3);
+                            frm.refresh();
+                        }
+                    },
+                    error: function() {
+                        // Make sure to unfreeze UI even if there's an error
+                        frappe.dom.unfreeze();
+                    }
+                });
+            }, __('Actions'));
+        }
+         
     },
     
     single_file: function(frm) {
