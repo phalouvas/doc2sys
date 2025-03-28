@@ -354,6 +354,10 @@ class AzureDocumentIntelligenceProcessor:
                     "amount": self._get_nested_value(value_obj, "Amount", "valueCurrency", "amount"),
                     "item_code": self._get_nested_value(value_obj, "ProductCode", "valueString")
                 }
+
+                # Set item_code to a default value if missing
+                if item_data["item_code"] is None:
+                    item_data["item_code"] = self._create_item_code_from_description(item_data["description"])
                 
                 # Set quantity to 1 if missing
                 if item_data["quantity"] is None:
@@ -721,6 +725,29 @@ class AzureDocumentIntelligenceProcessor:
         else:
             return field.content if hasattr(field, 'content') else field
 
+    def _create_item_code_from_description(self, description):
+        """Generate a meaningful item code from description when ItemCode is missing"""
+        import re
+        import hashlib
+        
+        if not description:
+            return "ITEM"
+        
+        description = description[:15]
+        
+        # Convert to lowercase and remove special characters
+        slug = description.lower()
+        slug = re.sub(r'[^\w\s-]', '', slug)
+        slug = re.sub(r'[\s-]+', '-', slug)
+        
+        # Trim and take first 15 chars of the slug
+        slug = slug.strip('-').strip()[:15]
+        
+        # Add a short hash to ensure uniqueness
+        hash_suffix = hashlib.md5(description.encode()).hexdigest()[:5]
+        
+        return f"{slug}-{hash_suffix}"
+    
     def _create_item_code_from_description(self, description):
         """Generate a meaningful item code from description when ItemCode is missing"""
         import re
