@@ -147,6 +147,9 @@ class ERPNext(BaseIntegration):
                             if supplier_name.lower() in doc_data.get("supplier", "").lower():
                                 doc_data["supplier"] = supplier_name
                                 break
+
+                    # Ensure all required fields exist
+                    doc_data["set_posting_time"] = 1
                     
                     # Ensure all line items exist - they may have simplified structure in the JSON
                     invoice_items = doc_data.get("items", [])

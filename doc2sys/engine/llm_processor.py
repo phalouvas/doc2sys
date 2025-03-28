@@ -17,7 +17,7 @@ from azure.ai.documentintelligence.models import AnalyzeResult
 # Move hardcoded values to constants
 MAX_TEXT_LENGTH = 10000
 DEFAULT_TEMPERATURE = 0
-ACCEPTABLE_CONFIDENCE = 0.75
+ACCEPTABLE_CONFIDENCE = 0.1
 
 from typing import Dict, Any, List, Optional  # Add this import line
 from frappe.model.document import Document  # Import Document from frappe
@@ -306,8 +306,8 @@ class AzureDocumentIntelligenceProcessor:
             "total_amount": self._get_field_value(fields, "InvoiceTotal"),
             "subtotal": self._get_field_value(fields, "SubTotal"),
             "tax_amount": self._get_field_value(fields, "TotalTax"),
-            "currency": self._get_nested_value(fields, "InvoiceTotal", "valueCurrency", "currencySymbol") or 
-                       self._get_nested_value(fields, "SubTotal", "valueCurrency", "currencySymbol"),
+            "currency": self._get_nested_value(fields, "InvoiceTotal", "valueCurrency", "currencyCode") or 
+                       self._get_nested_value(fields, "SubTotal", "valueCurrency", "currencyCode"),
             
             # Vendor/supplier information
             "supplier_name": self._get_field_value(fields, "VendorName"),
