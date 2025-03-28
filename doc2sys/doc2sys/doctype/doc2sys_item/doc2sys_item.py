@@ -9,6 +9,7 @@ from doc2sys.engine.llm_processor import LLMProcessor
 from doc2sys.engine.text_extractor import TextExtractor
 from doc2sys.integrations.utils import process_integrations
 from frappe.handler import upload_file
+from frappe.desk.form.utils import remove_attach  # Add this import
 
 class Doc2SysItem(Document):
     def validate(self):
@@ -61,6 +62,32 @@ class Doc2SysItem(Document):
             if extracted_data:
                 # Update status to indicate extraction is complete
                 self.db_set('status', 'Processed', update_modified=True)
+                
+                file_doc = frappe.get_all(
+                    "File", 
+                    filters={
+                        "attached_to_doctype": "Doc2Sys Item",
+                        "attached_to_name": self.name
+                    },
+                    fields=["name"]
+                )
+
+                if not file_doc or len(file_doc) == 0:
+                    files_not_found += 1
+                    frappe.db.commit()
+                    return True
+                
+                frappe.form_dict["dn"] = self.name
+                frappe.form_dict["dt"] = "Doc2Sys Item"
+                frappe.form_dict["fid"] = file_doc[0].name
+                
+                # Remove the attachment using the file ID
+                remove_attach()
+                
+                # Clear the single_file field and single_file_name
+                self.db_set('single_file', '', update_modified=True)
+                self.db_set('single_file_name', '', update_modified=True)
+                
                 frappe.db.commit()
                 return True
             else:
@@ -70,69 +97,6 @@ class Doc2SysItem(Document):
         except Exception as e:
             error_message = f"Error extracting data: {str(e)}"
             frappe.log_error(error_message, _("Document Extraction Error"))
-            frappe.msgprint(_(error_message))
-            return False
-
-    def update_status(self):
-
-        status = None
-
-        if self.single_file_name:
-            status = "Uploaded"
-
-        if self.azure_raw_response:
-            status = "Processed"
-
-        if status and self.status != "Completed":
-            self.db_set('status', status, update_modified=False)
-
-    @frappe.whitelist()
-    def trigger_integrations(self):
-        """Trigger all configured integrations for this document"""
-        try:
-            # Make sure we have extracted data
-            if not self.azure_raw_response:
-                frappe.msgprint(_("Please extract data from the document first"))
-                return False
-            
-            # Process integrations
-            result = process_integrations(self.as_dict())
-            
-            # Update status based on integration results
-            if result.get("success"):
-                self.db_set('status', 'Completed', update_modified=True)
-                frappe.db.commit()
-                return result
-            else:
-                frappe.msgprint(_(f"Integration error: {result.get('message')}"))
-                return result
-                
-        except Exception as e:
-            error_message = f"Error processing integrations: {str(e)}"
-            frappe.log_error(error_message, _("Integration Error"))
-            frappe.msgprint(_(error_message))
-            return {"success": False, "message": error_message}
-
-    @frappe.whitelist()
-    def process_all(self):
-        """Extract data and then trigger integrations in one go"""
-        if not self.single_file:
-            frappe.msgprint(_("No document is attached to process"))
-            return False
-            
-        try:
-            # First extract data
-            extraction_success = self.extract_data()
-            if not extraction_success:
-                return False
-                
-            # Then trigger integrations
-            integration_result = self.trigger_integrations()
-            return integration_result
-                
-        except Exception as e:
-            error_message = f"Error in processing workflow: {str(e)}"
-            frappe.log_error(error_message, _("Document Processing Error"))
             frappe.msgprint(_(error_message))
             return False
 
