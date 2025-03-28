@@ -114,6 +114,67 @@ frappe.ui.form.on('Doc2Sys User Settings', {
                 );
             }, __('Tools'));
         }
+
+        // Add QuickBooks authorization button
+        if (frm.doc.integration_type === 'QuickBooks' && frm.doc.client_id && frm.doc.client_secret) {
+            frm.add_custom_button(__('Connect to QuickBooks'), function () {
+                frappe.call({
+                    method: 'doc2sys.doc2sys.doctype.doc2sys_user_settings.doc2sys_user_settings.get_quickbooks_auth_url',
+                    args: {
+                        user_settings: frm.doc.name
+                    },
+                    callback: function (r) {
+                        if (r.message && r.message.success) {
+                            // Open the authorization URL in a new window
+                            const authWindow = window.open(r.message.url, 'QuickBooksAuth', 
+                                'width=600,height=700,scrollbars=yes,resizable=yes');
+                            
+                            // Show instructions
+                            frappe.show_alert({
+                                message: __('Please complete the authorization in the new window'),
+                                indicator: 'blue'
+                            }, 10);
+                            
+                            // Set up a timer to check if authentication is complete
+                            const checkAuthInterval = setInterval(function() {
+                                if (authWindow.closed) {
+                                    clearInterval(checkAuthInterval);
+                                    // Refresh the form to show updated token status
+                                    frm.reload_doc();
+                                    
+                                    // Test the connection
+                                    frappe.call({
+                                        method: 'doc2sys.doc2sys.doctype.doc2sys_user_settings.doc2sys_user_settings.test_integration',
+                                        args: {
+                                            user_settings: frm.doc.name
+                                        },
+                                        callback: function (r) {
+                                            if (r.message && r.message.status === 'success') {
+                                                frappe.show_alert({
+                                                    message: __('QuickBooks connection established successfully'),
+                                                    indicator: 'green'
+                                                });
+                                            } else {
+                                                frappe.show_alert({
+                                                    message: __('QuickBooks connection failed'),
+                                                    indicator: 'red'
+                                                });
+                                            }
+                                        }
+                                    });
+                                }
+                            }, 500);
+                        } else {
+                            frappe.msgprint({
+                                title: __('Error'),
+                                message: r.message ? r.message.message : __('Failed to generate authorization URL'),
+                                indicator: 'red'
+                            });
+                        }
+                    }
+                });
+            }, __('Integration'));
+        }
     },
 
 });

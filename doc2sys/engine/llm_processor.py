@@ -17,7 +17,10 @@ from azure.ai.documentintelligence.models import AnalyzeResult
 # Move hardcoded values to constants
 MAX_TEXT_LENGTH = 10000
 DEFAULT_TEMPERATURE = 0
-ACCEPTABLE_CONFIDENCE = 0.75
+ACCEPTABLE_CONFIDENCE = 0.1
+
+from typing import Dict, Any, List, Optional  # Add this import line
+from frappe.model.document import Document  # Import Document from frappe
 
 class LLMProcessor:
     """Process documents using various LLM providers"""
@@ -194,6 +197,7 @@ class AzureDocumentIntelligenceProcessor:
                         extracted_data = self._process_azure_extraction_results(result_dict)
                         extracted_data = frappe.as_json(extracted_data, 1, None, False)
                         doc2sys_item_doc.db_set('extracted_data', extracted_data, update_modified=False)
+                        frappe.db.commit()
                         
                         return extracted_data
                 except Exception as e:
@@ -251,6 +255,7 @@ class AzureDocumentIntelligenceProcessor:
                     doc2sys_item_doc.db_set('extracted_text', extracted_text, update_modified=False)
                     doc2sys_item_doc.db_set('cost', cost, update_modified=False)
                     doc2sys_item_doc.db_set('classification_confidence', confidence, update_modified=False)
+                    frappe.db.commit()
                 except Exception as e:
                     logger.warning(f"Failed to cache Azure response: {str(e)}")
             
@@ -263,33 +268,300 @@ class AzureDocumentIntelligenceProcessor:
             logger.error(f"Azure data extraction error: {str(e)}")
             return {}        
     
-    def _process_azure_extraction_results(self, azure_result):
-        """
-        Process Azure Document Intelligence results into structured data
-        
-        Args:
-            azure_result: Azure Document Intelligence API response object
-            document_type: Type of document
-            
-        Returns:
-            dict: Structured data extracted from document
-        """
+    def _process_azure_extraction_results(self, result_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Process the raw Azure Document Intelligence results into a structured format"""
         try:
-            document_type = azure_result.get("modelId")
-
-            # Different handling based on model type and document type
-            if "prebuilt-invoice" in self.model or "invoice" in str(document_type).lower():
-                return self._process_invoice_results(azure_result)
-            elif "prebuilt-receipt" in self.model or "receipt" in str(document_type).lower():
-                return self._process_receipt_results(azure_result)
-            else:
-                # Generic document processing
-                return self._process_generic_document_results(azure_result)
+            # Initialize an empty dictionary to store the extracted data
+            extracted_data = {}
+            
+            # Get the document type from the object or fallback
+            document_type = self.doc2sys_item.document_type if isinstance(self.doc2sys_item, Document) else "prebuilt-document"
+            
+            # Get the extracted fields from the Azure response
+            if 'documents' in result_dict and len(result_dict['documents']) > 0:
+                doc = result_dict['documents'][0]
+                fields = doc.get('fields', {})
                 
+                # Extract generic document data based on document type
+                if document_type == "prebuilt-invoice":
+                    extracted_data = self._process_invoice_result(fields)
+                elif document_type == "prebuilt-receipt":
+                    extracted_data = self._process_receipt_result(fields)
+                elif document_type in ["prebuilt-document", "prebuilt-layout", "prebuilt-read"]:
+                    extracted_data = self._process_generic_document_result(result_dict)
+            
+            return extracted_data
         except Exception as e:
             logger.error(f"Error processing Azure extraction results: {str(e)}")
             return {}
+        
+    def _process_invoice_result(self, fields: Dict) -> Dict:
+        """Process invoice-specific fields from Azure"""
+        # Common invoice metadata in generic format
+        extracted_data = {
+            "document_type": "Invoice",
+            "invoice_number": self._get_field_value(fields, "InvoiceId"),
+            "invoice_date": self._get_field_value(fields, "InvoiceDate"),
+            "due_date": self._get_field_value(fields, "DueDate"),
+            "total_amount": self._get_field_value(fields, "InvoiceTotal"),
+            "subtotal": self._get_field_value(fields, "SubTotal"),
+            "tax_amount": self._get_field_value(fields, "TotalTax"),
+            "currency": self._get_nested_value(fields, "InvoiceTotal", "valueCurrency", "currencyCode") or 
+                       self._get_nested_value(fields, "SubTotal", "valueCurrency", "currencyCode"),
+            
+            # Vendor/supplier information
+            "supplier_name": self._get_field_value(fields, "VendorName"),
+            "supplier_address": self._get_field_value(fields, "VendorAddress"),
+            "supplier_email": self._get_field_value(fields, "VendorEmail"),
+            "supplier_phone": self._get_field_value(fields, "VendorPhone"),
+            "supplier_tax_id": self._get_field_value(fields, "VendorTaxId"),
+            
+            # Customer information (if available)
+            "customer_name": self._get_field_value(fields, "CustomerName"),
+            "customer_address": self._get_field_value(fields, "CustomerAddress"),
+            "customer_id": self._get_field_value(fields, "CustomerId"),
+            
+            # Additional references
+            "purchase_order": self._get_field_value(fields, "PurchaseOrder"),
+            "payment_terms": self._get_field_value(fields, "PaymentTerms"),
+            
+            # Discount information
+            "discount_amount": self._get_field_value(fields, "DiscountAmount"),
+            
+            # Line items in a generic format
+            "items": []
+        }
+        
+        # Validate and reconcile monetary values
+        total = extracted_data["total_amount"] 
+        subtotal = extracted_data["subtotal"]
+        tax = extracted_data["tax_amount"]
+        discount = extracted_data["discount_amount"] or 0
+        
+        # Check if we have meaningful values for validation
+        if total is not None and subtotal is not None and tax is not None:
+            # With discount: total = subtotal - discount + tax
+            expected_total = subtotal - discount + tax
+            if abs(expected_total - total) > 0.01:
+                logger.warning(f"Invoice total validation failed: {subtotal} - {discount} + {tax} != {total}")
+                # Recalculate to ensure consistency
+                extracted_data["total_amount"] = expected_total
+        # Handle cases where one value is missing
+        elif total is not None and subtotal is not None:
+            # Calculate tax from total, subtotal and discount
+            extracted_data["tax_amount"] = total - subtotal + discount
+        elif total is not None and tax is not None:
+            # Calculate subtotal from total, tax and discount
+            extracted_data["subtotal"] = total - tax + discount
+        elif subtotal is not None and tax is not None:
+            # Calculate total from subtotal, tax and discount
+            extracted_data["total_amount"] = subtotal - discount + tax
+        
+        # Extract line items from Azure response
+        items = self._get_field_value(fields, "Items") or []
+        items_total = 0
+        
+        for item in items:
+            if 'valueObject' in item:
+                value_obj = item['valueObject']
+                
+                # Extract basic item details in a generic format
+                item_data = {
+                    "description": self._get_nested_value(value_obj, "Description", "valueString"),
+                    "quantity": self._get_nested_value(value_obj, "Quantity", "valueNumber"),
+                    "unit_price": self._get_nested_value(value_obj, "UnitPrice", "valueCurrency", "amount"),
+                    "amount": self._get_nested_value(value_obj, "Amount", "valueCurrency", "amount"),
+                    "tax": self._get_nested_value(value_obj, "Tax", "valueCurrency", "amount"),
+                    "item_code": self._get_nested_value(value_obj, "ProductCode", "valueString"),
+                    "discount": self._get_nested_value(value_obj, "Discount", "valueCurrency", "amount") or 0,
+                    "unit": self._get_nested_value(value_obj, "Unit", "valueString"),
+                    "date": self._get_nested_value(value_obj, "Date", "valueDate")
+                }
     
+                # Set item_code to a default value if missing
+                if item_data["item_code"] is None:
+                    item_data["item_code"] = self._create_item_code_from_description(item_data["description"])
+                
+                # Set quantity to 1 if missing
+                if item_data["quantity"] is None:
+                    item_data["quantity"] = 1
+                    logger.info(f"Setting missing quantity to 1 for item: {item_data['description']}")
+                
+                # Handle item-level discounts if present
+                item_discount = item_data["discount"]
+                
+                # Validate that amount = (quantity * unit_price) - discount
+                if item_data["quantity"] and item_data["unit_price"]:
+                    expected_amount = (item_data["quantity"] * item_data["unit_price"]) - item_discount
+                    
+                    if item_data["amount"] and abs(expected_amount - item_data["amount"]) > 0.01:
+                        logger.warning(f"Item amount validation failed: ({item_data['quantity']} * {item_data['unit_price']}) - {item_discount} != {item_data['amount']}")
+                        # Recalculate to ensure consistency
+                        item_data["amount"] = expected_amount
+                    elif not item_data["amount"]:
+                        item_data["amount"] = expected_amount
+                
+                # Calculate missing values where possible
+                elif item_data["quantity"] and item_data["amount"] is not None:
+                    # Account for discount when calculating unit price
+                    item_data["unit_price"] = (item_data["amount"] + item_discount) / item_data["quantity"]
+                elif item_data["unit_price"] and item_data["amount"] is not None:
+                    # Since we default quantity to 1, this case should rarely occur
+                    item_data["quantity"] = (item_data["amount"] + item_discount) / item_data["unit_price"]
+                
+                # Add to running total
+                if item_data["amount"] is not None:
+                    items_total += item_data["amount"]
+                
+                extracted_data["items"].append(item_data)
+        
+        # Validate that sum of line items equals subtotal 
+        if items_total > 0 and subtotal is not None and abs(items_total - subtotal) > 0.01:
+            logger.warning(f"Sum of line items ({items_total}) doesn't match subtotal ({subtotal})")
+            
+            # If the difference is significant, try to reconcile
+            if abs(items_total - subtotal) / max(items_total, subtotal) > 0.05:  # More than 5% difference
+                # Check if items_total + discount = subtotal (discount already applied to line items)
+                if abs((items_total + discount) - subtotal) < 0.01:
+                    logger.info("Discount appears to be already applied to line items")
+                else:
+                    # Scale all item amounts proportionally 
+                    scale_factor = subtotal / items_total
+                    logger.info(f"Scaling line items by factor {scale_factor} to match subtotal")
+                    
+                    for item in extracted_data["items"]:
+                        if item["amount"] is not None:
+                            item["amount"] = round(item["amount"] * scale_factor, 2)
+                            if item["quantity"] and item["quantity"] > 0:
+                                # Recalculate unit price
+                                item["unit_price"] = item["amount"] / item["quantity"]
+        
+        return extracted_data
+
+    def _process_receipt_result(self, fields: Dict) -> Dict:
+        """Process receipt-specific fields from Azure"""
+        # Common receipt metadata
+        extracted_data = {
+            "document_type": "Receipt",
+            "receipt_number": self._get_field_value(fields, "ReceiptNumber") or self._get_field_value(fields, "InvoiceId"),
+            "transaction_date": self._get_field_value(fields, "TransactionDate"),
+            "total_amount": self._get_field_value(fields, "Total"),
+            "subtotal": self._get_field_value(fields, "Subtotal"),
+            "tax_amount": self._get_field_value(fields, "TotalTax"),
+            
+            # Merchant information
+            "merchant_name": self._get_field_value(fields, "MerchantName"),
+            "merchant_address": self._get_field_value(fields, "MerchantAddress"),
+            "merchant_phone": self._get_field_value(fields, "MerchantPhoneNumber"),
+            
+            # Payment information
+            "payment_method": self._get_field_value(fields, "PaymentMethod"),
+            "card_last4": self._get_field_value(fields, "PaymentCardNumber"),
+            
+            # Items in a generic format
+            "items": []
+        }
+        
+        # Extract line items from Azure response
+        items = self._get_field_value(fields, "Items") or []
+        for item in items:
+            if 'valueObject' in item:
+                value_obj = item['valueObject']
+                
+                # Extract basic item details in a generic format
+                item_data = {
+                    "description": self._get_nested_value(value_obj, "Description", "valueString"),
+                    "quantity": self._get_nested_value(value_obj, "Quantity", "valueNumber"),
+                    "price": self._get_nested_value(value_obj, "Price", "valueCurrency", "amount"),
+                    "total_price": self._get_nested_value(value_obj, "TotalPrice", "valueCurrency", "amount"),
+                }
+                
+                extracted_data["items"].append(item_data)
+        
+        return extracted_data
+
+    def _process_generic_document_result(self, result_dict: Dict) -> Dict:
+        """Process general document extraction results from Azure"""
+        extracted_data = {
+            "document_type": "Document",
+            "content": result_dict.get("content", ""),
+            "pages": len(result_dict.get("pages", [])),
+            "tables": [],
+            "key_value_pairs": []
+        }
+        
+        # Extract tables if available
+        if "tables" in result_dict:
+            for table in result_dict["tables"]:
+                table_data = {
+                    "row_count": len(table.get("cells", [])),
+                    "column_count": table.get("columnCount", 0),
+                    "cells": []
+                }
+                
+                # Process cells
+                for cell in table.get("cells", []):
+                    table_data["cells"].append({
+                        "text": cell.get("content", ""),
+                        "row_index": cell.get("rowIndex", 0),
+                        "column_index": cell.get("columnIndex", 0)
+                    })
+                    
+                extracted_data["tables"].append(table_data)
+        
+        # For prebuilt-document, also extract key-value pairs
+        if "keyValuePairs" in result_dict:
+            for kv_pair in result_dict["keyValuePairs"]:
+                key = kv_pair.get("key", {}).get("content", "")
+                value = kv_pair.get("value", {}).get("content", "")
+                
+                if key and value:
+                    extracted_data["key_value_pairs"].append({
+                        "key": key,
+                        "value": value
+                    })
+        
+        return extracted_data
+
+    def _get_field_value(self, fields, field_name):
+        """Extract a field value from Azure Document Intelligence results"""
+        if field_name not in fields:
+            return None
+            
+        field = fields[field_name]
+        if not field:
+            return None
+            
+        # Handle different value types
+        if "valueString" in field:
+            return field["valueString"]
+        elif "valueDate" in field:
+            return field["valueDate"]
+        elif "valueTime" in field:
+            return field["valueTime"]
+        elif "valuePhoneNumber" in field:
+            return field["valuePhoneNumber"]
+        elif "valueNumber" in field:
+            return field["valueNumber"]
+        elif "valueCurrency" in field:
+            return field["valueCurrency"]["amount"]
+        elif "valueArray" in field:
+            return field["valueArray"]
+        elif "valueObject" in field:
+            return field["valueObject"]
+        
+        return None
+        
+    def _get_nested_value(self, obj, *keys):
+        """Get a value from a nested dictionary by navigating through multiple keys"""
+        current = obj
+        for key in keys:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return None
+        return current
+
     def _process_invoice_results(self, result:dict):
         """Process invoice-specific results from Azure"""
         try:
@@ -507,6 +779,29 @@ class AzureDocumentIntelligenceProcessor:
         else:
             return field.content if hasattr(field, 'content') else field
 
+    def _create_item_code_from_description(self, description):
+        """Generate a meaningful item code from description when ItemCode is missing"""
+        import re
+        import hashlib
+        
+        if not description:
+            return "ITEM"
+        
+        description = description[:15]
+        
+        # Convert to lowercase and remove special characters
+        slug = description.lower()
+        slug = re.sub(r'[^\w\s-]', '', slug)
+        slug = re.sub(r'[\s-]+', '-', slug)
+        
+        # Trim and take first 15 chars of the slug
+        slug = slug.strip('-').strip()[:15]
+        
+        # Add a short hash to ensure uniqueness
+        hash_suffix = hashlib.md5(description.encode()).hexdigest()[:5]
+        
+        return f"{slug}-{hash_suffix}"
+    
     def _create_item_code_from_description(self, description):
         """Generate a meaningful item code from description when ItemCode is missing"""
         import re

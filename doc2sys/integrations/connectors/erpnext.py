@@ -58,19 +58,26 @@ class ERPNext(BaseIntegration):
     def sync_document(self, doc2sys_item: Dict[str, Any]) -> Dict[str, Any]:
         """Sync a doc2sys_item to the external ERPNext system"""
         try:
-            # Add this line at the beginning of the method
+            # Track the current document
             self.current_document = doc2sys_item.get("name")
             
-            # Extract and parse mapped data from the extracted_data field
-            extracted_data = doc2sys_item.get("extracted_data", "{}")
+            # Get document type
+            document_type = doc2sys_item.get("document_type", "").lower()
             
-            # Check if extracted_data is a valid JSON string
+            # Get extracted data
             try:
-                mapped_data = json.loads(extracted_data)
+                extracted_data = doc2sys_item.get("extracted_data", "{}")
+                if isinstance(extracted_data, str):
+                    extracted_data = json.loads(extracted_data)
             except json.JSONDecodeError:
                 self.log_activity("error", "Invalid JSON in extracted_data")
                 return {"success": False, "message": "Invalid JSON in extracted_data"}
-            
+                
+            # Transform the generic extracted data to ERPNext format
+            erpnext_data = self._transform_to_erpnext_format(extracted_data, document_type)
+            if not erpnext_data.get("success"):
+                return erpnext_data
+                
             # Get API credentials
             api_key = self.settings.get("api_key")
             doc_name = self.settings.get("name")
@@ -98,7 +105,7 @@ class ERPNext(BaseIntegration):
             }
             
             # Get the items array from the mapped data
-            items = mapped_data.get("items", [])
+            items = erpnext_data.get("erpnext_docs", [])
             
             if not items:
                 self.log_activity("error", "No items found in the mapped data")
@@ -111,19 +118,18 @@ class ERPNext(BaseIntegration):
                 "Supplier": 1,
                 "Item": 2,
                 "Purchase Invoice": 3,
-                # Add other doctypes as needed
             }
             
             # Sort items by doctype priority to ensure dependencies are created first
             # Items consistently have a nested "doc" structure in the new format
             sorted_items = sorted(items, key=lambda x: doctype_priority.get(
-                x.get("doc", {}).get("doctype", ""), 999
+                x.get("doctype", ""), 999
             ))
             
             # Process each item in priority order
             for item in sorted_items:
                 # New format consistently has a nested doc structure
-                doc_data = item.get("doc", {})
+                doc_data = item
                 
                 doctype = doc_data.get("doctype")
                 
@@ -141,6 +147,9 @@ class ERPNext(BaseIntegration):
                             if supplier_name.lower() in doc_data.get("supplier", "").lower():
                                 doc_data["supplier"] = supplier_name
                                 break
+
+                    # Ensure all required fields exist
+                    doc_data["set_posting_time"] = 1
                     
                     # Ensure all line items exist - they may have simplified structure in the JSON
                     invoice_items = doc_data.get("items", [])
@@ -184,12 +193,135 @@ class ERPNext(BaseIntegration):
                         else:
                             error_message = f"Failed to create {doctype}: {error_text}"
                             self.log_activity("error", error_message)
-                            # Continue with other documents instead of failing completely
+                            # For Purchase Invoice, throw exception instead of just logging
+                            if doctype == "Purchase Invoice":
+                                raise Exception(error_message)
+                            # Continue with other documents
                 except Exception as e:
                     self.log_activity("error", f"Error creating {doctype}: {str(e)}")
+                    # For Purchase Invoice, re-raise the exception
+                    if doctype == "Purchase Invoice":
+                        raise
             
             return {"success": True, "data": created_documents}
             
         except Exception as e:
             self.log_activity("error", f"Sync error: {str(e)}")
             return {"success": False, "message": str(e)}
+
+    def _transform_to_erpnext_format(self, extracted_data: Dict[str, Any], 
+                                    document_type: str) -> Dict[str, Any]:
+        """Transform generic extracted data to ERPNext-specific format"""
+        try:
+            if document_type in ["prebuilt-invoice"]:
+                return self._transform_purchase_invoice(extracted_data)
+            else:
+                return {
+                    "success": False,
+                    "message": f"Unsupported document type for ERPNext: {document_type}"
+                }
+        except Exception as e:
+            self.log_activity("error", f"Error transforming data for ERPNext: {str(e)}")
+            return {"success": False, "message": f"Error transforming data: {str(e)}"}
+        
+    def _transform_purchase_invoice(self, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform generic invoice data to ERPNext Purchase Invoice format"""
+        # Create ERPNext-specific document structure
+        erpnext_docs = []
+        
+        # Create a Supplier doc if supplier information is available
+        if extracted_data.get("supplier_name"):
+            supplier_doc = {
+                "doctype": "Supplier",
+                "supplier_name": extracted_data.get("supplier_name"),
+                "supplier_type": "Company",  # Default value
+                "supplier_group": "All Supplier Groups",  # Default value
+            }
+            
+            # Add email if available
+            if extracted_data.get("supplier_email"):
+                supplier_doc["email_id"] = extracted_data.get("supplier_email")
+                
+            # Add phone if available  
+            if extracted_data.get("supplier_phone"):
+                supplier_doc["mobile_no"] = extracted_data.get("supplier_phone")
+                
+            erpnext_docs.append(supplier_doc)
+        
+        # Create Item docs for each line item
+        actual_items = []
+        items = extracted_data.get("items", [])
+        for item in items:
+            # Skip special entries like totals or payment methods
+            if item.get("description") and not any(keyword in item.get("description", "").lower() 
+                                                  for keyword in ["total", "credit card", "payment"]):
+                item_doc = {
+                    "doctype": "Item",
+                    "item_name": item.get("description"),
+                    "item_code": item.get("item_code") or item.get("description"),
+                    "item_group": "All Item Groups",  # Default value
+                    "stock_uom": "Nos",  # Default value
+                    "is_stock_item": 0,
+                    "is_purchase_item": 1
+                }
+                erpnext_docs.append(item_doc)
+                actual_items.append(item)
+        
+        # Create Purchase Invoice doc
+        invoice_doc = {
+            "doctype": "Purchase Invoice",
+            "title": extracted_data.get("supplier_name", "Unknown"),
+            "supplier": extracted_data.get("supplier_name"),
+            "posting_date": extracted_data.get("invoice_date"),
+            "bill_no": extracted_data.get("invoice_number"),
+            "due_date": extracted_data.get("due_date"),
+            "items": [],
+            "taxes": []
+        }
+        
+        # Set currency if available
+        if extracted_data.get("currency"):
+            invoice_doc["currency"] = extracted_data.get("currency")
+        
+        # Add items to the invoice (only actual product items)
+        for item in actual_items:
+            invoice_item = {
+                "item_code": item.get("item_code") or item.get("description"),
+                "item_name": item.get("description"),
+                "description": item.get("description"),
+                "qty": item.get("quantity", 1),
+                "rate": item.get("unit_price", 0),
+                "amount": item.get("amount", 0)
+            }
+            invoice_doc["items"].append(invoice_item)
+        
+        # Add tax information if available
+        if extracted_data.get("tax_amount"):
+            # Get the VAT account from settings or use a default value
+            vat_account = self.settings.get("vat_account") or "VAT - XXX"
+            
+            tax_row = {
+                "doctype": "Purchase Taxes and Charges",
+                "charge_type": "Actual",
+                "account_head": vat_account,  # Use the account from settings
+                "description": "Tax",
+                "tax_amount": extracted_data.get("tax_amount", 0),
+                "category": "Total",
+                "add_deduct_tax": "Add"
+            }
+            invoice_doc["taxes"].append(tax_row)
+        
+        # Set total amounts
+        if extracted_data.get("subtotal"):
+            invoice_doc["net_total"] = extracted_data.get("subtotal")
+        
+        if extracted_data.get("total_amount"):
+            invoice_doc["grand_total"] = extracted_data.get("total_amount")
+            invoice_doc["rounded_total"] = extracted_data.get("total_amount")
+                
+        erpnext_docs.append(invoice_doc)
+        
+        return {
+            "success": True,
+            "erpnext_docs": erpnext_docs
+        }

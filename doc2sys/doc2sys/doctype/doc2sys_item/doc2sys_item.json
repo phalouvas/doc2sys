@@ -84,7 +84,6 @@
   {
    "fieldname": "extracted_data_tab",
    "fieldtype": "Tab Break",
-   "hidden": 1,
    "label": "Extracted Data"
   },
   {
@@ -141,7 +140,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-27 11:15:51.047592",
+ "modified": "2025-03-28 07:11:23.558417",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",

@@ -1,7 +1,7 @@
 import frappe
 import json
 import requests
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 def execute_webhook(url: str, data: Dict[str, Any], 
                    headers: Optional[Dict[str, str]] = None, 
@@ -125,125 +125,104 @@ def find_user_integration(user, integration_type=None, integration_reference=Non
     # No matching integration found
     return None, user_settings.name
 
-@frappe.whitelist()
-def process_integrations(doc):
-    """Process all enabled integrations for the document"""
+# UPDATED: Refactored to avoid circular imports
+def process_integrations(doc2sys_item: Dict[str, Any]) -> Dict[str, Any]:
+    """Process all enabled integrations for a Doc2Sys Item"""
+    # Import here to avoid circular imports
+    from doc2sys.integrations.registry import get_integration_class
     
-    from doc2sys.integrations.registry import IntegrationRegistry
+    if not doc2sys_item:
+        return {"success": False, "message": "No document provided"}
+    
+    # Get the document name for reference
+    doc_name = doc2sys_item.get("name")
+    user = doc2sys_item.get("user")
+    
+    # Get all enabled integrations for the user
+    enabled_integrations = get_enabled_integrations(user)
+    
+    if not enabled_integrations:
+        return {
+            "success": False, 
+            "message": "No enabled integrations found for this user"
+        }
+    
+    # Initialize results
+    results = {
+        "success": True,
+        "message": "Integration processing completed",
+        "integration_results": []
+    }
+    
+    # Flag to track if all integrations succeeded
+    all_succeeded = True
+    
+    # Process each integration
+    for integration_settings in enabled_integrations:
+        integration_name = integration_settings.get("integration_type")
+        
+        try:
+            # Get the integration class
+            integration_class = get_integration_class(integration_name)
+            if not integration_class:
+                error_msg = f"Integration type '{integration_name}' not found"
+                frappe.log_error(error_msg, f"[{integration_name}] Integration not found")
+                results["integration_results"].append({
+                    "integration": integration_name,
+                    "success": False,
+                    "message": error_msg
+                })
+                all_succeeded = False
+                continue
+            
+            # Initialize the integration with user settings
+            integration = integration_class(integration_settings)
+            
+            # Sync the document using the integration
+            sync_result = integration.sync_document(doc2sys_item)
+            
+            # Add the result to our results list
+            results["integration_results"].append({
+                "integration": integration_name,
+                "success": sync_result.get("success", False),
+                "message": sync_result.get("message", ""),
+                "data": sync_result.get("data", {})
+            })
+            
+            # Update the overall success flag
+            if not sync_result.get("success", False):
+                all_succeeded = False
+                
+        except Exception as e:
+            error_msg = f"Error processing integration: {str(e)}"
+            frappe.log_error(
+                error_msg, 
+                f"[{integration_name}] Error processing integration | User: {user} | Ref: {doc_name}"
+            )
+            
+            results["integration_results"].append({
+                "integration": integration_name,
+                "success": False,
+                "message": error_msg
+            })
+            
+            all_succeeded = False
+    
+    # Update the overall success flag
+    results["success"] = all_succeeded
+    
+    return results
 
-    if isinstance(doc, str):
-        doc = frappe.get_doc(frappe.parse_json(doc))
-        
-    if doc.doctype != "Doc2Sys Item" or not doc.extracted_data:
-        return
-        
-    # Discover available integrations
-    IntegrationRegistry.discover_integrations()
+def get_enabled_integrations(user: str) -> List[Dict[str, Any]]:
+    """Get all enabled integrations for a user"""
+    if not user:
+        return []
     
-    # Get the document's user - only process integrations for this user
-    document_user = doc.user
-    
-    if not document_user:
-        frappe.log_error(
-            f"Doc2Sys Item {doc.name} has no user assigned, cannot process integrations",
-            "Doc2Sys Integration Error"
-        )
-        return
-    
-    # Get settings for the document's user only
-    user_settings_list = frappe.get_all(
+    # Get all integration settings for the user
+    user_settings = frappe.get_all(
         "Doc2Sys User Settings",
-        filters={"user": document_user},
-        fields=["name", "user", "credits"]
+        filters={"user": user, "integration_enabled": 1},
+        fields=["*"]
     )
     
-    if not user_settings_list:
-        frappe.log_error(
-            f"No settings found for user {document_user}, cannot process integrations for document {doc.name}",
-            "Doc2Sys Integration Error"
-        )
-        return
-    
-    # There should only be one settings document per user
-    settings_doc = frappe.get_doc("Doc2Sys User Settings", user_settings_list[0].name)
-
-    if settings_doc.credits < doc.cost:
-        frappe.logger().info(
-            f"Skipping integrations for document {doc.name} due to insufficient credits ({settings_doc.credits} available, {doc.cost} required)"
-        )
-        raise frappe.ValidationError("Insufficient credits to process integrations")
-        return
-    
-    # Check if there is an integration configured
-    has_integration = settings_doc.get("integration_type") is not None
-    is_enabled = settings_doc.get("integration_enabled", 0) == 1
-    
-    frappe.logger().debug(
-        f"Processing integrations for document {doc.name}: Integration is {'enabled' if is_enabled else 'disabled'}"
-    )
-    
-    # Skip if no integration or not enabled
-    if not has_integration or not is_enabled:
-        frappe.logger().debug(f"No enabled integration found for user {document_user}")
-        return
-    
-    # Log which integration we're processing
-    frappe.logger().info(f"Processing integration {settings_doc.integration_type} for document {doc.name}")
-    
-    try:
-        # Create integration instance with user context
-        integration_settings = settings_doc.as_dict()
-        
-        integration_instance = IntegrationRegistry.create_instance(
-            settings_doc.integration_type,
-            settings=integration_settings
-        )
-        
-        # Sync the document
-        result = integration_instance.sync_document(doc.as_dict())
-        
-        if not result.get("success"):
-            create_integration_log(
-                settings_doc.integration_type,
-                "error",
-                f"Integration failed: {result.get('message')}",
-                data={
-                    "doc_name": doc.name,
-                    "error": result.get('message')
-                },
-                user=settings_doc.user,
-                integration_reference=settings_doc.name,
-                document=doc.name
-            )
-        else:
-            # Update the document status
-            doc.db_set('status', "Completed", update_modified=False)
-            
-            # Deduct credits after successful integration
-            # Get current credits and calculate new value
-            current_credits = settings_doc.credits
-            new_credits = current_credits - doc.cost
-            
-            # Update the credits in the database
-            frappe.db.set_value("Doc2Sys User Settings", settings_doc.name, "credits", new_credits)
-            frappe.db.commit()  # Ensure the change is committed
-            
-            # Log the credit deduction
-            frappe.logger().info(
-                f"Deducted {doc.cost} credits from user {settings_doc.user}. " +
-                f"New balance: {new_credits}"
-            )
-            
-    except Exception as e:
-        create_integration_log(
-            settings_doc.integration_type,
-            "error",
-            f"Error processing integration: {str(e)}",
-            data={
-                "doc_name": doc.name,
-                "error": str(e)
-            },
-            user=settings_doc.user,
-            integration_reference=settings_doc.name,
-            document=doc.name
-        )
+    return user_settings

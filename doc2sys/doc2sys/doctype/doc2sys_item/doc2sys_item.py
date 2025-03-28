@@ -46,27 +46,31 @@ class Doc2SysItem(Document):
         try:
             file_path = self._get_file_path()
             if not file_path:
-                return False
+                frappe.throw(_("Could not find the file path"))
             
             # Get processor and upload file only if needed
             processor = LLMProcessor(doc2sys_item=self)
             if not processor:
-                frappe.msgprint("Failed to initialize document processor")
+                frappe.throw(_("Could not initialize document processor"))
+            
+            # Extract data using the appropriate document type
+            # Use the document_type field from the DocType
+            document_type = self.document_type or "prebuilt-invoice"  # Default to invoice if not specified
+            extracted_data = processor.extract_data(file_path=file_path, document_type=document_type)
+            
+            if extracted_data:
+                # Update status to indicate extraction is complete
+                self.db_set('status', 'Processed', update_modified=True)
+                frappe.db.commit()
+                return True
+            else:
+                frappe.msgprint(_("No data could be extracted from the document"))
                 return False
-            
-            # Extract data using the classified document type
-            processor.extract_data(
-                file_path=file_path, 
-                document_type=self.document_type
-            )
-
-            self.update_status()
-            
-            return True
         
         except Exception as e:
-            frappe.log_error(f"Data extraction error: {str(e)}")
-            frappe.msgprint(f"An error occurred during data extraction: {str(e)}")
+            error_message = f"Error extracting data: {str(e)}"
+            frappe.log_error(error_message, _("Document Extraction Error"))
+            frappe.msgprint(_(error_message))
             return False
 
     def update_status(self):
@@ -76,7 +80,7 @@ class Doc2SysItem(Document):
         if self.single_file_name:
             status = "Uploaded"
 
-        if self.extracted_data:
+        if self.azure_raw_response:
             status = "Processed"
 
         if status and self.status != "Completed":
@@ -84,35 +88,52 @@ class Doc2SysItem(Document):
 
     @frappe.whitelist()
     def trigger_integrations(self):
-        
+        """Trigger all configured integrations for this document"""
         try:
-            process_integrations(self)
-            self.update_status()
-            return True
+            # Make sure we have extracted data
+            if not self.azure_raw_response:
+                frappe.msgprint(_("Please extract data from the document first"))
+                return False
+            
+            # Process integrations
+            result = process_integrations(self.as_dict())
+            
+            # Update status based on integration results
+            if result.get("success"):
+                self.db_set('status', 'Completed', update_modified=True)
+                frappe.db.commit()
+                return result
+            else:
+                frappe.msgprint(_(f"Integration error: {result.get('message')}"))
+                return result
+                
         except Exception as e:
-            frappe.log_error(f"Integration processing error: {str(e)}")
-            frappe.msgprint(f"An error occurred during integration processing: {str(e)}")
-            return False
-
+            error_message = f"Error processing integrations: {str(e)}"
+            frappe.log_error(error_message, _("Integration Error"))
+            frappe.msgprint(_(error_message))
+            return {"success": False, "message": error_message}
 
     @frappe.whitelist()
     def process_all(self):
+        """Extract data and then trigger integrations in one go"""
         if not self.single_file:
-            frappe.msgprint("No document is attached to process")
+            frappe.msgprint(_("No document is attached to process"))
             return False
             
         try:
-            success = self.extract_data()
-            if success:
-                process_integrations(self)
-                self.update_status()
-                return True
-            else:
+            # First extract data
+            extraction_success = self.extract_data()
+            if not extraction_success:
                 return False
                 
+            # Then trigger integrations
+            integration_result = self.trigger_integrations()
+            return integration_result
+                
         except Exception as e:
-            frappe.log_error(f"Process all error: {str(e)}")
-            frappe.msgprint(f"An error occurred during processing: {str(e)}")
+            error_message = f"Error in processing workflow: {str(e)}"
+            frappe.log_error(error_message, _("Document Processing Error"))
+            frappe.msgprint(_(error_message))
             return False
 
 @frappe.whitelist()
