@@ -276,7 +276,7 @@ def upload_and_create_item():
             
         # Update the Doc2Sys Item with the file URL
         if ret.get("file_url"):
-            doc.db_set("single_file", ret["file_url"])
+            doc.db_set("single_file", ret.get("file_url"))
             frappe.db.commit()
             
             # Process the document now that we have the file
