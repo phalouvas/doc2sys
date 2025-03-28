@@ -177,3 +177,64 @@ def create_item_from_file(file_doc_name):
     doc.insert()
     
     return doc.name
+
+@frappe.whitelist()
+def upload_and_create_item():
+    """
+    Upload a file and create a Doc2Sys Item in one step.
+    
+    This endpoint accepts multipart/form-data with a file field.
+    Returns the newly created Doc2Sys Item document name.
+    """
+    try:
+        # Get the uploaded file from request
+        if not frappe.request.files or 'file' not in frappe.request.files:
+            frappe.throw(_("No file attached"))
+
+        # Create Doc2Sys Item with this file
+        doc = frappe.new_doc("Doc2Sys Item")
+        doc.user = frappe.session.user
+        doc.insert()
+        frappe.db.commit()
+        doc.reload()
+        
+        # Save original form values before they get consumed by upload_file
+        is_private = frappe.form_dict.get('is_private')
+        
+        # Ensure proper type conversion for is_private
+        if is_private is not None:
+            if is_private in ("1", "true", "True", "yes", "Yes"):
+                frappe.form_dict["is_private"] = 1
+            else:
+                frappe.form_dict["is_private"] = 0
+        
+        # First, upload the file using Frappe's handler
+        from frappe.handler import upload_file
+        frappe.form_dict["doctype"] = "Doc2Sys Item"
+        frappe.form_dict["docname"] = doc.name
+        frappe.form_dict["file_name"] = frappe.request.files['file'].filename
+        frappe.form_dict["folder"] = f"Home/Doc2Sys/{doc.user}"
+        ret = upload_file()
+        
+        if not ret:
+            frappe.throw(_("Failed to upload file"))
+            
+        # Update Doc2Sys Item with this file and extract data
+        doc.single_file = ret.get("file_url")
+        doc.process_all()
+        
+        # Return the document info
+        return {
+            "success": True,
+            "message": "Document created successfully",
+            "doc2sys_item": doc.name,
+            "file_url": doc.single_file,
+            "extracted_data": doc.extracted_data,
+        }
+        
+    except Exception as e:
+        frappe.log_error(f"Failed to create Doc2Sys Item from file upload: {str(e)}")
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}"
+        }
