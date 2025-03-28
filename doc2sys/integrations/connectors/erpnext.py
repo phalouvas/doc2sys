@@ -193,9 +193,15 @@ class ERPNext(BaseIntegration):
                         else:
                             error_message = f"Failed to create {doctype}: {error_text}"
                             self.log_activity("error", error_message)
-                            # Continue with other documents instead of failing completely
+                            # For Purchase Invoice, throw exception instead of just logging
+                            if doctype == "Purchase Invoice":
+                                raise Exception(error_message)
+                            # Continue with other documents
                 except Exception as e:
                     self.log_activity("error", f"Error creating {doctype}: {str(e)}")
+                    # For Purchase Invoice, re-raise the exception
+                    if doctype == "Purchase Invoice":
+                        raise
             
             return {"success": True, "data": created_documents}
             
