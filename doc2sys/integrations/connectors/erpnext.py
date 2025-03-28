@@ -154,9 +154,8 @@ class ERPNext(BaseIntegration):
                         # Ensure all required fields exist for each invoice item
                         if "rate" not in invoice_item:
                             invoice_item["rate"] = 0
-                        if "qty" not in invoice_item or invoice_item.get("qty") == None:
+                        if "qty" not in invoice_item:
                             invoice_item["qty"] = 1
-                        invoice_item["rate"] = invoice_item['amount'] / invoice_item["qty"]
                         # Add doctype to each item
                         invoice_item["doctype"] = "Purchase Invoice Item"
                 

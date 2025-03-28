@@ -313,14 +313,32 @@ class AzureDocumentIntelligenceProcessor:
             "supplier_email": self._get_field_value(fields, "VendorEmail"),
             "supplier_phone": self._get_field_value(fields, "VendorPhone"),
             
-            # Customer information
-            "customer_name": self._get_field_value(fields, "CustomerName"),
-            "customer_address": self._get_field_value(fields, "CustomerAddress"),
-            "customer_id": self._get_field_value(fields, "CustomerId"),
-            
             # Line items in a generic format
             "items": []
         }
+        
+        # Validate that total_amount = subtotal + tax_amount
+        total = extracted_data["total_amount"] 
+        subtotal = extracted_data["subtotal"]
+        tax = extracted_data["tax_amount"]
+        
+        # Check if we have meaningful values for validation
+        if total is not None and subtotal is not None and tax is not None:
+            # Validate that total = subtotal + tax (allowing for small floating point differences)
+            if abs((subtotal + tax) - total) > 0.01:
+                logger.warning(f"Invoice total validation failed: {subtotal} + {tax} != {total}")
+                # Recalculate to ensure consistency
+                extracted_data["total_amount"] = subtotal + tax
+        # Handle cases where one value is missing
+        elif total is not None and subtotal is not None:
+            # Calculate tax from total and subtotal
+            extracted_data["tax_amount"] = total - subtotal
+        elif total is not None and tax is not None:
+            # Calculate subtotal from total and tax
+            extracted_data["subtotal"] = total - tax
+        elif subtotal is not None and tax is not None:
+            # Calculate total from subtotal and tax
+            extracted_data["total_amount"] = subtotal + tax
         
         # Extract line items from Azure response
         items = self._get_field_value(fields, "Items") or []
@@ -336,6 +354,27 @@ class AzureDocumentIntelligenceProcessor:
                     "amount": self._get_nested_value(value_obj, "Amount", "valueCurrency", "amount"),
                     "item_code": self._get_nested_value(value_obj, "ProductCode", "valueString")
                 }
+                
+                # Set quantity to 1 if missing
+                if item_data["quantity"] is None:
+                    item_data["quantity"] = 1
+                    logger.info(f"Setting missing quantity to 1 for item: {item_data['description']}")
+                
+                # Validate that amount = quantity * unit_price
+                if item_data["quantity"] and item_data["unit_price"] and item_data["amount"]:
+                    expected_amount = item_data["quantity"] * item_data["unit_price"]
+                    if abs(expected_amount - item_data["amount"]) > 0.01:
+                        logger.warning(f"Item amount validation failed: {item_data['quantity']} * {item_data['unit_price']} != {item_data['amount']}")
+                        # Recalculate to ensure consistency
+                        item_data["amount"] = expected_amount
+                # Calculate missing values where possible
+                elif item_data["quantity"] and item_data["unit_price"]:
+                    item_data["amount"] = item_data["quantity"] * item_data["unit_price"]
+                elif item_data["quantity"] and item_data["amount"]:
+                    item_data["unit_price"] = item_data["amount"] / item_data["quantity"]
+                elif item_data["unit_price"] and item_data["amount"]:
+                    # Since we default quantity to 1, this case should rarely occur
+                    item_data["quantity"] = item_data["amount"] / item_data["unit_price"]
                 
                 extracted_data["items"].append(item_data)
         
