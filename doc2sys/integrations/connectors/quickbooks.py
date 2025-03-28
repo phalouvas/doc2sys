@@ -155,10 +155,25 @@ class QuickBooks(BaseIntegration):
     
     def sync_document(self, doc2sys_item: Dict[str, Any]) -> Dict[str, Any]:
         """Sync a doc2sys_item to QuickBooks"""
-        if not self.is_authenticated and not self.authenticate():
+        # First authenticate - this ensures we have valid tokens
+        if not self.authenticate():
             return {"success": False, "message": "Authentication failed"}
-            
+        
         try:
+            # Get fresh token after authentication
+            access_token = self.settings.get("access_token")
+            realm_id = self.settings.get("realm_id")
+            
+            # Debug log to check token
+            self.log_activity("debug", "Using access token and realm ID", {
+                "token_length": len(access_token) if access_token else 0,
+                "realm_id": realm_id
+            })
+            
+            # Verify we have the necessary credentials
+            if not access_token or not realm_id:
+                return {"success": False, "message": "Missing authentication credentials"}
+            
             # Track the current document
             self.current_document = doc2sys_item.get("name")
             
@@ -180,8 +195,6 @@ class QuickBooks(BaseIntegration):
                 return qb_data
                 
             # Get API credentials
-            access_token = self.settings.get("access_token")
-            realm_id = self.settings.get("realm_id")
             is_sandbox = self.settings.get("quickbooks_sandbox")
             
             # Determine base URL based on environment
@@ -214,6 +227,29 @@ class QuickBooks(BaseIntegration):
                 headers=headers,
                 json=qb_object
             )
+            
+            # If unauthorized, try refreshing token and retrying once
+            if response.status_code == 401:
+                self.log_activity("warning", "Token expired during request, refreshing")
+                
+                # Explicitly clear token to force refresh
+                frappe.db.set_value("Doc2Sys User Settings", self.settings.get("name"), {"access_token": ""})
+                frappe.db.commit()
+                
+                # Authenticate again to get fresh token
+                if not self.authenticate():
+                    return {"success": False, "message": "Failed to refresh authentication"}
+                
+                # Get fresh token after re-authentication
+                fresh_token = self.settings.get("access_token")
+                headers["Authorization"] = f"Bearer {fresh_token}"
+                
+                # Retry request with new token
+                response = requests.post(
+                    f"{base_url}/{realm_id}/{endpoint}",
+                    headers=headers,
+                    json=qb_object
+                )
             
             if response.status_code in (200, 201):
                 result = response.json()
@@ -248,19 +284,38 @@ class QuickBooks(BaseIntegration):
                                         document_type: str) -> Dict[str, Any]:
         """Transform generic extracted data to QuickBooks API format"""
         try:
-            # Handle different document types
-            if document_type == "invoice" or extracted_data.get("document_type") == "Invoice":
-                return self._transform_invoice(extracted_data)
-            elif document_type in ["bill", "purchase invoice"] or extracted_data.get("document_type") == "Invoice":
+            # Smart detection of document type based on available fields
+            has_supplier = bool(extracted_data.get("supplier_name"))
+            has_customer = bool(extracted_data.get("customer_name") or extracted_data.get("customer_id"))
+            
+            # If it has supplier info but no customer info, it's likely a bill
+            if has_supplier and not has_customer:
+                self.log_activity("info", "Document detected as a bill based on content", {
+                    "supplier": extracted_data.get("supplier_name")
+                })
                 return self._transform_bill(extracted_data)
-            elif document_type == "receipt" or extracted_data.get("document_type") == "Receipt":
-                # Receipts are often processed as bills in accounting systems
+                
+            # If it has customer info but no supplier info, it's likely an invoice
+            elif has_customer and not has_supplier:
+                self.log_activity("info", "Document detected as an invoice based on content", {
+                    "customer": extracted_data.get("customer_name")
+                })
+                return self._transform_invoice(extracted_data)
+                
+            # Honor explicit document_type if available
+            elif document_type == "invoice":
+                return self._transform_invoice(extracted_data)
+            elif document_type in ["bill", "purchase invoice"]:
+                return self._transform_bill(extracted_data)
+            elif document_type == "receipt":
                 return self._transform_receipt_to_bill(extracted_data)
             else:
-                return {
-                    "success": False,
-                    "message": f"Unsupported document type for QuickBooks: {document_type}"
-                }
+                # Default to bill if document has supplier info
+                if has_supplier:
+                    return self._transform_bill(extracted_data)
+                # Default to invoice if no supplier but we need to add a default customer
+                else:
+                    return self._transform_invoice_with_default_customer(extracted_data)
         except Exception as e:
             self.log_activity("error", f"Error transforming data for QuickBooks: {str(e)}")
             return {"success": False, "message": f"Error transforming data: {str(e)}"}
