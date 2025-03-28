@@ -306,42 +306,61 @@ class AzureDocumentIntelligenceProcessor:
             "total_amount": self._get_field_value(fields, "InvoiceTotal"),
             "subtotal": self._get_field_value(fields, "SubTotal"),
             "tax_amount": self._get_field_value(fields, "TotalTax"),
+            "currency": self._get_nested_value(fields, "InvoiceTotal", "valueCurrency", "currencySymbol") or 
+                       self._get_nested_value(fields, "SubTotal", "valueCurrency", "currencySymbol"),
             
             # Vendor/supplier information
             "supplier_name": self._get_field_value(fields, "VendorName"),
             "supplier_address": self._get_field_value(fields, "VendorAddress"),
             "supplier_email": self._get_field_value(fields, "VendorEmail"),
             "supplier_phone": self._get_field_value(fields, "VendorPhone"),
+            "supplier_tax_id": self._get_field_value(fields, "VendorTaxId"),
+            
+            # Customer information (if available)
+            "customer_name": self._get_field_value(fields, "CustomerName"),
+            "customer_address": self._get_field_value(fields, "CustomerAddress"),
+            "customer_id": self._get_field_value(fields, "CustomerId"),
+            
+            # Additional references
+            "purchase_order": self._get_field_value(fields, "PurchaseOrder"),
+            "payment_terms": self._get_field_value(fields, "PaymentTerms"),
+            
+            # Discount information
+            "discount_amount": self._get_field_value(fields, "DiscountAmount"),
             
             # Line items in a generic format
             "items": []
         }
         
-        # Validate that total_amount = subtotal + tax_amount
+        # Validate and reconcile monetary values
         total = extracted_data["total_amount"] 
         subtotal = extracted_data["subtotal"]
         tax = extracted_data["tax_amount"]
+        discount = extracted_data["discount_amount"] or 0
         
         # Check if we have meaningful values for validation
         if total is not None and subtotal is not None and tax is not None:
-            # Validate that total = subtotal + tax (allowing for small floating point differences)
-            if abs((subtotal + tax) - total) > 0.01:
-                logger.warning(f"Invoice total validation failed: {subtotal} + {tax} != {total}")
+            # With discount: total = subtotal - discount + tax
+            expected_total = subtotal - discount + tax
+            if abs(expected_total - total) > 0.01:
+                logger.warning(f"Invoice total validation failed: {subtotal} - {discount} + {tax} != {total}")
                 # Recalculate to ensure consistency
-                extracted_data["total_amount"] = subtotal + tax
+                extracted_data["total_amount"] = expected_total
         # Handle cases where one value is missing
         elif total is not None and subtotal is not None:
-            # Calculate tax from total and subtotal
-            extracted_data["tax_amount"] = total - subtotal
+            # Calculate tax from total, subtotal and discount
+            extracted_data["tax_amount"] = total - subtotal + discount
         elif total is not None and tax is not None:
-            # Calculate subtotal from total and tax
-            extracted_data["subtotal"] = total - tax
+            # Calculate subtotal from total, tax and discount
+            extracted_data["subtotal"] = total - tax + discount
         elif subtotal is not None and tax is not None:
-            # Calculate total from subtotal and tax
-            extracted_data["total_amount"] = subtotal + tax
+            # Calculate total from subtotal, tax and discount
+            extracted_data["total_amount"] = subtotal - discount + tax
         
         # Extract line items from Azure response
         items = self._get_field_value(fields, "Items") or []
+        items_total = 0
+        
         for item in items:
             if 'valueObject' in item:
                 value_obj = item['valueObject']
@@ -353,9 +372,12 @@ class AzureDocumentIntelligenceProcessor:
                     "unit_price": self._get_nested_value(value_obj, "UnitPrice", "valueCurrency", "amount"),
                     "amount": self._get_nested_value(value_obj, "Amount", "valueCurrency", "amount"),
                     "tax": self._get_nested_value(value_obj, "Tax", "valueCurrency", "amount"),
-                    "item_code": self._get_nested_value(value_obj, "ProductCode", "valueString")
+                    "item_code": self._get_nested_value(value_obj, "ProductCode", "valueString"),
+                    "discount": self._get_nested_value(value_obj, "Discount", "valueCurrency", "amount") or 0,
+                    "unit": self._get_nested_value(value_obj, "Unit", "valueString"),
+                    "date": self._get_nested_value(value_obj, "Date", "valueDate")
                 }
-
+    
                 # Set item_code to a default value if missing
                 if item_data["item_code"] is None:
                     item_data["item_code"] = self._create_item_code_from_description(item_data["description"])
@@ -365,23 +387,54 @@ class AzureDocumentIntelligenceProcessor:
                     item_data["quantity"] = 1
                     logger.info(f"Setting missing quantity to 1 for item: {item_data['description']}")
                 
-                # Validate that amount = quantity * unit_price
-                if item_data["quantity"] and item_data["unit_price"] and item_data["amount"]:
-                    expected_amount = item_data["quantity"] * item_data["unit_price"]
-                    if abs(expected_amount - item_data["amount"]) > 0.01:
-                        logger.warning(f"Item amount validation failed: {item_data['quantity']} * {item_data['unit_price']} != {item_data['amount']}")
+                # Handle item-level discounts if present
+                item_discount = item_data["discount"]
+                
+                # Validate that amount = (quantity * unit_price) - discount
+                if item_data["quantity"] and item_data["unit_price"]:
+                    expected_amount = (item_data["quantity"] * item_data["unit_price"]) - item_discount
+                    
+                    if item_data["amount"] and abs(expected_amount - item_data["amount"]) > 0.01:
+                        logger.warning(f"Item amount validation failed: ({item_data['quantity']} * {item_data['unit_price']}) - {item_discount} != {item_data['amount']}")
                         # Recalculate to ensure consistency
                         item_data["amount"] = expected_amount
+                    elif not item_data["amount"]:
+                        item_data["amount"] = expected_amount
+                
                 # Calculate missing values where possible
-                elif item_data["quantity"] and item_data["unit_price"]:
-                    item_data["amount"] = item_data["quantity"] * item_data["unit_price"]
-                elif item_data["quantity"] and item_data["amount"]:
-                    item_data["unit_price"] = item_data["amount"] / item_data["quantity"]
-                elif item_data["unit_price"] and item_data["amount"]:
+                elif item_data["quantity"] and item_data["amount"] is not None:
+                    # Account for discount when calculating unit price
+                    item_data["unit_price"] = (item_data["amount"] + item_discount) / item_data["quantity"]
+                elif item_data["unit_price"] and item_data["amount"] is not None:
                     # Since we default quantity to 1, this case should rarely occur
-                    item_data["quantity"] = item_data["amount"] / item_data["unit_price"]
+                    item_data["quantity"] = (item_data["amount"] + item_discount) / item_data["unit_price"]
+                
+                # Add to running total
+                if item_data["amount"] is not None:
+                    items_total += item_data["amount"]
                 
                 extracted_data["items"].append(item_data)
+        
+        # Validate that sum of line items equals subtotal 
+        if items_total > 0 and subtotal is not None and abs(items_total - subtotal) > 0.01:
+            logger.warning(f"Sum of line items ({items_total}) doesn't match subtotal ({subtotal})")
+            
+            # If the difference is significant, try to reconcile
+            if abs(items_total - subtotal) / max(items_total, subtotal) > 0.05:  # More than 5% difference
+                # Check if items_total + discount = subtotal (discount already applied to line items)
+                if abs((items_total + discount) - subtotal) < 0.01:
+                    logger.info("Discount appears to be already applied to line items")
+                else:
+                    # Scale all item amounts proportionally 
+                    scale_factor = subtotal / items_total
+                    logger.info(f"Scaling line items by factor {scale_factor} to match subtotal")
+                    
+                    for item in extracted_data["items"]:
+                        if item["amount"] is not None:
+                            item["amount"] = round(item["amount"] * scale_factor, 2)
+                            if item["quantity"] and item["quantity"] > 0:
+                                # Recalculate unit price
+                                item["unit_price"] = item["amount"] / item["quantity"]
         
         return extracted_data
 
