@@ -197,6 +197,7 @@ class AzureDocumentIntelligenceProcessor:
                         extracted_data = self._process_azure_extraction_results(result_dict)
                         extracted_data = frappe.as_json(extracted_data, 1, None, False)
                         doc2sys_item_doc.db_set('extracted_data', extracted_data, update_modified=False)
+                        frappe.db.commit()
                         
                         return extracted_data
                 except Exception as e:
@@ -254,6 +255,7 @@ class AzureDocumentIntelligenceProcessor:
                     doc2sys_item_doc.db_set('extracted_text', extracted_text, update_modified=False)
                     doc2sys_item_doc.db_set('cost', cost, update_modified=False)
                     doc2sys_item_doc.db_set('classification_confidence', confidence, update_modified=False)
+                    frappe.db.commit()
                 except Exception as e:
                     logger.warning(f"Failed to cache Azure response: {str(e)}")
             
