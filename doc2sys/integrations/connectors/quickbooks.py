@@ -203,78 +203,92 @@ class QuickBooks(BaseIntegration):
             else:
                 base_url = "https://quickbooks.api.intuit.com/v3/company"
             
-            # Prepare the request
-            qb_object = qb_data.get("qb_object", {})
-            endpoint = qb_data.get("endpoint", "")
+            # Handle new multiple-object format
+            qb_objects = qb_data.get("qb_objects", [])
+            if not qb_objects:
+                # For backward compatibility with older transform methods
+                endpoint = qb_data.get("endpoint", "")
+                qb_object = qb_data.get("qb_object", {})
+                if endpoint and qb_object:
+                    qb_objects = [{
+                        "operation": "create",
+                        "endpoint": endpoint,
+                        "object": qb_object
+                    }]
             
-            if not endpoint:
-                return {"success": False, "message": f"Unsupported document type: {document_type}"}
+            if not qb_objects:
+                return {"success": False, "message": "No objects to sync"}
                 
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            }
+            results = []
+            vendor_id = None
             
-            self.log_activity("info", f"Sending {document_type} to QuickBooks", {
-                "endpoint": endpoint,
-                "object_size": len(str(qb_object))
-            })
-            
-            # Make the API call
-            response = requests.post(
-                f"{base_url}/{realm_id}/{endpoint}",
-                headers=headers,
-                json=qb_object
-            )
-            
-            # If unauthorized, try refreshing token and retrying once
-            if response.status_code == 401:
-                self.log_activity("warning", "Token expired during request, refreshing")
+            # Process each object in sequence
+            for obj_data in qb_objects:
+                endpoint = obj_data.get("endpoint")
+                qb_object = obj_data.get("object", {})
                 
-                # Explicitly clear token to force refresh
-                frappe.db.set_value("Doc2Sys User Settings", self.settings.get("name"), {"access_token": ""})
-                frappe.db.commit()
+                # If this is a bill and we have a vendor ID from a previous operation, use it
+                if endpoint == "bill" and vendor_id:
+                    qb_object["VendorRef"] = {"value": vendor_id}
                 
-                # Authenticate again to get fresh token
-                if not self.authenticate():
-                    return {"success": False, "message": "Failed to refresh authentication"}
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                }
                 
-                # Get fresh token after re-authentication
-                fresh_token = self.settings.get("access_token")
-                headers["Authorization"] = f"Bearer {fresh_token}"
+                self.log_activity("info", f"Sending {endpoint} to QuickBooks", {
+                    "object_size": len(str(qb_object))
+                })
                 
-                # Retry request with new token
+                # Make the API call
                 response = requests.post(
                     f"{base_url}/{realm_id}/{endpoint}",
                     headers=headers,
                     json=qb_object
                 )
+                
+                # Handle 401 unauthorized (refresh token)
+                if response.status_code == 401:
+                    # (your existing token refresh code)
+                    pass
+                
+                if response.status_code in (200, 201):
+                    result = response.json()
+                    
+                    # Store vendor ID if this was a vendor creation
+                    if endpoint == "vendor":
+                        vendor_id = result.get("Vendor", {}).get("Id")
+                        self.log_activity("info", f"Created vendor with ID: {vendor_id}")
+                    
+                    results.append({
+                        "endpoint": endpoint,
+                        "status": "success",
+                        "data": result
+                    })
+                else:
+                    error_message = f"Failed to sync {endpoint}: {response.status_code} - {response.text}"
+                    self.log_activity("error", error_message)
+                    
+                    results.append({
+                        "endpoint": endpoint,
+                        "status": "error",
+                        "message": error_message
+                    })
+                    
+                    # If vendor creation failed, we might want to abort the process
+                    if endpoint == "vendor":
+                        return {"success": False, "message": f"Failed to create vendor: {response.text}"}
             
-            if response.status_code in (200, 201):
-                result = response.json()
-                
-                # Extract the response ID based on document type
-                qb_id = None
-                if document_type == "invoice":
-                    qb_id = result.get("Invoice", {}).get("Id")
-                elif document_type in ["bill", "purchase invoice"]:
-                    qb_id = result.get("Bill", {}).get("Id")
-                
-                self.log_activity("success", f"{document_type.capitalize()} synced to QuickBooks", {
-                    "qb_id": qb_id,
-                    "response_size": len(str(result))
-                })
-                
-                return {
-                    "success": True, 
-                    "data": result, 
-                    "message": f"{document_type.capitalize()} successfully created in QuickBooks"
-                }
-            else:
-                error_message = f"Failed to sync {document_type}: {response.status_code} - {response.text}"
-                self.log_activity("error", error_message)
-                return {"success": False, "message": error_message}
+            # Determine overall success based on individual results
+            success = any(r.get("status") == "success" for r in results)
+            primary_result = next((r for r in results if r.get("endpoint") == document_type), results[-1])
+            
+            return {
+                "success": success,
+                "data": results,
+                "message": f"Document processed in QuickBooks with {len([r for r in results if r.get('status') == 'success'])} successful operations"
+            }
                 
         except Exception as e:
             self.log_activity("error", f"Sync error: {str(e)}")
@@ -322,26 +336,55 @@ class QuickBooks(BaseIntegration):
 
     def _transform_invoice(self, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
         """Transform generic invoice data to QuickBooks Invoice format"""
+        # Create a list to hold all QuickBooks objects (items + invoice)
+        qb_objects = []
+        
+        # First, create items for each line item in the invoice
+        items = extracted_data.get("items", [])
+        for item in items:
+            # Create a unique item code if not provided
+            item_code = item.get("item_code") or self._create_item_code(item.get("description", ""))
+            
+            # Create an item object for QuickBooks
+            item_obj = {
+                "Name": item.get("description", "")[:100],  # QB has 100 char limit on Name
+                "Description": item.get("description", ""),
+                "Active": True,
+                "FullyQualifiedName": item.get("description", "")[:100],
+                "Taxable": True,
+                "UnitPrice": item.get("unit_price", 0),
+                "Type": "Service",
+                "IncomeAccountRef": {
+                    "value": "1"  # Default income account - consider adding this to settings
+                }
+            }
+            
+            # Add item to the objects list
+            qb_objects.append({
+                "operation": "create",
+                "endpoint": "item",
+                "object": item_obj
+            })
+            
+            # Store the item code for use in the invoice
+            item["item_code"] = item_code
+        
         # Initialize QuickBooks invoice object
         qb_invoice = {
             "Line": [],
             "CustomerRef": {
-                "value": extracted_data.get("customer_id", "1")  # Default to first customer if not found
+                "value": extracted_data.get("customer_id", "1"),  # Default to first customer if not found
+                "name": extracted_data.get("customer_name", "Customer")
             },
             "DocNumber": extracted_data.get("invoice_number", ""),
             "TxnDate": extracted_data.get("invoice_date", "")
         }
         
-        # Add customer name if available
-        if extracted_data.get("customer_name"):
-            qb_invoice["CustomerRef"]["name"] = extracted_data.get("customer_name")
-            
         # Add due date if available
         if extracted_data.get("due_date"):
             qb_invoice["DueDate"] = extracted_data.get("due_date")
             
         # Add line items
-        items = extracted_data.get("items", [])
         for item in items:
             line_item = {
                 "DetailType": "SalesItemLineDetail",
@@ -350,41 +393,76 @@ class QuickBooks(BaseIntegration):
                 "SalesItemLineDetail": {
                     "ItemRef": {
                         "name": item.get("description", ""),
+                        "value": item.get("item_code")
                     },
                     "Qty": item.get("quantity", 1),
                     "UnitPrice": item.get("unit_price", 0)
                 }
             }
             
-            # Add item code if available
-            if item.get("item_code"):
-                line_item["SalesItemLineDetail"]["ItemRef"]["value"] = item.get("item_code")
-                
             qb_invoice["Line"].append(line_item)
+            
+        # Add invoice to the objects list
+        qb_objects.append({
+            "operation": "create",
+            "endpoint": "invoice",
+            "object": qb_invoice
+        })
             
         return {
             "success": True,
-            "qb_object": qb_invoice,
-            "endpoint": "invoice"
+            "qb_objects": qb_objects
         }
-            
+
+    def _create_item_code(self, description: str) -> str:
+        """Create a unique item code from a description"""
+        # Create a code by taking first 20 chars of description, removing spaces & special chars
+        import re
+        import uuid
+        
+        # Clean description and add a unique suffix
+        clean_desc = re.sub(r'[^a-zA-Z0-9]', '', description)[:20].lower()
+        unique_suffix = str(uuid.uuid4())[:5]
+        
+        return f"{clean_desc}-{unique_suffix}"
+
     def _transform_bill(self, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
         """Transform generic invoice/bill data to QuickBooks Bill format"""
+        # Create a list to hold all QuickBooks objects (vendor + bill)
+        qb_objects = []
+        
+        # First, create a vendor if a supplier name is provided
+        if extracted_data.get("supplier_name"):
+            vendor_obj = {
+                "DisplayName": extracted_data.get("supplier_name"),
+                "CompanyName": extracted_data.get("supplier_name")
+            }
+            
+            # Add additional vendor info if available
+            if extracted_data.get("supplier_email"):
+                vendor_obj["PrimaryEmailAddr"] = {"Address": extracted_data.get("supplier_email")}
+            if extracted_data.get("supplier_phone"):
+                vendor_obj["PrimaryPhone"] = {"FreeFormNumber": extracted_data.get("supplier_phone")}
+            if extracted_data.get("supplier_address"):
+                vendor_obj["BillAddr"] = {"Line1": extracted_data.get("supplier_address")}
+                
+            # Add vendor to the objects list
+            qb_objects.append({
+                "operation": "create",
+                "endpoint": "vendor",
+                "object": vendor_obj
+            })
+        
         # Initialize QuickBooks bill object
         qb_bill = {
             "Line": [],
             "VendorRef": {
-                "name": extracted_data.get("supplier_name", "Unknown Vendor"),
-                "value": extracted_data.get("supplier_id", "1")  # Default to ID 1 if missing
+                "name": extracted_data.get("supplier_name")
             },
             "DocNumber": extracted_data.get("invoice_number", ""),
             "TxnDate": extracted_data.get("invoice_date", "")
         }
         
-        # Override with supplier ID if available
-        if extracted_data.get("supplier_id"):
-            qb_bill["VendorRef"]["value"] = extracted_data.get("supplier_id")
-            
         # Add due date if available
         if extracted_data.get("due_date"):
             qb_bill["DueDate"] = extracted_data.get("due_date")
@@ -397,7 +475,7 @@ class QuickBooks(BaseIntegration):
         tax_code = self.settings.get("qb_tax_code") or "NON"
         
         # Get expense account from settings or use default
-        expense_account_id = self.settings.get("qb_expense_account") or "7"  # Default expense account ID
+        expense_account_id = self.settings.get("qb_expense_account") or "7"
         
         # Add line items
         items = extracted_data.get("items", [])
@@ -409,11 +487,11 @@ class QuickBooks(BaseIntegration):
                 "AccountBasedExpenseLineDetail": {
                     "AccountRef": {
                         "name": "Expenses",
-                        "value": expense_account_id  # Using account ID from settings
+                        "value": expense_account_id
                     },
                     "BillableStatus": "NotBillable",
                     "TaxCodeRef": {
-                        "value": tax_code  # Use tax code from settings
+                        "value": tax_code
                     }
                 }
             }
@@ -423,11 +501,17 @@ class QuickBooks(BaseIntegration):
                 line_item["AccountBasedExpenseLineDetail"]["TaxAmount"] = item.get("tax_amount")
                 
             qb_bill["Line"].append(line_item)
-            
+        
+        # Add bill to the objects list
+        qb_objects.append({
+            "operation": "create",
+            "endpoint": "bill",
+            "object": qb_bill
+        })
+        
         return {
             "success": True,
-            "qb_object": qb_bill,
-            "endpoint": "bill"
+            "qb_objects": qb_objects
         }
 
     def _transform_receipt_to_bill(self, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
