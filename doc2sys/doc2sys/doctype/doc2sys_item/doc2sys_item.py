@@ -9,13 +9,48 @@ from doc2sys.engine.llm_processor import LLMProcessor
 from doc2sys.engine.text_extractor import TextExtractor
 from doc2sys.integrations.utils import process_integrations
 from frappe.handler import upload_file
-from frappe.desk.form.utils import remove_attach  # Add this import
+from frappe.desk.form.utils import remove_attach
 
 class Doc2SysItem(Document):
     def validate(self):
+        # Check if this is a new document (being inserted)
+        # We validate credits for all new documents, regardless of file attachment
+        if self.is_new() and not self.flags.ignore_credit_validation:
+            # Validate user credits before allowing document processing
+            self.validate_user_credits()
+            
+        # Update file name and status if a file is attached
         if self.single_file:
             self.single_file_name = self.single_file.split("/")[-1]
             self.update_status()
+        
+    
+    def validate_user_credits(self):
+        """
+        Check if user has sufficient credits to process a document
+        Raises frappe.ValidationError if credits are insufficient
+        """
+        # Get the user if not already set
+        user = self.user or frappe.session.user
+        
+        # Get user settings
+        user_settings = frappe.get_all(
+            'Doc2Sys User Settings',
+            filters={'user': user},
+            fields=['name', 'credits']
+        )
+        
+        if not user_settings:
+            frappe.throw(_("No Doc2Sys User Settings found for user {}").format(user))
+        
+        # Check if credits are sufficient (greater than zero)
+        credits = user_settings[0].credits or 0
+        
+        if credits <= 0:
+            frappe.throw(_(
+                "Insufficient credits to process document. Current balance: {}. "
+                "Please add credits to continue."
+            ).format(credits))
 
     def after_insert(self):
         """Validate the document before saving"""

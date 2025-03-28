@@ -260,7 +260,7 @@ class AzureDocumentIntelligenceProcessor:
                     
                     # Deduct credits from user account based on processing cost
                     if cost > 0:
-                        deduct_user_credits(
+                        new_balance = deduct_user_credits(
                             user=self.user,
                             amount=cost,
                             doc_reference=f"Doc2Sys Item: {doc2sys_item_doc.name}"
