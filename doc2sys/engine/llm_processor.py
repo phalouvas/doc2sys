@@ -21,6 +21,7 @@ ACCEPTABLE_CONFIDENCE = 0.1
 
 from typing import Dict, Any, List, Optional  # Add this import line
 from frappe.model.document import Document  # Import Document from frappe
+from ..doc2sys.utils.payment_integration import deduct_user_credits  # Add this import
 
 class LLMProcessor:
     """Process documents using various LLM providers"""
@@ -256,8 +257,17 @@ class AzureDocumentIntelligenceProcessor:
                     doc2sys_item_doc.db_set('cost', cost, update_modified=False)
                     doc2sys_item_doc.db_set('classification_confidence', confidence, update_modified=False)
                     frappe.db.commit()
+                    
+                    # Deduct credits from user account based on processing cost
+                    if cost > 0:
+                        deduct_user_credits(
+                            user=self.user,
+                            amount=cost,
+                            doc_reference=f"Doc2Sys Item: {doc2sys_item_doc.name}"
+                        )
+                        
                 except Exception as e:
-                    logger.warning(f"Failed to cache Azure response: {str(e)}")
+                    logger.error(f"Failed to cache Azure response or update credits: {str(e)}")
             
             return extracted_data
                 
