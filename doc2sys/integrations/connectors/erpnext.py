@@ -118,7 +118,6 @@ class ERPNext(BaseIntegration):
                 "Supplier": 1,
                 "Item": 2,
                 "Purchase Invoice": 3,
-                # Add other doctypes as needed
             }
             
             # Sort items by doctype priority to ensure dependencies are created first
@@ -205,7 +204,7 @@ class ERPNext(BaseIntegration):
                                     document_type: str) -> Dict[str, Any]:
         """Transform generic extracted data to ERPNext-specific format"""
         try:
-            if document_type in ["invoice", "bill", "purchase invoice"]:
+            if document_type in ["prebuilt-invoice"]:
                 return self._transform_purchase_invoice(extracted_data)
             else:
                 return {
