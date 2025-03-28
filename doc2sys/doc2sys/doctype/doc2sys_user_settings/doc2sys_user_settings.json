@@ -169,8 +169,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Integration Type",
-   "options": "ERPNext",
-   "reqd": 1
+   "options": "\nERPNext"
   },
   {
    "fieldname": "section_credentials",
@@ -267,7 +266,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-28 10:38:19.148226",
+ "modified": "2025-03-28 16:40:50.226711",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",
