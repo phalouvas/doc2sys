@@ -352,6 +352,7 @@ class AzureDocumentIntelligenceProcessor:
                     "quantity": self._get_nested_value(value_obj, "Quantity", "valueNumber"),
                     "unit_price": self._get_nested_value(value_obj, "UnitPrice", "valueCurrency", "amount"),
                     "amount": self._get_nested_value(value_obj, "Amount", "valueCurrency", "amount"),
+                    "tax": self._get_nested_value(value_obj, "Tax", "valueCurrency", "amount"),
                     "item_code": self._get_nested_value(value_obj, "ProductCode", "valueString")
                 }
 
