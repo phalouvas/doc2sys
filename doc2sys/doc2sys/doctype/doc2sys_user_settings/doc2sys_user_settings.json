@@ -169,7 +169,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Integration Type",
-   "options": "ERPNext\nQuickBooks",
+   "options": "ERPNext",
    "reqd": 1
   },
   {
@@ -191,10 +191,10 @@
   },
   {
    "depends_on": "eval:doc.integration_type=='ERPNext'",
+   "description": "The account used for tax entries in ERPNext (e.g., 'VAT - ABC')",
    "fieldname": "vat_account",
    "fieldtype": "Data",
-   "label": "VAT Account Head",
-   "description": "The account used for tax entries in ERPNext (e.g., 'VAT - ABC')"
+   "label": "VAT Account Head"
   },
   {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
@@ -217,33 +217,33 @@
   },
   {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
+   "description": "The tax code to use for QuickBooks transactions (e.g., 'TAX' or leave empty for 'NON')",
    "fieldname": "qb_tax_code",
    "fieldtype": "Data",
-   "label": "QuickBooks Tax Code",
-   "description": "The tax code to use for QuickBooks transactions (e.g., 'TAX' or leave empty for 'NON')"
+   "label": "QuickBooks Tax Code"
   },
   {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
+   "description": "The ID of the expense account to use for QuickBooks transactions",
    "fieldname": "qb_expense_account",
    "fieldtype": "Data",
-   "label": "QuickBooks Expense Account ID",
-   "description": "The ID of the expense account to use for QuickBooks transactions"
+   "label": "QuickBooks Expense Account ID"
   },
   {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
    "fieldname": "access_token",
    "fieldtype": "Text",
+   "hidden": 1,
    "label": "Access Token",
-   "read_only": 1,
-   "hidden": 1
+   "read_only": 1
   },
   {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
    "fieldname": "refresh_token",
    "fieldtype": "Text",
+   "hidden": 1,
    "label": "Refresh Token",
-   "read_only": 1,
-   "hidden": 1
+   "read_only": 1
   },
   {
    "depends_on": "eval:doc.integration_type=='ERPNext'",
@@ -267,7 +267,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-27 11:00:54.210640",
+ "modified": "2025-03-28 10:38:19.148226",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",
