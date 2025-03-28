@@ -31,6 +31,7 @@
   "integration_enabled",
   "api_key",
   "api_secret",
+  "vat_account",
   "quickbooks_sandbox",
   "client_id",
   "client_secret",
@@ -185,6 +186,13 @@
    "fieldname": "api_secret",
    "fieldtype": "Password",
    "label": "API Secret"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='ERPNext'",
+   "fieldname": "vat_account",
+   "fieldtype": "Data",
+   "label": "VAT Account Head",
+   "description": "The account used for tax entries in ERPNext (e.g., 'VAT - ABC')"
   },
   {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
