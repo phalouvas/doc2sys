@@ -374,13 +374,14 @@ class QuickBooks(BaseIntegration):
         qb_bill = {
             "Line": [],
             "VendorRef": {
-                "name": extracted_data.get("supplier_name", "Unknown Vendor")
+                "name": extracted_data.get("supplier_name", "Unknown Vendor"),
+                "value": extracted_data.get("supplier_id", "1")  # Default to ID 1 if missing
             },
             "DocNumber": extracted_data.get("invoice_number", ""),
             "TxnDate": extracted_data.get("invoice_date", "")
         }
         
-        # Add supplier ID if available (vendor ID in QuickBooks terms)
+        # Override with supplier ID if available
         if extracted_data.get("supplier_id"):
             qb_bill["VendorRef"]["value"] = extracted_data.get("supplier_id")
             
@@ -395,6 +396,9 @@ class QuickBooks(BaseIntegration):
         # Get tax code from settings or use default
         tax_code = self.settings.get("qb_tax_code") or "NON"
         
+        # Get expense account from settings or use default
+        expense_account_id = self.settings.get("qb_expense_account") or "7"  # Default expense account ID
+        
         # Add line items
         items = extracted_data.get("items", [])
         for item in items:
@@ -404,7 +408,8 @@ class QuickBooks(BaseIntegration):
                 "Description": item.get("description", ""),
                 "AccountBasedExpenseLineDetail": {
                     "AccountRef": {
-                        "name": "Expenses"  # Default account
+                        "name": "Expenses",
+                        "value": expense_account_id  # Using account ID from settings
                     },
                     "BillableStatus": "NotBillable",
                     "TaxCodeRef": {
@@ -428,10 +433,12 @@ class QuickBooks(BaseIntegration):
     def _transform_receipt_to_bill(self, extracted_data: Dict[str, Any]) -> Dict[str, Any]:
         """Transform receipt data to QuickBooks Bill format"""
         # Initialize QuickBooks bill object from receipt data
+        merchant_name = extracted_data.get("merchant_name", "Unknown Vendor")
         qb_bill = {
             "Line": [],
             "VendorRef": {
-                "name": extracted_data.get("merchant_name", "Unknown Vendor")
+                "name": merchant_name,
+                "value": "1"  # Default vendor ID if not found
             },
             "DocNumber": extracted_data.get("receipt_number", ""),
             "TxnDate": extracted_data.get("transaction_date", "")
@@ -441,6 +448,12 @@ class QuickBooks(BaseIntegration):
         if extracted_data.get("total_amount"):
             qb_bill["TotalAmt"] = extracted_data.get("total_amount")
             
+        # Get tax code from settings or use default
+        tax_code = self.settings.get("qb_tax_code") or "NON"
+        
+        # Get expense account from settings or use default
+        expense_account_id = self.settings.get("qb_expense_account") or "7"  # Default expense account ID
+        
         # Add line items
         items = extracted_data.get("items", [])
         for item in items:
@@ -450,11 +463,12 @@ class QuickBooks(BaseIntegration):
                 "Description": item.get("description", ""),
                 "AccountBasedExpenseLineDetail": {
                     "AccountRef": {
-                        "name": "Expenses"  # Default account
+                        "name": "Expenses",
+                        "value": expense_account_id  # Using account ID from settings
                     },
                     "BillableStatus": "NotBillable",
                     "TaxCodeRef": {
-                        "value": "NON"  # Default tax code
+                        "value": tax_code  # Use tax code from settings
                     }
                 }
             }

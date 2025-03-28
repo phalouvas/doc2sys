@@ -36,6 +36,7 @@
   "client_id",
   "client_secret",
   "qb_tax_code",
+  "qb_expense_account",
   "access_token",
   "refresh_token",
   "realm_id"
@@ -220,6 +221,13 @@
    "fieldtype": "Data",
    "label": "QuickBooks Tax Code",
    "description": "The tax code to use for QuickBooks transactions (e.g., 'TAX' or leave empty for 'NON')"
+  },
+  {
+   "depends_on": "eval:doc.integration_type=='QuickBooks'",
+   "fieldname": "qb_expense_account",
+   "fieldtype": "Data",
+   "label": "QuickBooks Expense Account ID",
+   "description": "The ID of the expense account to use for QuickBooks transactions"
   },
   {
    "depends_on": "eval:doc.integration_type=='QuickBooks'",
