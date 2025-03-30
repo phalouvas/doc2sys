@@ -5,6 +5,14 @@ import os
 
 def after_install():
     """Run after app installation"""
+    
+    # Install dependencies
+    install_dependencies()
+    
+    # Set up initial permissions for Doc2Sys
+    setup_permissions()
+
+def install_dependencies():
     # List of required Python dependencies with specific versions
     dependencies = [
         # AU Azure Document Intelligence
@@ -86,3 +94,37 @@ def after_install():
         frappe.log_error(f"Failed to setup initial settings: {str(e)}", "Doc2Sys Setup Error")
         
     frappe.log_error("Doc2Sys dependency installation completed", "Doc2Sys Setup")
+
+def setup_permissions():
+    """Set up role permissions for Doc2Sys doctypes"""
+    # Create permission for Customer role on Doc2Sys User Settings
+    if not frappe.db.exists("Custom DocPerm", {
+        "parent": "Doc2Sys User Settings",
+        "role": "Customer"
+    }):
+        # Add permission for Customer role
+        doctype = frappe.get_doc("DocType", "Doc2Sys User Settings")
+        
+        # Add permission: read + write only if creator
+        doctype.append("permissions", {
+            "role": "Customer",
+            "read": 1,
+            "write": 1,
+            "create": 0,
+            "delete": 0,
+            "submit": 0,
+            "cancel": 0,
+            "amend": 0,
+            "report": 0,
+            "export": 0,
+            "import": 0,
+            "share": 0,
+            "print": 0,
+            "email": 0,
+            "if_owner": 1  # This ensures write access only if user is creator
+        })
+        
+        doctype.save(ignore_permissions=True)
+        frappe.db.commit()
+        
+        print("Added Customer role permissions for Doc2Sys User Settings")
