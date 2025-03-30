@@ -2,7 +2,7 @@ import frappe
 
 def update_user_credits(payment_entry, method):
     """
-    Increase user credits when a customer payment entry is submitted
+    Increase user credits when a customer payment entry is submitted for credit items
     """
     # Only process if this is a payment receipt (not a payment made)
     if payment_entry.payment_type != "Receive":
@@ -10,6 +10,42 @@ def update_user_credits(payment_entry, method):
     
     # Only process customer payments
     if payment_entry.party_type != "Customer":
+        return
+    
+    # Check if payment entry has references to sales invoices
+    if not payment_entry.references or len(payment_entry.references) == 0:
+        return
+    
+    # Get credits item from Doc2Sys Settings
+    doc2sys_settings = frappe.get_doc("Doc2Sys Settings", "Doc2Sys Settings")
+    if not doc2sys_settings.credits_item:
+        frappe.log_error(
+            "Credits item not configured in Doc2Sys Settings",
+            "Payment Credit Update Error"
+        )
+        return
+    
+    credits_item = doc2sys_settings.credits_item
+    has_credits_item = False
+    
+    # Check if any of the referenced sales invoices contain the credits item
+    for ref in payment_entry.references:
+        if ref.reference_doctype != "Sales Invoice":
+            continue
+            
+        sales_invoice = frappe.get_doc("Sales Invoice", ref.reference_name)
+        
+        # Check if any items in this invoice match the credits item
+        for item in sales_invoice.items:
+            if item.item_code == credits_item:
+                has_credits_item = True
+                break
+                
+        if has_credits_item:
+            break
+    
+    # If no credits item was found in any invoice, don't update credits
+    if not has_credits_item:
         return
     
     customer = payment_entry.party
