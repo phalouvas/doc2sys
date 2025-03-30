@@ -266,7 +266,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-30 12:04:23.915546",
+ "modified": "2025-03-30 17:20:03.844518",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys User Settings",
@@ -286,8 +286,7 @@
   {
    "if_owner": 1,
    "read": 1,
-   "role": "Customer",
-   "write": 1
+   "role": "Customer"
   }
  ],
  "sort_field": "modified",
