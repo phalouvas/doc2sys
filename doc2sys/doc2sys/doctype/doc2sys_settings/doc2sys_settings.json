@@ -10,6 +10,7 @@
   "column_break_4",
   "max_file_size_mb",
   "credits",
+  "credits_item",
   "file_types_section",
   "supported_file_types",
   "llm_integration_tab",
@@ -56,9 +57,12 @@
    "options": "Doc2Sys File Type"
   },
   {
+   "default": "0",
    "fieldname": "credits",
    "fieldtype": "Currency",
-   "label": "Initial Credits"
+   "in_list_view": 1,
+   "label": "Initial Credits",
+   "reqd": 1
   },
   {
    "fieldname": "llm_integration_tab",
@@ -100,14 +104,22 @@
   {
    "fieldname": "cost_prebuilt_invoice_per_page",
    "fieldtype": "Currency",
-   "label": "Cost (€) per 1,000 pages",
+   "label": "Cost (\u20ac) per 1,000 pages",
    "non_negative": 1
+  },
+  {
+   "fieldname": "credits_item",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Credits Item",
+   "options": "Item",
+   "reqd": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-03-27 06:31:14.109166",
+ "modified": "2025-03-30 18:05:32.136335",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Settings",
