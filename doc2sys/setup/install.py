@@ -5,6 +5,11 @@ import os
 
 def after_install():
     """Run after app installation"""
+    
+    # Install dependencies
+    install_dependencies()
+
+def install_dependencies():
     # List of required Python dependencies with specific versions
     dependencies = [
         # AU Azure Document Intelligence
@@ -41,48 +46,4 @@ def after_install():
                 "Doc2Sys Setup Error"
             )
     
-    # Display message about system dependencies
-    frappe.log_error(
-        "IMPORTANT: To use OCR features, you must install Tesseract OCR on your system.",
-        "Doc2Sys Setup"
-    )
-    frappe.log_error(
-        "For Ubuntu/Debian: sudo apt-get install tesseract-ocr tesseract-ocr-eng tesseract-ocr-ell",
-        "Doc2Sys Setup"
-    )
-    
-    # Verify key installations
-    try:
-        verify_packages = ["pytesseract", "PyPDF2", "docx", "cv2", "pdf2image"]
-        for pkg in verify_packages:
-            try:
-                module = __import__(pkg)
-                frappe.log_error(f"✓ {pkg} verified - version: {getattr(module, '__version__', 'unknown')}", "Doc2Sys Setup")
-            except ImportError:
-                frappe.log_error(f"✗ {pkg} import failed after installation", "Doc2Sys Setup Error")
-    except Exception as e:
-        frappe.log_error(f"Failed to verify package installations: {str(e)}", "Doc2Sys Setup Error")
-        
-    # Check if Tesseract is installed on the system
-    try:
-        import pytesseract
-        version = pytesseract.get_tesseract_version()
-        frappe.log_error(f"✓ Tesseract OCR found - version: {version}", "Doc2Sys Setup")
-        
-        # Get available languages
-        languages = pytesseract.get_languages()
-        frappe.log_error(f"✓ Tesseract languages available: {', '.join(languages)}", "Doc2Sys Setup")
-    except Exception as e:
-        frappe.log_error(f"✗ Unable to detect Tesseract OCR: {str(e)}", "Doc2Sys Setup Error")
-    
-    # Initialize default settings
-    try:
-        # Create default OCR language settings if needed
-        if not frappe.db.exists("DocType", "Doc2Sys OCR Language"):
-            frappe.log_error("Setting up default OCR languages", "Doc2Sys Setup")
-            settings = frappe.get_doc("Doc2Sys Settings")
-            settings.add_common_languages()
-    except Exception as e:
-        frappe.log_error(f"Failed to setup initial settings: {str(e)}", "Doc2Sys Setup Error")
-        
     frappe.log_error("Doc2Sys dependency installation completed", "Doc2Sys Setup")
