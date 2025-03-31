@@ -284,7 +284,8 @@ def upload_and_create_item():
                     "message": _("Document uploaded and processed successfully"),
                     "doc2sys_item": doc.name,
                     "cost": doc.cost,
-                    "extracted_data": doc.extracted_data
+                    "extracted_data": doc.extracted_data,
+                    "extracted_doc": doc.extracted_doc
                 }
             except Exception as process_error:
                 return {
