@@ -19,6 +19,7 @@
   "classification_confidence",
   "cost",
   "extracted_data_tab",
+  "extracted_doc",
   "extracted_text",
   "column_break_ibav",
   "extracted_data",
@@ -136,11 +137,17 @@
    "in_standard_filter": 1,
    "label": "Name",
    "read_only": 1
+  },
+  {
+   "fieldname": "extracted_doc",
+   "fieldtype": "Long Text",
+   "label": "Extracted Doc",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-30 12:04:24.113283",
+ "modified": "2025-03-31 07:19:58.505512",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",

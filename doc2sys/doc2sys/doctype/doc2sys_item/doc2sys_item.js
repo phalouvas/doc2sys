@@ -45,7 +45,7 @@ frappe.ui.form.on('Doc2Sys Item', {
         // Add custom buttons or functionality here
         // Add buttons if a document is attached
             // Add Extract Data button
-        if(frm.doc.single_file) {
+        if(frm.doc.status === 'Uploaded') {
             frm.add_custom_button(__('Extract Data'), function() {
                 // Show full screen processing overlay
                 frappe.dom.freeze(__('Extracting data from document...'));
