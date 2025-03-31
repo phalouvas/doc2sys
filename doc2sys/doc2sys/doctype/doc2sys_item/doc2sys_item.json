@@ -140,14 +140,15 @@
   },
   {
    "fieldname": "extracted_doc",
-   "fieldtype": "Long Text",
+   "fieldtype": "Code",
    "label": "Extracted Doc",
+   "options": "JSON",
    "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-31 07:19:58.505512",
+ "modified": "2025-03-31 08:23:12.413085",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Item",

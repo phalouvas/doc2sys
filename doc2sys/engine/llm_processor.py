@@ -568,35 +568,6 @@ class AzureDocumentIntelligenceProcessor:
         
         return extracted_data
 
-    def _get_field_value(self, fields, field_name):
-        """Extract a field value from Azure Document Intelligence results"""
-        if field_name not in fields:
-            return None
-            
-        field = fields[field_name]
-        if not field:
-            return None
-            
-        # Handle different value types
-        if "valueString" in field:
-            return field["valueString"]
-        elif "valueDate" in field:
-            return field["valueDate"]
-        elif "valueTime" in field:
-            return field["valueTime"]
-        elif "valuePhoneNumber" in field:
-            return field["valuePhoneNumber"]
-        elif "valueNumber" in field:
-            return field["valueNumber"]
-        elif "valueCurrency" in field:
-            return field["valueCurrency"]["amount"]
-        elif "valueArray" in field:
-            return field["valueArray"]
-        elif "valueObject" in field:
-            return field["valueObject"]
-        
-        return None
-        
     def _get_nested_value(self, obj, *keys):
         """Get a value from a nested dictionary by navigating through multiple keys"""
         current = obj
