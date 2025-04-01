@@ -16,28 +16,29 @@ def update_user_credits(payment_entry, method):
     if not payment_entry.references or len(payment_entry.references) == 0:
         return
     
-    # Get credits item from Doc2Sys Settings
+    # Get credit settings from Doc2Sys Settings
     doc2sys_settings = frappe.get_doc("Doc2Sys Settings", "Doc2Sys Settings")
-    if not doc2sys_settings.credits_item:
+    if not doc2sys_settings.credits_item_group:
         frappe.log_error(
-            "Credits item not configured in Doc2Sys Settings",
+            "Credits item group not configured in Doc2Sys Settings",
             "Payment Credit Update Error"
         )
         return
     
-    credits_item = doc2sys_settings.credits_item
+    credits_item_group = doc2sys_settings.credits_item_group
     has_credits_item = False
     
-    # Check if any of the referenced sales invoices contain the credits item
+    # Check if any of the referenced sales invoices contain items from the credits item group
     for ref in payment_entry.references:
         if ref.reference_doctype != "Sales Invoice":
             continue
             
         sales_invoice = frappe.get_doc("Sales Invoice", ref.reference_name)
         
-        # Check if any items in this invoice match the credits item
+        # Check if any items in this invoice belong to the credits item group
         for item in sales_invoice.items:
-            if item.item_code == credits_item:
+            item_doc = frappe.get_doc("Item", item.item_code)
+            if item_doc.item_group == credits_item_group:
                 has_credits_item = True
                 break
                 

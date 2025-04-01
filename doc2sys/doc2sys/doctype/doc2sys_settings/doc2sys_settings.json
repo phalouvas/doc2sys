@@ -10,7 +10,6 @@
   "column_break_4",
   "max_file_size_mb",
   "credits",
-  "credits_item",
   "credits_item_group",
   "file_types_section",
   "supported_file_types",
@@ -109,14 +108,6 @@
    "non_negative": 1
   },
   {
-   "fieldname": "credits_item",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Credits Item",
-   "options": "Item",
-   "reqd": 1
-  },
-  {
    "fieldname": "credits_item_group",
    "fieldtype": "Link",
    "label": "Credits Item Group",
@@ -127,7 +118,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-04-01 09:51:38.216741",
+ "modified": "2025-04-01 17:06:20.528035",
  "modified_by": "Administrator",
  "module": "Doc2Sys",
  "name": "Doc2Sys Settings",
