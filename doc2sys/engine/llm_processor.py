@@ -195,9 +195,11 @@ class AzureDocumentIntelligenceProcessor:
                         result_dict = json.loads(doc2sys_item_doc.azure_raw_response)
 
                         # Process the cached result to extract structured data
-                        extracted_data = self._process_azure_extraction_results(result_dict)
+                        extracted_data, extracted_doc = self._process_azure_extraction_results(result_dict)
                         extracted_data = frappe.as_json(extracted_data, 1, None, False)
                         doc2sys_item_doc.db_set('extracted_data', extracted_data, update_modified=False)
+                        extracted_doc = frappe.as_json(extracted_doc, 1, None, False)
+                        doc2sys_item_doc.db_set('extracted_doc', extracted_doc, update_modified=False)
                         frappe.db.commit()
                         
                         return extracted_data
@@ -234,8 +236,9 @@ class AzureDocumentIntelligenceProcessor:
             serialized_result = json.dumps(result_dict, ensure_ascii=False)
             
             # Process the result to extract structured data
-            extracted_data = self._process_azure_extraction_results(result_dict)
+            extracted_data, extracted_doc = self._process_azure_extraction_results(result_dict)
             extracted_data = frappe.as_json(extracted_data, 1, None, False)
+            extracted_doc = frappe.as_json(extracted_doc, 1, None, False)
 
             # Get the number of pages in result_dict
             cost = len(result_dict.get("pages", [])) * self.cost_prebuilt_invoice_per_page / 1000
@@ -252,6 +255,7 @@ class AzureDocumentIntelligenceProcessor:
                     
                     # Use db_set to directly update field without triggering validation
                     doc2sys_item_doc.db_set('extracted_data', extracted_data, update_modified=False)
+                    doc2sys_item_doc.db_set('extracted_doc', extracted_doc, update_modified=False)
                     doc2sys_item_doc.db_set('azure_raw_response', serialized_result, update_modified=False)
                     doc2sys_item_doc.db_set('extracted_text', extracted_text, update_modified=False)
                     doc2sys_item_doc.db_set('cost', cost, update_modified=False)
@@ -290,6 +294,7 @@ class AzureDocumentIntelligenceProcessor:
             # Get the extracted fields from the Azure response
             if 'documents' in result_dict and len(result_dict['documents']) > 0:
                 doc = result_dict['documents'][0]
+                extracted_doc = self._process_azure_doc(doc)
                 fields = doc.get('fields', {})
                 
                 # Extract generic document data based on document type
@@ -300,10 +305,40 @@ class AzureDocumentIntelligenceProcessor:
                 elif document_type in ["prebuilt-document", "prebuilt-layout", "prebuilt-read"]:
                     extracted_data = self._process_generic_document_result(result_dict)
             
-            return extracted_data
+            return extracted_data, extracted_doc
         except Exception as e:
             logger.error(f"Error processing Azure extraction results: {str(e)}")
             return {}
+        
+    def _process_azure_doc(self, doc: Dict[str, Any]) -> Dict[str, Any]:
+        extracted_doc = {}
+
+        extracted_doc['confidence'] = doc.get('confidence', 0.0)
+        extracted_doc['docType'] = doc.get('docType', 'Unknown')
+
+        # Extract document fields
+        if 'fields' in doc:
+            fields = doc['fields']
+            for field_name, field_value in fields.items():
+                if isinstance(field_value, dict):
+                    extracted_doc[field_name] = self._extract_nested_fields(field_value)
+                else:
+                    extracted_doc[field_name] = field_value
+        return extracted_doc
+    
+    def _extract_nested_fields(self, field_value: Dict[str, Any]) -> Dict[str, Any]:
+        """Recursively extract nested fields from Azure Document Intelligence response"""
+        extracted_fields = {}
+        for key, value in field_value.items():
+            if key == "boundingRegions" or key == "spans":
+                continue
+            if isinstance(value, dict):
+                extracted_fields[key] = self._extract_nested_fields(value)
+            elif isinstance(value, list):
+                extracted_fields[key] = [self._extract_nested_fields(item) if isinstance(item, dict) else item for item in value]
+            else:
+                extracted_fields[key] = value
+        return extracted_fields
         
     def _process_invoice_result(self, fields: Dict) -> Dict:
         """Process invoice-specific fields from Azure"""
@@ -533,35 +568,6 @@ class AzureDocumentIntelligenceProcessor:
         
         return extracted_data
 
-    def _get_field_value(self, fields, field_name):
-        """Extract a field value from Azure Document Intelligence results"""
-        if field_name not in fields:
-            return None
-            
-        field = fields[field_name]
-        if not field:
-            return None
-            
-        # Handle different value types
-        if "valueString" in field:
-            return field["valueString"]
-        elif "valueDate" in field:
-            return field["valueDate"]
-        elif "valueTime" in field:
-            return field["valueTime"]
-        elif "valuePhoneNumber" in field:
-            return field["valuePhoneNumber"]
-        elif "valueNumber" in field:
-            return field["valueNumber"]
-        elif "valueCurrency" in field:
-            return field["valueCurrency"]["amount"]
-        elif "valueArray" in field:
-            return field["valueArray"]
-        elif "valueObject" in field:
-            return field["valueObject"]
-        
-        return None
-        
     def _get_nested_value(self, obj, *keys):
         """Get a value from a nested dictionary by navigating through multiple keys"""
         current = obj

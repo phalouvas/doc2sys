@@ -75,14 +75,12 @@ class Doc2SysItem(Document):
     
     @frappe.whitelist()
     def extract_data(self):
-        if not self.single_file:
-            frappe.msgprint("No document is attached to extract data from")
+        if not self.single_file and not self.azure_raw_response:
+            frappe.msgprint(_("No document is attached to extract data from"))
             return False
         
         try:
             file_path = self._get_file_path()
-            if not file_path:
-                frappe.throw(_("Could not find the file path"))
             
             # Get processor and upload file only if needed
             processor = LLMProcessor(doc2sys_item=self)
@@ -108,7 +106,6 @@ class Doc2SysItem(Document):
                 )
 
                 if not file_doc or len(file_doc) == 0:
-                    files_not_found += 1
                     frappe.db.commit()
                     return True
                 
@@ -287,7 +284,8 @@ def upload_and_create_item():
                     "message": _("Document uploaded and processed successfully"),
                     "doc2sys_item": doc.name,
                     "cost": doc.cost,
-                    "extracted_data": doc.extracted_data
+                    "extracted_data": doc.extracted_data,
+                    "extracted_doc": doc.extracted_doc
                 }
             except Exception as process_error:
                 return {
