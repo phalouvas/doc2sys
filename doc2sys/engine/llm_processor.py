@@ -240,8 +240,16 @@ class AzureDocumentIntelligenceProcessor:
             extracted_data = frappe.as_json(extracted_data, 1, None, False)
             extracted_doc = frappe.as_json(extracted_doc, 1, None, False)
 
-            # Get the number of pages in result_dict
+            # Calculate cost
             cost = len(result_dict.get("pages", [])) * self.cost_prebuilt_invoice_per_page / 1000
+            try:
+                currency_precision = frappe.get_precision("Currency", "amount")
+                if currency_precision is None:
+                    currency_precision = 2  # Default to 2 decimal places
+            except:
+                currency_precision = 2  # Default to 2 decimal places if anything goes wrong
+            cost = round(cost, currency_precision)
+
             doc = result_dict.get("documents")[0]
             confidence = doc.get("confidence")
             
