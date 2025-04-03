@@ -6,6 +6,10 @@ def get_context(context):
         frappe.local.flags.redirect_location = '/login'
         raise frappe.Redirect
     
+    # Check if user has Customer role
+    if not frappe.db.exists("Has Role", {"parent": frappe.session.user, "role": "Customer"}):
+        frappe.throw(_("You need Customer role to access this page"))
+    
     context.no_cache = 1
     context.show_sidebar = True
     

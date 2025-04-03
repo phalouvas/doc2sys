@@ -53,10 +53,7 @@ frappe.ready(function() {
         }
         
         frappe.call({
-            method: "frappe.core.doctype.user.user.generate_keys",
-            args: {
-                user: "{{ frappe.session.user }}"
-            },
+            method: "doc2sys.doc2sys.utils.portal_api_keys.generate_api_keys_for_portal_user",
             callback: function(response) {
                 if (response.message) {
                     // Show the newly generated secret
