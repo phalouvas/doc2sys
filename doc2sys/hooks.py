@@ -246,3 +246,8 @@ scheduler_events = {
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
+
+# Add the portal page route
+website_route_rules = [
+    {"from_route": "/api-keys", "to_route": "api_keys"},
+]

@@ -1,0 +1,86 @@
+{% extends "templates/web.html" %}
+
+{% block title %}{{ _("API Keys") }}{% endblock %}
+
+{% block page_content %}
+<div class="container api-keys-container">
+    <h1>{{ _("API Keys") }}</h1>
+    
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="mb-3">
+                <h5 class="mb-2">{{ _("API Key") }}</h5>
+                {% if api_key %}
+                <div class="api-key-display p-2 bg-light rounded">
+                    <code>{{ api_key }}</code>
+                </div>
+                {% else %}
+                <div class="text-muted">{{ _("No API key generated") }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                <h5 class="mb-2">{{ _("API Secret") }}</h5>
+                {% if has_api_secret %}
+                <div class="text-muted">{{ _("API Secret exists but is hidden for security") }}</div>
+                {% else %}
+                <div class="text-muted">{{ _("No API secret generated") }}</div>
+                {% endif %}
+            </div>
+            
+            <div id="generated-secret-container" class="d-none alert alert-success mb-3">
+                <h5 class="mb-2">{{ _("Generated API Secret") }}</h5>
+                <div class="mb-2">{{ _("Copy this secret now. For security reasons, it will not be shown again!") }}</div>
+                <div class="p-2 bg-light rounded">
+                    <code id="generated-secret"></code>
+                </div>
+            </div>
+            
+            <div class="mt-4">
+                <button id="generate-keys-btn" class="btn btn-primary">
+                    {{ _("Generate New API Keys") }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+frappe.ready(function() {
+    $('#generate-keys-btn').on('click', function() {
+        if (!confirm("{{ _('Generating new keys will invalidate any existing keys. Are you sure?') }}")) {
+            return;
+        }
+        
+        frappe.call({
+            method: "frappe.core.doctype.user.user.generate_keys",
+            args: {
+                user: "{{ frappe.session.user }}"
+            },
+            callback: function(response) {
+                if (response.message) {
+                    // Show the newly generated secret
+                    $('#generated-secret').text(response.message.api_secret);
+                    $('#generated-secret-container').removeClass('d-none');
+                    
+                    // Update the displayed API key
+                    $('.api-key-display code').text(response.message.api_key);
+                    $('.api-key-display').parent().find('.text-muted').addClass('d-none');
+                    $('.api-key-display').removeClass('d-none');
+                    
+                    frappe.show_alert({
+                        message: "{{ _('API keys generated successfully!') }}",
+                        indicator: 'green'
+                    });
+                    
+                    // Reload the page after 10 seconds to hide the secret
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 10000);
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
