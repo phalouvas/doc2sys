@@ -16,8 +16,11 @@ def get_context(context):
 
 def get_user_credits_balance():
     user = frappe.session.user
-    credits_info = frappe.get_doc("Doc2Sys User Settings", {"user": user})
-    if not credits_info:
+    try:
+        credits_info = frappe.get_doc("Doc2Sys User Settings", {"user": user})
+        return credits_info.credits or 0
+    except frappe.DoesNotExistError:
         return _("User settings not found")
-    
-    return credits_info.credits or 0
+    except Exception as e:
+        frappe.log_error(f"Error fetching credits balance: {str(e)}")
+        return _("Error fetching credits balance")
