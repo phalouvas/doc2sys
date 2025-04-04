@@ -10,7 +10,8 @@ def get_context(context):
     # Format the balance with currency
     context.formatted_balance = fmt_money(credits_balance, currency=currency)
 
-    context.title = "Invoice2Erpnext Credits Balance"
+    context.no_cache = 1
+    context.show_sidebar = True
  
     return context
 
