@@ -16,93 +16,101 @@ def update_user_credits(payment_entry, method):
     if not payment_entry.references or len(payment_entry.references) == 0:
         return
     
-    # Get credit settings from Doc2Sys Settings
-    doc2sys_settings = frappe.get_doc("Doc2Sys Settings", "Doc2Sys Settings")
-    if not doc2sys_settings.credits_item_group:
-        frappe.log_error(
-            "Credits item group not configured in Doc2Sys Settings",
-            "Payment Credit Update Error"
-        )
-        return
+    # Store original permission flag and set to ignore permissions
+    original_ignore_perms = frappe.flags.ignore_permissions
+    frappe.flags.ignore_permissions = True
     
-    credits_item_group = doc2sys_settings.credits_item_group
-    has_credits_item = False
-    
-    # Check if any of the referenced sales invoices contain items from the credits item group
-    for ref in payment_entry.references:
-        if ref.reference_doctype != "Sales Invoice":
-            continue
-            
-        sales_invoice = frappe.get_doc("Sales Invoice", ref.reference_name)
+    try:
+        # Get credit settings from Doc2Sys Settings
+        doc2sys_settings = frappe.get_doc("Doc2Sys Settings", "Doc2Sys Settings")
+        if not doc2sys_settings.credits_item_group:
+            frappe.log_error(
+                "Credits item group not configured in Doc2Sys Settings",
+                "Payment Credit Update Error"
+            )
+            return
         
-        # Check if any items in this invoice belong to the credits item group
-        for item in sales_invoice.items:
-            item_doc = frappe.get_doc("Item", item.item_code)
-            if item_doc.item_group == credits_item_group:
-                has_credits_item = True
-                break
+        credits_item_group = doc2sys_settings.credits_item_group
+        has_credits_item = False
+        
+        # Check if any of the referenced sales invoices contain items from the credits item group
+        for ref in payment_entry.references:
+            if ref.reference_doctype != "Sales Invoice":
+                continue
                 
-        if has_credits_item:
-            break
-    
-    # If no credits item was found in any invoice, don't update credits
-    if not has_credits_item:
-        return
-    
-    customer = payment_entry.party
-    payment_amount = payment_entry.paid_amount
-    
-    # Find the user linked to this customer
-    customer = frappe.get_doc("Customer", customer)
-    if not customer:
-        frappe.log_error(
-            f"Cannot find customer {customer}",
-            "Payment Credit Update Error"
+            sales_invoice = frappe.get_doc("Sales Invoice", ref.reference_name)
+            
+            # Check if any items in this invoice belong to the credits item group
+            for item in sales_invoice.items:
+                item_doc = frappe.get_doc("Item", item.item_code)
+                if item_doc.item_group == credits_item_group:
+                    has_credits_item = True
+                    break
+                    
+            if has_credits_item:
+                break
+        
+        # If no credits item was found in any invoice, don't update credits
+        if not has_credits_item:
+            return
+        
+        customer = payment_entry.party
+        payment_amount = payment_entry.paid_amount
+        
+        # Find the user linked to this customer
+        customer = frappe.get_doc("Customer", customer)
+        if not customer:
+            frappe.log_error(
+                f"Cannot find customer {customer}",
+                "Payment Credit Update Error"
+            )
+            return
+        
+        if not customer.portal_users:
+            frappe.log_error(
+                f"No portal users found for customer {customer}",
+                "Payment Credit Update Error"
+            )
+            return
+        
+        user = customer.portal_users[0].user
+        
+        if not user:
+            frappe.log_error(
+                f"Cannot find user for customer {customer}",
+                "Payment Credit Update Error"
+            )
+            return
+        
+        # Find the user settings for this user
+        user_settings = frappe.get_all(
+            "Doc2Sys User Settings", 
+            filters={"user": user},
+            fields=["name", "credits"]
         )
-        return
-    
-    if not customer.portal_users:
-        frappe.log_error(
-            f"No portal users found for customer {customer}",
-            "Payment Credit Update Error"
-        )
-        return
-    
-    user = customer.portal_users[0].user
-    
-    if not user:
-        frappe.log_error(
-            f"Cannot find user for customer {customer}",
-            "Payment Credit Update Error"
-        )
-        return
-    
-    # Find the user settings for this user
-    user_settings = frappe.get_all(
-        "Doc2Sys User Settings", 
-        filters={"user": user},
-        fields=["name", "credits"]
-    )
-    
-    if not user_settings:
-        frappe.log_error(
-            f"No Doc2Sys User Settings found for user {user} (customer {customer})",
-            "Payment Credit Update Error"
-        )
-        return
-    
-    # Get the user setting (there should be only one per user)
-    user_setting = user_settings[0]
-    
-    # Get the current credits value
-    current_credits = user_setting.credits or 0
-    new_credits = current_credits + payment_amount
-    
-    # Update the credits using standard database update
-    frappe.db.set_value("Doc2Sys User Settings", user_setting.name, "credits", new_credits)
-    
-    # Display the message
-    frappe.msgprint(f"Your credits updated: {current_credits} → {new_credits}")
+        
+        if not user_settings:
+            frappe.log_error(
+                f"No Doc2Sys User Settings found for user {user} (customer {customer})",
+                "Payment Credit Update Error"
+            )
+            return
+        
+        # Get the user setting (there should be only one per user)
+        user_setting = user_settings[0]
+        
+        # Get the current credits value
+        current_credits = user_setting.credits or 0
+        new_credits = current_credits + payment_amount
+        
+        # Update the credits using standard database update
+        frappe.db.set_value("Doc2Sys User Settings", user_setting.name, "credits", new_credits)
+        
+        # Display the message
+        frappe.msgprint(f"Your credits updated: {current_credits} → {new_credits}")
+    finally:
+        # Always restore the original permission flag when function exits
+        frappe.flags.ignore_permissions = original_ignore_perms
 
 def deduct_user_credits(user, amount, doc_reference=None):
     """
