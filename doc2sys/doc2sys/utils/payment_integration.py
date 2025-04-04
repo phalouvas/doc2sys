@@ -1,35 +1,42 @@
 import frappe
+from frappe import _
 
 def update_user_credits(payment_entry, method):
     """
     Increase user credits when a customer payment entry is submitted for credit items
     """
-    # Only process if this is a payment receipt (not a payment made)
-    if payment_entry.payment_type != "Receive":
-        return
-    
-    # Only process customer payments
-    if payment_entry.party_type != "Customer":
-        return
-    
-    # Check if payment entry has references to sales invoices
-    if not payment_entry.references or len(payment_entry.references) == 0:
-        return
-    
-    # Store original permission flag and set to ignore permissions
+    # Store original permission flag
     original_ignore_perms = frappe.flags.ignore_permissions
-    frappe.flags.ignore_permissions = True
     
     try:
+        # Only process if this is a payment receipt (not a payment made)
+        if payment_entry.payment_type != "Receive":
+            return
+        
+        # Only process customer payments
+        if payment_entry.party_type != "Customer":
+            return
+        
+        # Check if payment entry has references to sales invoices
+        if not payment_entry.references or len(payment_entry.references) == 0:
+            return
+        
         # Get credit settings from Doc2Sys Settings
-        doc2sys_settings = frappe.get_doc("Doc2Sys Settings", "Doc2Sys Settings")
-        if not doc2sys_settings.credits_item_group:
+        try:
+            doc2sys_settings = frappe.get_doc("Doc2Sys Settings", "Doc2Sys Settings")
+            if not doc2sys_settings.credits_item_group:
+                frappe.log_error(
+                    "Credits item group not configured in Doc2Sys Settings",
+                    "Payment Credit Update Error"
+                )
+                return
+        except Exception as e:
             frappe.log_error(
-                "Credits item group not configured in Doc2Sys Settings",
+                f"Error retrieving Doc2Sys Settings: {str(e)}",
                 "Payment Credit Update Error"
             )
             return
-        
+            
         credits_item_group = doc2sys_settings.credits_item_group
         total_credits_to_add = 0
         
@@ -108,10 +115,23 @@ def update_user_credits(payment_entry, method):
         new_credits = current_credits + payment_amount
         
         # Update the credits using standard database update
-        frappe.db.set_value("Doc2Sys User Settings", user_setting.name, "credits", new_credits)
-        
-        # Display the message
-        frappe.msgprint(f"Your credits updated: {current_credits} → {new_credits}")
+        try:
+            frappe.db.set_value("Doc2Sys User Settings", user_setting.name, "credits", new_credits)
+            frappe.msgprint(f"Your credits updated: {current_credits} → {new_credits}")
+        except Exception as e:
+            frappe.log_error(
+                f"Failed to update credits for user {user}: {str(e)}",
+                "Payment Credit Update Error"
+            )
+            
+    except Exception as e:
+        # Catch any unexpected exceptions
+        frappe.log_error(
+            f"Unexpected error in update_user_credits for payment {payment_entry.name}: {str(e)}",
+            "Payment Credit Update Error"
+        )
+        # Optionally re-raise if you want the payment to fail when credits can't be updated
+        # raise
     finally:
         # Always restore the original permission flag when function exits
         frappe.flags.ignore_permissions = original_ignore_perms
