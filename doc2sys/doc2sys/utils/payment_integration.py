@@ -31,31 +31,35 @@ def update_user_credits(payment_entry, method):
             return
         
         credits_item_group = doc2sys_settings.credits_item_group
-        has_credits_item = False
+        total_credits_to_add = 0
         
-        # Check if any of the referenced sales invoices contain items from the credits item group
+        # Calculate credits based on net amount of items from the credits item group
         for ref in payment_entry.references:
             if ref.reference_doctype != "Sales Invoice":
                 continue
                 
             sales_invoice = frappe.get_doc("Sales Invoice", ref.reference_name)
+            invoice_credit_items_total = 0
             
-            # Check if any items in this invoice belong to the credits item group
+            # Sum up net amount of credit items in this invoice
             for item in sales_invoice.items:
                 item_doc = frappe.get_doc("Item", item.item_code)
                 if item_doc.item_group == credits_item_group:
-                    has_credits_item = True
-                    break
-                    
-            if has_credits_item:
-                break
+                    invoice_credit_items_total += item.net_amount
+            
+            # If this invoice has credit items, calculate the portion being paid
+            if invoice_credit_items_total > 0:
+                # Calculate what percentage of the invoice is being paid with this payment
+                payment_percentage = min(ref.allocated_amount / sales_invoice.grand_total, 1.0)
+                # Add the corresponding portion of credit items to the total
+                total_credits_to_add += invoice_credit_items_total * payment_percentage
         
-        # If no credits item was found in any invoice, don't update credits
-        if not has_credits_item:
+        # If no credits to add, don't proceed
+        if total_credits_to_add <= 0:
             return
         
         customer = payment_entry.party
-        payment_amount = payment_entry.paid_amount
+        payment_amount = total_credits_to_add  # Use calculated net amount instead of paid_amount
         
         # Find the user linked to this customer
         customer = frappe.get_doc("Customer", customer)
