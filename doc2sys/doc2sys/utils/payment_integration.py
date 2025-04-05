@@ -42,22 +42,22 @@ def update_user_credits(payment_entry, method):
         
         # Calculate credits based on net amount of items from the credits item group
         for ref in payment_entry.references:
-            if ref.reference_doctype != "Sales Invoice":
+            if ref.reference_doctype not in ["Sales Invoice", "Sales Order"]:
                 continue
                 
-            sales_invoice = frappe.get_doc("Sales Invoice", ref.reference_name)
+            reference_doc = frappe.get_doc(ref.reference_doctype, ref.reference_name)
             invoice_credit_items_total = 0
             
-            # Sum up net amount of credit items in this invoice
-            for item in sales_invoice.items:
+            # Sum up net amount of credit items in this invoice or order
+            for item in reference_doc.items:
                 item_doc = frappe.get_doc("Item", item.item_code)
                 if item_doc.item_group == credits_item_group:
                     invoice_credit_items_total += item.net_amount
             
-            # If this invoice has credit items, calculate the portion being paid
+            # If this document has credit items, calculate the portion being paid
             if invoice_credit_items_total > 0:
-                # Calculate what percentage of the invoice is being paid with this payment
-                payment_percentage = min(ref.allocated_amount / sales_invoice.grand_total, 1.0)
+                # Calculate what percentage of the document is being paid with this payment
+                payment_percentage = min(ref.allocated_amount / reference_doc.grand_total, 1.0)
                 # Add the corresponding portion of credit items to the total
                 total_credits_to_add += invoice_credit_items_total * payment_percentage
         
