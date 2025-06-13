@@ -17,8 +17,11 @@ def get_context(context):
     user = frappe.get_doc("User", frappe.session.user)
     context.api_key = user.api_key
     
-    # Don't expose the API secret in the context
-    # It will only be shown once after generation
-    context.has_api_secret = bool(user.get_password("api_secret"))
+    # Check if API secret exists without throwing exception
+    try:
+        api_secret = user.get_password("api_secret")
+        context.has_api_secret = bool(api_secret)
+    except frappe.exceptions.AuthenticationError:
+        context.has_api_secret = False
     
     return context
