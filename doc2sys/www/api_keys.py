@@ -20,8 +20,15 @@ def get_context(context):
     # Check if API secret exists without throwing exception
     try:
         api_secret = user.get_password("api_secret")
-        context.has_api_secret = bool(api_secret)
-    except frappe.exceptions.AuthenticationError:
+        # Check for None explicitly, as get_password might return None for missing passwords
+        context.has_api_secret = api_secret is not None and bool(api_secret)
+    except (frappe.exceptions.AuthenticationError, frappe.exceptions.ValidationError, frappe.exceptions.DoesNotExistError) as e:
+        # Catch common Frappe exceptions; log for debugging
+        frappe.log_error(f"Error retrieving api_secret: {e}")
+        context.has_api_secret = False
+    except Exception as e:
+        # Fallback for unexpected exceptions to prevent 417 errors
+        frappe.log_error(f"Unexpected error: {e}")
         context.has_api_secret = False
     
     return context
