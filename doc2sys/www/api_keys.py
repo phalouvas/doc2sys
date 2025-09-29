@@ -19,7 +19,7 @@ def get_context(context):
     
     # Check if API secret exists without throwing exception
     try:
-        api_secret = user.get_password("api_secret")
+        api_secret = user.get_password("api_secret", raise_exception=False)
         # Check for None explicitly, as get_password might return None for missing passwords
         context.has_api_secret = api_secret is not None and bool(api_secret)
     except (frappe.exceptions.AuthenticationError, frappe.exceptions.ValidationError, frappe.exceptions.DoesNotExistError) as e:
