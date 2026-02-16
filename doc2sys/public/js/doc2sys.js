@@ -1,6 +1,9 @@
 frappe.ready(function () {
-    // Only run on the list view
-    if (frappe.web_form_list) {
+    // Only run on the Doc2Sys Document web form list
+    const path = (window.location.pathname || '').replace(/\/+$/, '');
+    const is_document_list = path === '/document';
+
+    if (frappe.web_form_list && is_document_list) {
         // Add the upload button and credits container to the list view
         $('.web-list-header').append(`
             <div class="d-flex align-items-center">
