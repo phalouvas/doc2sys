@@ -85,7 +85,7 @@ doctype_list_js = {
 # ------------
 
 # before_install = "doc2sys.install.before_install"
-after_install = "doc2sys.setup.install.after_install"
+# after_install = "doc2sys.setup.install.after_install"
 
 # Uninstallation
 # ------------
