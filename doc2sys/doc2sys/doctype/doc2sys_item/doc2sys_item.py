@@ -128,7 +128,13 @@ class Doc2SysItem(Document):
         
         except Exception as e:
             error_message = f"Error extracting data: {str(e)}"
-            frappe.log_error(error_message, _("Document Extraction Error"))
+            try:
+                frappe.log_error(
+                    title="Document Extraction Error",
+                    message=f"{error_message}\n{frappe.get_traceback()}"
+                )
+            except Exception:
+                pass
             frappe.msgprint(_(error_message))
             return False
         
@@ -168,7 +174,13 @@ class Doc2SysItem(Document):
                 
         except Exception as e:
             error_message = f"Error processing integrations: {str(e)}"
-            frappe.log_error(error_message, _("Integration Error"))
+            try:
+                frappe.log_error(
+                    title="Integration Error",
+                    message=f"{error_message}\n{frappe.get_traceback()}"
+                )
+            except Exception:
+                pass
             frappe.msgprint(_(error_message))
             return {"success": False, "message": error_message}
 
@@ -183,7 +195,7 @@ class Doc2SysItem(Document):
             # First extract data
             extraction_success = self.extract_data()
             if not extraction_success:
-                return False
+                return {"success": False, "message": "Data extraction failed"}
                 
             # Then trigger integrations
             integration_result = self.trigger_integrations()
@@ -191,9 +203,15 @@ class Doc2SysItem(Document):
                 
         except Exception as e:
             error_message = f"Error in processing workflow: {str(e)}"
-            frappe.log_error(error_message, _("Document Processing Error"))
+            try:
+                frappe.log_error(
+                    title="Document Processing Error",
+                    message=f"{error_message}\n{frappe.get_traceback()}"
+                )
+            except Exception:
+                pass
             frappe.msgprint(_(error_message))
-            return False
+            return {"success": False, "message": error_message}
 
 @frappe.whitelist()
 def create_item_from_file(file_doc_name):
@@ -310,7 +328,13 @@ def upload_and_create_item():
             "error_type": "validation"
         }
     except Exception as e:
-        frappe.log_error(f"Error in upload_and_create_item: {str(e)}", "Doc2Sys")
+        try:
+            frappe.log_error(
+                title="Doc2Sys",
+                message=f"Error in upload_and_create_item: {str(e)}\n{frappe.get_traceback()}"
+            )
+        except Exception:
+            pass
         return {
             "success": False,
             "message": _("An unexpected error occurred: {}").format(str(e)),
