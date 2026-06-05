@@ -50,7 +50,10 @@ def create_integration_log(integration_type, status, message, data=None, user=No
         
         # Log based on status
         if status.lower() == "error":
-            frappe.log_error(log_message, f"Integration {status.title()}")
+            frappe.log_error(
+                title=f"Integration {status.title()}",
+                message=log_message
+            )
         elif status.lower() == "warning":
             frappe.logger().warning(log_message)
         elif status.lower() == "success":
@@ -60,12 +63,14 @@ def create_integration_log(integration_type, status, message, data=None, user=No
             
         return f"{integration_type}_{status}"  # Return a reference ID for compatibility
     except Exception as e:
-        # Final fallback
-        frappe.log_error(
-            f"Failed to create log: {str(e)}\n"
-            f"Original info: {integration_type} - {status} - {message}",
-            "Integration Log Error"
-        )
+        # Final fallback - never let error logging crash the handler
+        try:
+            frappe.log_error(
+                title="Integration Log Error",
+                message=f"Failed to create log: {str(e)}\nOriginal info: {integration_type} - {status} - {message}"
+            )
+        except Exception:
+            pass
         return None
 
 # Add another helper function
@@ -166,7 +171,13 @@ def process_integrations(doc2sys_item: Dict[str, Any]) -> Dict[str, Any]:
             integration_class = get_integration_class(integration_name)
             if not integration_class:
                 error_msg = f"Integration type '{integration_name}' not found"
-                frappe.log_error(error_msg, f"[{integration_name}] Integration not found")
+                try:
+                    frappe.log_error(
+                        title=f"[{integration_name}] Integration not found",
+                        message=error_msg
+                    )
+                except Exception:
+                    pass
                 results["integration_results"].append({
                     "integration": integration_name,
                     "success": False,
@@ -195,10 +206,13 @@ def process_integrations(doc2sys_item: Dict[str, Any]) -> Dict[str, Any]:
                 
         except Exception as e:
             error_msg = f"Error processing integration: {str(e)}"
-            frappe.log_error(
-                error_msg, 
-                f"[{integration_name}] Error processing integration | User: {user} | Ref: {doc_name}"
-            )
+            try:
+                frappe.log_error(
+                    title=f"[{integration_name}] Error processing integration",
+                    message=f"User: {user} | Ref: {doc_name}\n{error_msg}"
+                )
+            except Exception:
+                pass
             
             results["integration_results"].append({
                 "integration": integration_name,
