@@ -11,15 +11,12 @@ app_license = "gpl-3.0"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "doc2sys",
-# 		"logo": "/assets/doc2sys/logo.png",
-# 		"title": "Doc2Sys",
-# 		"route": "/doc2sys",
-# 		"has_permission": "doc2sys.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+    {
+    	"name": "doc2sys",
+		"title": "Doc2Sys",
+ 	}
+]
 
 # Includes in <head>
 # ------------------
